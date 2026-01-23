@@ -21,6 +21,7 @@ class Lexer {
 
 public:
     
-    std::expected<Lexer, LexerError> create(const std::string &filename);
+    static std::expected<Lexer, LexerError> create(const std::string &filename);
+    void output_tokens();
 
 };

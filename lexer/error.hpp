@@ -6,6 +6,7 @@ enum class LexerErrorType {
     FAILED_TO_READ_FILE,
     UNEXPECTED_TOKEN,
     UNEXPECTED_EOF,
+    INVALID_ESCAPE,
     UNKNOWN_ERROR
 };
 
@@ -17,7 +18,7 @@ struct LexerError {
     std::string message;
 };
 
-std::unexpected<LexerError> create_error(LexerErrorType e, const Input& buff, const std::string& message) {
+inline std::unexpected<LexerError> create_error(LexerErrorType e, const Input& buff, const std::string& message) {
     auto line_num = buff.get_col_number();
     return std::unexpected<LexerError>(LexerError{
         e,
@@ -28,7 +29,7 @@ std::unexpected<LexerError> create_error(LexerErrorType e, const Input& buff, co
     });
 }
 
-std::unexpected<LexerError> create_error(LexerErrorType e, const std::string& message) {
+inline std::unexpected<LexerError> create_error(LexerErrorType e, const std::string& message) {
     return std::unexpected<LexerError>(LexerError{
         e,
         0,
