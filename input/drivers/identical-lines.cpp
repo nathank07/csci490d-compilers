@@ -2,12 +2,13 @@
 #include <iostream>
 
 int main() {
-    Input input = Input("tests/aoc2024day1.hs");
+    auto input = Input::create("tests/aoc2024day1.hs").value();
 
-    while (input.consume() != Input::ErrorCode::OUT_OF_BOUNDS) {}
+    while (input.consume()) {}
 
     for (auto i = 1; i < input.get_line_number(); i++) {
-        std::cout << input.get_line(i);
+        auto line = input.get_line(i);
+        if(line) std::cout << "Line " << i << ": " << *line;
     }
 
 }

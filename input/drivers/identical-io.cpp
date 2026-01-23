@@ -4,13 +4,9 @@
 
 int main() {
     std::ofstream output_file("tests/copy");
-    Input input = Input("tests/ChessBoard.tsx");
-
-    int c;
-
-    while ((c = input.consume()) != Input::ErrorCode::OUT_OF_BOUNDS) {
-        char ch = static_cast<char> (c);
-        output_file << ch;
+    auto input = Input::create("tests/ChessBoard.tsx").value();
+    
+    while (auto ch = input.consume()) {
+        output_file << *ch;
     }
-
 }

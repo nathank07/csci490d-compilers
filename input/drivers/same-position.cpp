@@ -3,7 +3,7 @@
 #include <iostream>
 
 int main() {
-    Input input = Input("tests/ChessBoard.tsx");
+    Input input = Input::create("tests/ChessBoard.tsx").value();
 
     std::cout << "Line: "  << input.get_line_number() 
               << ", Col: " << input.get_col_number() << std::endl;

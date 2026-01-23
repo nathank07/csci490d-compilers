@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -std=c++20
+CXXFLAGS = -std=c++23
 SRC = input.cpp
 DRIVER_DIR = drivers
 

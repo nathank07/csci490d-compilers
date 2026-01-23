@@ -18,14 +18,9 @@ void Input::read(std::istream& in) {
     }
 }
 
-
-int Input::peek() {
-    if (err) {
-        return err;
-    }
-
+std::optional<unsigned char> Input::peek() {
     if (eof()) {
-        return ErrorCode::OUT_OF_BOUNDS;
+        return std::nullopt;
     }
 
     return buff[buff_idx];
@@ -39,8 +34,8 @@ void Input::back() {
     if (buff_idx > 0) buff_idx--;
 }
 
-int Input::consume() {
-    int c = peek();
+std::optional<unsigned char> Input::consume() {
+    auto c = peek();
     next();
     return c;
 }
@@ -61,10 +56,10 @@ std::size_t Input::get_col_number() {
     return (buff_idx - line_start) + 1;
 }
 
-std::string Input::get_line(std::size_t line_number) {
+std::expected<std::string, Input::ErrorCode> Input::get_line(std::size_t line_number) {
 
     if (line_number > line_idxs.size()) {
-        return "";
+        return std::unexpected(Input::ErrorCode::OUT_OF_BOUNDS);
     }
 
     auto start = buff.begin() + line_idxs[line_number - 1];
@@ -76,23 +71,19 @@ std::string Input::get_line(std::size_t line_number) {
     return std::string(start, end);
 }
 
-Input::Input(std::istream& in) {
-    read(in);
-}
-
-Input::Input(const std::string& filepath) {
+std::expected<Input, Input::ErrorCode> Input::create(const std::string& filepath) {
     std::ifstream file(filepath, std::ios::binary);
 
     if (!file) {
-        err = ErrorCode::FAILED_TO_READ_FILE;
-        return;
+        return std::unexpected(Input::ErrorCode::FAILED_TO_READ_FILE);
     }
 
-    read(file);
-    file.close();
+    auto self = Input();
+    self.read(file);
+
+    return self;
 }
 
-Input::~Input() {
-    // Taken care of by RAII
-}
+
+
 

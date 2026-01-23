@@ -3,36 +3,35 @@
 #include <vector>
 #include <string>
 #include <istream>
+#include <expected>
+#include <optional>
 
 class Input {
 
 public:
     enum ErrorCode {
-        OK = 0,
-        FAILED_TO_READ_FILE = -1,
-        OUT_OF_BOUNDS = -2
+        FAILED_TO_READ_FILE,
+        OUT_OF_BOUNDS
     };
 
-    Input(std::istream& in);
-    Input(const std::string& filepath);
-    ~Input();
-    int peek();
+    std::optional<unsigned char> peek();
+    std::optional<unsigned char> consume();
     void next();
-    int consume();
     void back();
     bool eof();
 
     std::size_t get_line_number();
     std::size_t get_col_number();
-    std::string get_line(std::size_t line_number);
+
+    std::expected<std::string, ErrorCode> get_line(std::size_t line_number);
+    static std::expected<Input, ErrorCode> create(const std::string& filepath);
 
 private:
 
-    std::vector<char> buff;
+    std::vector<unsigned char> buff;
     std::vector<std::size_t> line_idxs = { 0 };
     std::size_t buff_idx = 0;
-    ErrorCode err = ErrorCode::OK;
 
     void read(std::istream& in);
-    
+    Input() = default;
 };
