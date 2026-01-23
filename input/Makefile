@@ -20,6 +20,8 @@ same-position: $(DRIVER_DIR)/same-position.cpp $(SRC)
 	bash -c 'diff <(tac tests/init) tests/final'
 	@echo "Test passed"
 	@rm main
+	@rm tests/final
+	@rm tests/init
 
 %: $(DRIVER_DIR)/%.cpp $(SRC)
 	@$(CXX) $(SRC) $< -o main $(CXXFLAGS)
@@ -28,3 +30,6 @@ same-position: $(DRIVER_DIR)/same-position.cpp $(SRC)
 
 clean:
 	@rm -f main
+	@rm -f tests/copy
+	@rm -f tests/final
+	@rm -f tests/init
