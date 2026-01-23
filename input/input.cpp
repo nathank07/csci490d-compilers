@@ -27,11 +27,35 @@ std::optional<unsigned char> Input::peek() {
 }
 
 void Input::next() {
-    if (!eof()) buff_idx++;
+    if (eof()) {
+        return;
+    }
+
+    if (auto c = peek()) {
+        if (c == '\n') {
+            curr_line++;
+        }
+    }
+
+    buff_idx++;
+    curr_col = get_col_number_from_vec();
 }
 
 void Input::back() {
-    if (buff_idx > 0) buff_idx--;
+    if (buff_idx == 0) {
+        return;
+    }
+
+    buff_idx--;
+    curr_col--;
+
+    if (auto c = peek()) {
+        if (c == '\n') {
+            curr_line--;
+            curr_col = get_col_number_from_vec();
+        }   
+    }
+
 }
 
 std::optional<unsigned char> Input::consume() {
@@ -44,20 +68,31 @@ bool Input::eof() {
     return buff_idx >= buff.size();
 }
 
-std::size_t Input::get_line_number() {
+std::size_t Input::get_line_number_from_vec() {
     if (buff_idx == 0) return 1;
 
-    auto it = std::lower_bound(line_idxs.begin(), line_idxs.end(), buff_idx);
+    auto it = std::upper_bound(line_idxs.begin(), line_idxs.end(), buff_idx);
     return std::distance(line_idxs.begin(), it);
 }
 
+std::size_t Input::get_col_number_from_vec() {
+    return get_col_number_from_vec(get_line_number_from_vec() - 1);
+}
+
+std::size_t Input::get_col_number_from_vec(std::size_t from_line_start) {
+    auto line_start = line_idxs[from_line_start];
+    return (buff_idx - line_start);
+}
+
 std::size_t Input::get_col_number() {
-    auto line_start = line_idxs[get_line_number() - 1];
-    return (buff_idx - line_start) + 1;
+    return curr_col + 1;
+}
+
+std::size_t Input::get_line_number() {
+    return curr_line + 1;
 }
 
 std::expected<std::string, Input::ErrorCode> Input::get_line(std::size_t line_number) {
-
     if (line_number > line_idxs.size()) {
         return std::unexpected(Input::ErrorCode::OUT_OF_BOUNDS);
     }

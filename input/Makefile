@@ -10,9 +10,16 @@ identical-io: $(DRIVER_DIR)/identical-io.cpp $(SRC)
 	@$(CXX) $(SRC) $< -o main $(CXXFLAGS)
 	@./main
 	diff tests/ChessBoard.tsx tests/copy
-	@echo "If the program works correctly, diff should return nothing"
+	@echo "Test passed"
 	@rm main
 	@rm tests/copy
+
+same-position: $(DRIVER_DIR)/same-position.cpp $(SRC)
+	@$(CXX) $(SRC) $< -o main $(CXXFLAGS)
+	@./main
+	bash -c 'diff <(tac tests/init) tests/final'
+	@echo "Test passed"
+	@rm main
 
 %: $(DRIVER_DIR)/%.cpp $(SRC)
 	@$(CXX) $(SRC) $< -o main $(CXXFLAGS)

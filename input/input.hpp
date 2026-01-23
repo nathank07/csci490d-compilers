@@ -27,10 +27,15 @@ public:
     static std::expected<Input, ErrorCode> create(const std::string& filepath);
 
 private:
-
     std::vector<unsigned char> buff;
     std::vector<std::size_t> line_idxs = { 0 };
     std::size_t buff_idx = 0;
+    std::size_t curr_line = 0;
+    std::size_t curr_col = 0;
+
+    std::size_t get_line_number_from_vec();
+    std::size_t get_col_number_from_vec();
+    std::size_t get_col_number_from_vec(std::size_t curr_line);
 
     void read(std::istream& in);
     Input() = default;
