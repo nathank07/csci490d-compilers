@@ -6,18 +6,16 @@
 void Input::read(std::istream& in) {
     int c;
     int i = 0;
-
     while ((c = in.get()) != std::char_traits<char>::eof()) {
         i++;
-
-        buff.push_back(c);
 
         if (c == '\n') {
             line_idxs.push_back(i);
         }
 
+        buff.push_back(c);
+        
     }
-
 }
 
 
@@ -27,18 +25,18 @@ int Input::peek() {
     }
 
     if (eof()) {
-        return ErrorCode::OUT_OF_BOUNDARY;
+        return ErrorCode::OUT_OF_BOUNDS;
     }
 
     return buff[buff_idx];
 }
 
 void Input::next() {
-    buff_idx++;
+    if (!eof()) buff_idx++;
 }
 
 void Input::back() {
-    buff_idx--;
+    if (buff_idx > 0) buff_idx--;
 }
 
 int Input::consume() {
@@ -52,13 +50,15 @@ bool Input::eof() {
 }
 
 std::size_t Input::get_line_number() {
+    if (buff_idx == 0) return 1;
+
     auto it = std::lower_bound(line_idxs.begin(), line_idxs.end(), buff_idx);
     return std::distance(line_idxs.begin(), it);
 }
 
 std::size_t Input::get_col_number() {
     auto line_start = line_idxs[get_line_number() - 1];
-    return (buff_idx - line_start);
+    return (buff_idx - line_start) + 1;
 }
 
 std::string Input::get_line(std::size_t line_number) {

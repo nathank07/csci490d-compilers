@@ -10,7 +10,7 @@ public:
     enum ErrorCode {
         OK = 0,
         FAILED_TO_READ_FILE = -1,
-        OUT_OF_BOUNDARY = -2
+        OUT_OF_BOUNDS = -2
     };
 
     Input(std::istream& in);
