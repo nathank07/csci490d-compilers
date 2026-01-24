@@ -11,7 +11,7 @@ class Lexer {
     Input char_buff;
     Lexer(Input char_buff) : char_buff(char_buff) {}
     std::expected<void, LexerError> consume_tokens();
-    void push_token(const TokenType &t, TokenValue v);
+    void push_token(const TokenType &t);
     void push_token_peek(const TokenType &success, const TokenType &fail, unsigned char look_for);
     std::expected<void, LexerError> consume_string();
     std::expected<void, LexerError> consume_ident();

@@ -2,7 +2,7 @@
 #include <iostream>
 
 int main() {
-    auto l = Lexer::create("test101");
+    auto l = Lexer::create("test001");
 
     if (!l) {
         std::cout << l.error().message;

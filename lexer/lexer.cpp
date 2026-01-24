@@ -24,12 +24,12 @@ std::expected<Lexer, LexerError> Lexer::create(const std::string &filename) {
     return lexer;
 }
 
-void Lexer::push_token(const TokenType &t, TokenValue v = {}) {
+void Lexer::push_token(const TokenType &t) {
     tokens.push_back({
         t,
         char_buff.get_line_number(),
         char_buff.get_col_number(),
-        v
+        {}
     });
 }
 
@@ -88,7 +88,6 @@ std::expected<void, LexerError> Lexer::consume_tokens() {
                 }
             }
             case '"': {
-                char_buff.next();
                 auto s = consume_string();
                 if (!s) {
                     return std::unexpected(s.error());
@@ -112,6 +111,11 @@ std::expected<void, LexerError> Lexer::consume_tokens() {
 std::expected<void, LexerError> Lexer::consume_string() {
 
     std::string v;
+    auto line_start = char_buff.get_line_number();
+    auto col_start = char_buff.get_col_number();
+
+    // skip initial quotation
+    char_buff.next();
 
     while (true) {
         auto c = char_buff.consume();
@@ -122,7 +126,15 @@ std::expected<void, LexerError> Lexer::consume_string() {
         }
 
         switch (*c) {
-            case '"': push_token(TokenType::STRING, TokenString{v}); return {};
+            case '"': {
+                tokens.push_back({
+                    TokenType::STRING,
+                    line_start,
+                    col_start,
+                    TokenString {v}
+                });
+                return {};
+            }
             case '\n': break;
             case '\r': break;
             case '\\': {
@@ -189,18 +201,22 @@ void Lexer::output_tokens() {
             case TokenType::STRING: {
                 const auto &str = std::get<TokenString>(token.data);
                 std::cout << "TOKEN_STRING: " << str.value;
+                break;
             }
             case TokenType::IDENTIFER: {
                 const auto &str = std::get<TokenIdentifier>(token.data);
                 std::cout << "TOKEN_IDENT: " << str.value;
+                break;
             }
             case TokenType::INTEGER: {
                 const auto &i = std::get<TokenInteger>(token.data);
                 std::cout << "TOKEN_INTEGER: " << i.value;
+                break;
             }
             case TokenType::REAL_NUMBER: {
                 const auto &f = std::get<TokenReal>(token.data);
                 std::cout << "TOKEN_REAL: " << f.value;
+                break;
             }
         }
 
