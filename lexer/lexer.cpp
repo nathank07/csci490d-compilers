@@ -53,13 +53,10 @@ void Lexer::push_token_peek(const TokenType &success, const TokenType &fail, uns
     }
 }
 
-#include <iostream>
-
 std::expected<void, LexerError> Lexer::consume_tokens() {
     while (true) {
-        std::cout << "consume_tokens() " << char_buff.get_line_number() << ":" << char_buff.get_col_number() << "\n";
-
         auto c = char_buff.peek();
+
         if (!c) {
             push_token(TokenType::END_OF_FILE);
             return {};
