@@ -100,6 +100,7 @@ std::expected<void, LexerError> Lexer::consume_tokens() {
                                     std::string("EOF")));
                 }
             }
+            case '#': consume_line_comment(); break;
             case '"': {
                 auto s = consume_string();
                 if (!s) {
@@ -108,7 +109,6 @@ std::expected<void, LexerError> Lexer::consume_tokens() {
                 break;
             }
             case '.': consume_float(); break;
-
             default: {
                 if (std::isspace(*c)) break;
                 if (std::isdigit(*c)) {
@@ -188,8 +188,6 @@ std::expected<void, LexerError> Lexer::consume_string() {
     }
 }
 
-#include <iostream>
-
 
 std::expected<void, LexerError> Lexer::consume_number() {
     std::string v;
@@ -200,7 +198,7 @@ std::expected<void, LexerError> Lexer::consume_number() {
     while (true) {
         auto c = char_buff.peek();
         auto is_int = c && std::isdigit(*c);
-        auto is_real = c && (*c == '.' || *c == 'e');
+        auto is_real = c && (*c == '.' || *c == 'e' || *c == 'E');
 
         if (is_real) {
             return consume_float(v, line_start, col_start);
@@ -235,7 +233,6 @@ std::expected<void, LexerError> Lexer::consume_float() {
 
 
 std::expected<void, LexerError> Lexer::consume_float(std::string& context, std::size_t line_start, std::size_t col_start) {
-    
     std::string& v = context; // alias
     
     bool has_decimal = false;
@@ -250,6 +247,7 @@ std::expected<void, LexerError> Lexer::consume_float(std::string& context, std::
         if (done || !c) {
 
             if (v == ".") {
+                char_buff.back();
                 push_token(TokenType::DOT);
                 return {};
             }
@@ -269,7 +267,7 @@ std::expected<void, LexerError> Lexer::consume_float(std::string& context, std::
         }
         
 
-        switch (*c) {
+        switch (std::tolower(*c)) {
             case '.': {
                 if (has_decimal || has_e) {
                     return LexerError::create_error(LexerErrorType::MALFORMED_REAL, char_buff,
@@ -285,7 +283,9 @@ std::expected<void, LexerError> Lexer::consume_float(std::string& context, std::
                 // for instance: "1.e" should really be:
                 // <TOKEN_REAL 1.> and <IDENT e> and
                 // ".e" is <TOKEN_DOT> and <IDENT e>
-                if (!next || (next && *next == 'e')) {
+                // The same applies with 1.-2 which should be
+                // <TOKEN_REAL 1.> <TOKEN_SUB> <TOKEN_INT 2>
+                if (!next || (*next == 'e' || *next == 'E' || *next == '-' || *next == '+')) {
                     done = true;
                     continue;
                 }
@@ -300,11 +300,12 @@ std::expected<void, LexerError> Lexer::consume_float(std::string& context, std::
                         "Read more than one exponent.");
                 }
 
+                v += *c;
+
                 char_buff.next();
                 auto next = char_buff.peek();
 
                 if (next && (*next == '-' || *next == '+')) {
-                    v += *c;
                     v += *next;
                     char_buff.next();
                     next = char_buff.peek();
@@ -334,3 +335,13 @@ std::expected<void, LexerError> Lexer::consume_float(std::string& context, std::
     }
 }
 
+void Lexer::consume_line_comment() {
+    char_buff.next();
+
+    while (auto c = char_buff.peek()) {
+        if (!c || *c == '\n') {
+            return;
+        }
+        char_buff.next();
+    }
+}
