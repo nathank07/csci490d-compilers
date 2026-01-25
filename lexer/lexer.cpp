@@ -104,8 +104,7 @@ std::expected<void, LexerError> Lexer::consume_tokens() {
                 auto third = char_buff.peek();
 
                 if (second == '<' && third == '-') {
-                    consume_multi_line_comment();
-                    break;
+                    return consume_multi_line_comment();
                 }
 
                 if (second == '=') {
@@ -125,7 +124,7 @@ std::expected<void, LexerError> Lexer::consume_tokens() {
                 }
                 break;
             }
-            case '.': consume_float(); break;
+            case '.': return consume_float(); break;
             default: {
                 if (std::isspace(*c)) break;
                 if (std::isdigit(*c)) {
@@ -249,8 +248,6 @@ std::expected<void, LexerError> Lexer::consume_float() {
 }
 
 
-#include <iostream>
-
 std::expected<void, LexerError> Lexer::consume_float(std::string& context, std::size_t line_start, std::size_t col_start) {
     std::string& v = context; // alias
     
@@ -363,9 +360,6 @@ void Lexer::consume_line_comment() {
         char_buff.next();
     }
 }
-
-#include <iostream>
-
 
 std::expected<void, LexerError> Lexer::consume_multi_line_comment() {
     while (true) {
