@@ -46,10 +46,11 @@ void Lexer::push_token(const TokenType &t) {
 void Lexer::push_token_peek(const TokenType &success, const TokenType &fail, unsigned char look_for) {
     char_buff.next();
     auto c = char_buff.peek();
+    char_buff.back(); // for position
     if (c == look_for) {
         push_token(success);
+        char_buff.next();
     } else {
-        char_buff.back();
         push_token(fail);
     }
 }
@@ -88,7 +89,9 @@ std::expected<void, LexerError> Lexer::consume_tokens() {
                 char_buff.next();
                 auto next = char_buff.peek();
                 if (next == '=') {
+                    char_buff.back();
                     push_token(TokenType::NOT_EQUALS);
+                    char_buff.next();
                     break;
                 } else {
                     return LexerError::create_error(LexerErrorType::UNEXPECTED_TOKEN, char_buff,
@@ -104,18 +107,17 @@ std::expected<void, LexerError> Lexer::consume_tokens() {
                 auto third = char_buff.peek();
 
                 if (second == '<' && third == '-') {
-                    return consume_multi_line_comment();
-                }
-
-                if (second == '=') {
-                    push_token(TokenType::LESS_THAN_EQ);
+                    auto e = consume_multi_line_comment();
+                    if (!e) {
+                        return e;
+                    }
                     break;
                 }
 
                 char_buff.back();
                 char_buff.back();
+                push_token_peek(TokenType::LESS_THAN_EQ, TokenType::LESS_THAN, '=');
 
-                push_token(TokenType::LESS_THAN);
                 break;
             }
             case '"': {
@@ -125,7 +127,13 @@ std::expected<void, LexerError> Lexer::consume_tokens() {
                 }
                 break;
             }
-            case '.': return consume_float(); break;
+            case '.': {
+                auto e = consume_float();
+                if (!e) {
+                    return e;
+                }
+                break;
+            }
             default: {
                 if (std::isspace(*c)) break;
                 if (std::isdigit(*c)) {
@@ -178,7 +186,7 @@ std::expected<void, LexerError> Lexer::consume_string() {
                 });
                 return {};
             }
-            case '\n': break;
+            case '\n': v += '\n'; break;
             case '\r': break;
             case '\\': {
                 auto next = char_buff.peek();
@@ -193,7 +201,8 @@ std::expected<void, LexerError> Lexer::consume_string() {
                     case '\\': v += '\\'; break;
                     case 'a':  v += '\a'; break;
                     case 'b':  v += '\b'; break;
-                    case '\n': break;
+                    case '"':  v += '"';  break;
+                    case '\n': continue;
                     case 'u': {
                         // todo implement unicode
                         break;
@@ -204,14 +213,14 @@ std::expected<void, LexerError> Lexer::consume_string() {
                     }
                 }
 
+                char_buff.next();
+
                 break;
             }
             default: v += *c; break;
         }
     }
 }
-
-#include <iostream>
 
 
 std::expected<void, LexerError> Lexer::consume_number() {
@@ -230,7 +239,7 @@ std::expected<void, LexerError> Lexer::consume_number() {
         }
 
         if(!is_int) {
-            
+
             TokenValue token_value = TokenInteger{std::stoll(v)};
             
             tokens.push_back({
@@ -297,6 +306,12 @@ std::expected<void, LexerError> Lexer::consume_float(std::string& context, std::
                 
                 char_buff.next();
                 auto next = char_buff.peek();
+
+                if (v.empty() && !std::isdigit(*next)) {
+                    char_buff.back(); // for line/col pos
+                    push_token(TokenType::DOT);
+                    return {};
+                }
                 
                 // for instance: "1.e" should really be:
                 // <TOKEN_REAL 1.> and <IDENT e> and
@@ -308,26 +323,22 @@ std::expected<void, LexerError> Lexer::consume_float(std::string& context, std::
                     continue;
                 }
 
-                if (v.empty() && !std::isdigit(*next)) {
-                    char_buff.back();
-                    push_token(TokenType::DOT);
-                    return {};
-                }
-
                 v += *c;
                 v += *next;
 
                 break;
             }
             case 'e': {
+                
                 if (has_e) {
-                    return LexerError::create_error(LexerErrorType::MALFORMED_REAL, char_buff,
-                        "Read more than one exponent.");
+                    done = true;
+                    continue;
                 }
 
+                char_buff.next();
+                has_e = true;
                 v += *c;
 
-                char_buff.next();
                 auto next = char_buff.peek();
 
                 if (next && (*next == '-' || *next == '+')) {
@@ -340,6 +351,8 @@ std::expected<void, LexerError> Lexer::consume_float(std::string& context, std::
                     v += *next;
                     break;
                 }
+
+                char_buff.back();
 
                 return LexerError::create_error(LexerErrorType::MALFORMED_REAL, char_buff,
                     "Expected integer after exponent, read " +
@@ -394,8 +407,6 @@ std::expected<void, LexerError> Lexer::consume_multi_line_comment() {
     return LexerError::create_error(LexerErrorType::UNEXPECTED_EOF, char_buff,
                 "Expected to see block comment end with '->>', got EOF");
 }
-
-#include <iostream>
 
 void Lexer::consume_ident() {
     std::string v;

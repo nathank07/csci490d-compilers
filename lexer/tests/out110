@@ -1,0 +1,6 @@
+TOKEN_IDENT: a  at 2:1
+TOKEN_ASSIGN at 2:3
+TOKEN_INTEGER: 5  at 2:6
+TOKEN_SEMICOLON at 2:7
+Unexpected end of file
+TOKEN_EOF at 4:1

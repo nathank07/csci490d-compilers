@@ -1,0 +1,12 @@
+TOKEN_STRING: Basic string  at 3:1
+TOKEN_STRING: String with 
+embedded newline  at 3:17
+TOKEN_STRING: String with an escaped tab	 and escaped
+ newline in it  at 6:1
+TOKEN_STRING: Error Much better!  at 8:1
+TOKEN_STRING: Red Alert!  at 10:1
+TOKEN_STRING: This string is perffiect.  at 12:1
+TOKEN_STRING: This string looks like it has a "\n" in it, but it doesn't.  at 14:1
+Unknown escape sequence \q at 16:35
+TOKEN_STRING: Error:  Unknown escape sequence .  at 16:1
+TOKEN_EOF at 18:1

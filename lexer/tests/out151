@@ -1,0 +1,10 @@
+TOKEN_STRING: English: I can eat glass and it doesn't hurt me.  at 3:1
+TOKEN_STRING: Spanish: Puedo comer vidrio, no me hace daño.  at 4:1
+TOKEN_STRING: French: Je peux manger du verre, ça ne me fait pas mal.  at 5:1
+TOKEN_STRING: Hebrew: אני יכול לאכול זכוכית וזה לא מזיק לי.  at 6:1
+TOKEN_STRING: Hindi: मैं काँच खा सकता हूँ, मुझे उस से कोई पीडा नहीं होती.  at 7:1
+TOKEN_STRING: Arabic: أنا قادر على أكل الزجاج و هذا لا يؤلمني.  at 8:1
+TOKEN_STRING: Japanese: 私はガラスを食べられます。それは私を傷つけません。  at 9:1
+TOKEN_STRING: Telugu: నేను గాజు తినగలను మరియు అలా చేసినా నాకు  ఏమి ఇబ్బంది  లేదు  at 10:1
+TOKEN_STRING: Chinese: 我能吞下玻璃而不傷身體。  at 11:1
+TOKEN_EOF at 12:1
