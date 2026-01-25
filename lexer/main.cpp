@@ -2,7 +2,7 @@
 #include <iostream>
 
 int main() {
-    auto l = Lexer::create("test001", Lexer::OnTokenError::CONTINUE);
+    auto l = Lexer::create("test102", Lexer::OnTokenError::CONTINUE);
 
     if (!l) {
         std::cout << l.error().message;

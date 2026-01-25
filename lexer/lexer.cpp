@@ -46,7 +46,12 @@ void Lexer::push_token(const TokenType &t) {
 void Lexer::push_token_peek(const TokenType &success, const TokenType &fail, unsigned char look_for) {
     char_buff.next();
     auto c = char_buff.peek();
-    push_token(c == look_for ? success : fail);
+    if (c == look_for) {
+        push_token(success);
+    } else {
+        char_buff.back();
+        push_token(fail);
+    }
 }
 
 std::expected<void, LexerError> Lexer::consume_tokens() {
@@ -191,7 +196,7 @@ std::expected<void, LexerError> Lexer::consume_number() {
     while (true) {
         auto c = char_buff.peek();
         auto is_int = c && std::isdigit(*c);
-        auto is_real = c && (*c == '.' || *c == 'e' || *c == 'E');
+        auto is_real = c && (*c == '.' || std::tolower(*c) == 'e');
 
         if (is_real) {
             return consume_float(v, line_start, col_start);
@@ -272,12 +277,13 @@ std::expected<void, LexerError> Lexer::consume_float(std::string& context, std::
                 // ".e" is <TOKEN_DOT> and <IDENT e>
                 // The same applies with 1.-2 which should be
                 // <TOKEN_REAL 1.> <TOKEN_SUB> <TOKEN_INT 2>
-                if (!next || (*next == 'e' || *next == 'E' || *next == '-' || *next == '+')) {
+                if (!next || (std::tolower(*next) == 'e' || *next == '-' || *next == '+')) {
                     done = true;
                     continue;
                 }
 
                 if (v.empty() && !std::isdigit(*next)) {
+                    char_buff.back();
                     push_token(TokenType::DOT);
                     return {};
                 }
