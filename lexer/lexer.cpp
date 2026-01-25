@@ -44,13 +44,9 @@ void Lexer::push_token(const TokenType &t) {
 }
 
 void Lexer::push_token_peek(const TokenType &success, const TokenType &fail, unsigned char look_for) {
+    char_buff.next();
     auto c = char_buff.peek();
-    if (c == look_for) {
-        push_token(success);
-        char_buff.consume();
-    } else {
-        push_token(fail);
-    }
+    push_token(c == look_for ? success : fail);
 }
 
 std::expected<void, LexerError> Lexer::consume_tokens() {
@@ -229,6 +225,8 @@ std::expected<void, LexerError> Lexer::consume_float() {
 }
 
 
+#include <iostream>
+
 std::expected<void, LexerError> Lexer::consume_float(std::string& context, std::size_t line_start, std::size_t col_start) {
     std::string& v = context; // alias
     
@@ -242,13 +240,6 @@ std::expected<void, LexerError> Lexer::consume_float(std::string& context, std::
         auto c = char_buff.peek();
 
         if (done || !c) {
-
-            if (v == ".") {
-                char_buff.back();
-                push_token(TokenType::DOT);
-                return {};
-            }
-
             TokenValue token_value = TokenReal{std::stod(v)};
 
             tokens.push_back({
@@ -272,8 +263,7 @@ std::expected<void, LexerError> Lexer::consume_float(std::string& context, std::
                 }
 
                 has_decimal = true;
-                v += *c;
-
+                
                 char_buff.next();
                 auto next = char_buff.peek();
                 
@@ -287,6 +277,12 @@ std::expected<void, LexerError> Lexer::consume_float(std::string& context, std::
                     continue;
                 }
 
+                if (v.empty() && !std::isdigit(*next)) {
+                    push_token(TokenType::DOT);
+                    return {};
+                }
+
+                v += *c;
                 v += *next;
 
                 break;
