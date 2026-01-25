@@ -83,7 +83,6 @@ std::expected<void, LexerError> Lexer::consume_tokens() {
             case ',': push_token(TokenType::COMMA); break;
             case '!': push_token(TokenType::NOT); break;
             case ':': push_token_peek(TokenType::ASSIGN, TokenType::COLON, '='); break;
-            case '<': push_token_peek(TokenType::LESS_THAN_EQ, TokenType::LESS_THAN, '='); break;
             case '>': push_token_peek(TokenType::GREATER_THAN_EQ, TokenType::GREATER_THAN, '='); break;
             case '~': {
                 char_buff.next();
@@ -99,6 +98,26 @@ std::expected<void, LexerError> Lexer::consume_tokens() {
                 }
             }
             case '#': consume_line_comment(); break;
+            case '<': {
+                char_buff.next();                
+                auto second = char_buff.consume();
+                auto third = char_buff.peek();
+
+                if (second == '<' && third == '-') {
+                    consume_multi_line_comment();
+                    break;
+                }
+
+                if (second == '=') {
+                    push_token(TokenType::LESS_THAN_EQ);
+                    break;
+                }
+
+                char_buff.back();
+                char_buff.back();
+
+                push_token(TokenType::LESS_THAN);
+            }
             case '"': {
                 auto s = consume_string();
                 if (!s) {
@@ -343,4 +362,31 @@ void Lexer::consume_line_comment() {
         }
         char_buff.next();
     }
+}
+
+#include <iostream>
+
+
+std::expected<void, LexerError> Lexer::consume_multi_line_comment() {
+    while (true) {
+        auto c = char_buff.consume();
+        
+        if (!c) {
+            break;
+        }
+
+        if (*c == '-') {
+            if (char_buff.peek() == '>') {
+                char_buff.next();
+
+                if (char_buff.peek() == '>') {
+                    char_buff.next();
+                    return {};
+                }
+            }
+        }
+    }
+
+    return LexerError::create_error(LexerErrorType::UNEXPECTED_EOF, char_buff,
+                "Expected to see block comment end with '->>', got EOF");
 }

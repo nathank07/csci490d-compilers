@@ -32,6 +32,7 @@ private:
     std::expected<void, LexerError> consume_float();
     std::expected<void, LexerError> consume_float(std::string& context, std::size_t line_start, std::size_t col_start);
     void consume_line_comment();
+    std::expected<void, LexerError> consume_multi_line_comment();
     
     std::vector<Token> tokens;
     
