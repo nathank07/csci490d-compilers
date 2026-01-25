@@ -21,7 +21,7 @@ struct LexerError {
     std::string message;
 
     static std::unexpected<LexerError> create_error(LexerErrorType e, const Input& buff, const std::string& message) {
-        auto line_num = buff.get_col_number();
+        auto line_num = buff.get_line_number();
         return std::unexpected<LexerError>(LexerError{
             e,
             line_num,

@@ -24,8 +24,10 @@ std::expected<Lexer, LexerError> Lexer::create(const std::string &filename, OnTo
         if (!lexer.continue_on_err) {
             return std::unexpected(result.error());
         }
+        lexer.invalid_tokens.push_back(result.error());
 
         lexer.char_buff.next();
+        
         result = lexer.consume_tokens();
     }
 
@@ -78,7 +80,6 @@ std::expected<void, LexerError> Lexer::consume_tokens() {
             case '&': push_token(TokenType::AND); break;
             case '|': push_token(TokenType::OR); break;
             case '^': push_token(TokenType::EXPONENT); break;
-            case '.': push_token(TokenType::DOT); break;
             case '@': push_token(TokenType::AT); break;
             case ';': push_token(TokenType::SEMICOLON); break;
             case ',': push_token(TokenType::COMMA); break;
@@ -106,6 +107,8 @@ std::expected<void, LexerError> Lexer::consume_tokens() {
                 }
                 break;
             }
+            case '.': consume_float(); break;
+
             default: {
                 if (std::isspace(*c)) break;
                 if (std::isdigit(*c)) {
@@ -241,10 +244,16 @@ std::expected<void, LexerError> Lexer::consume_float(std::string& context, std::
     
 
     while (true) {
-        
+
         auto c = char_buff.peek();
 
         if (done || !c) {
+
+            if (v == ".") {
+                push_token(TokenType::DOT);
+                return {};
+            }
+
             TokenValue token_value = TokenReal{std::stod(v)};
 
             tokens.push_back({
@@ -268,8 +277,20 @@ std::expected<void, LexerError> Lexer::consume_float(std::string& context, std::
                 }
 
                 has_decimal = true;
-
                 v += *c;
+
+                char_buff.next();
+                auto next = char_buff.peek();
+                
+                // for instance: "1.e" should really be:
+                // <TOKEN_REAL 1.> and <IDENT e> and
+                // ".e" is <TOKEN_DOT> and <IDENT e>
+                if (!next || (next && *next == 'e')) {
+                    done = true;
+                    continue;
+                }
+
+                v += *next;
 
                 break;
             }
@@ -285,6 +306,7 @@ std::expected<void, LexerError> Lexer::consume_float(std::string& context, std::
                 if (next && (*next == '-' || *next == '+')) {
                     v += *c;
                     v += *next;
+                    char_buff.next();
                     next = char_buff.peek();
                 }
 
