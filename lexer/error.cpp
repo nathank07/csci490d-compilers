@@ -8,6 +8,7 @@ std::string LexerError::get_type_string() {
         case LexerErrorType::INVALID_ESCAPE: return "ERROR_INVALID_ESCAPE_CHARACTER";
         case LexerErrorType::UNKNOWN_ERROR: return "ERROR_UNKNOWN";
         case LexerErrorType::MALFORMED_REAL: return "ERROR_MALFORMED_REAL";
+        case LexerErrorType::MALFORMED_UNICODE: return "ERROR_MALFORMED_UNICODE";
         default: return "ERROR_???"; // should be unreachable
     }
 }

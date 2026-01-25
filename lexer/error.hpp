@@ -10,7 +10,8 @@ enum class LexerErrorType {
     UNEXPECTED_EOF,
     INVALID_ESCAPE,
     UNKNOWN_ERROR,
-    MALFORMED_REAL
+    MALFORMED_REAL,
+    MALFORMED_UNICODE
 };
 
 struct LexerError {

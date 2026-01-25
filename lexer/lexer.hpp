@@ -31,6 +31,7 @@ private:
     std::expected<void, LexerError> consume_float();
     std::expected<void, LexerError> consume_float(std::string& context, std::size_t line_start, std::size_t col_start);
     std::expected<void, LexerError> consume_multi_line_comment();
+    std::expected<std::u8string, LexerError> consume_unicode_char();
     void consume_ident();
     void consume_line_comment();
 

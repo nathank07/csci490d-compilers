@@ -38,7 +38,7 @@ enum class TokenType {
 };
 
 struct TokenString {
-    std::string value;
+    std::u8string value;
 };
 
 struct TokenIdentifier {

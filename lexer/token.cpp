@@ -1,5 +1,4 @@
 #include "token.hpp"
-#include <ios>
 #include <sstream>
 
 std::string Token::get_type_string() {
@@ -33,7 +32,8 @@ std::string Token::get_type_string() {
         case TokenType::END_OF_FILE: return "TOKEN_EOF";
         case TokenType::STRING: {
             const auto &str = std::get<TokenString>(data);
-            return "TOKEN_STRING: " + str.value + " ";
+            std::string s(str.value.begin(), str.value.end());
+            return "TOKEN_STRING: " + s + " ";
         }
         case TokenType::IDENTIFER: {
             const auto &str = std::get<TokenIdentifier>(data);

@@ -1,7 +1,9 @@
 #include "lexer.hpp"
+#include "error.hpp"
 #include "token.hpp"
 #include <cctype>
 #include <optional>
+#include <string>
 
 std::expected<Lexer, LexerError> Lexer::create(const std::string &filename, OnTokenError on_err = OnTokenError::HALT) {
     auto input = Input::create(filename);
@@ -161,7 +163,7 @@ std::expected<void, LexerError> Lexer::consume_tokens() {
 
 std::expected<void, LexerError> Lexer::consume_string() {
 
-    std::string v;
+    std::u8string v;
     auto line_start = char_buff.get_line_number();
     auto col_start = char_buff.get_col_number();
 
@@ -204,7 +206,11 @@ std::expected<void, LexerError> Lexer::consume_string() {
                     case '"':  v += '"';  break;
                     case '\n': continue;
                     case 'u': {
-                        // todo implement unicode
+                        auto e = consume_unicode_char();
+                        if (!e) {
+                            return std::unexpected(e.error());
+                        }
+                        v += *e;
                         break;
                     }
                     default: {
@@ -434,3 +440,90 @@ void Lexer::consume_ident() {
         char_buff.next();
     }
 }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wparentheses"
+#pragma GCC diagnostic ignored "-Wconversion"
+
+//    Char. number range  |        UTF-8 octet sequence
+//       (hexadecimal)    |              (binary)
+//    --------------------+---------------------------------------------
+//                  00-7F | 0xxxxxxx
+//                080-7FF | 110xxxxx 10xxxxxx
+//              0800-FFFF | 1110xxxx 10xxxxxx 10xxxxxx
+//        01 0000-10 FFFF | 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+std::expected<std::u8string, LexerError> Lexer::consume_unicode_char() {
+
+    // ignore 'u' in \u
+    char_buff.next();
+    std::string hex;
+    
+    for (int i = 0; i < 6; i++) {
+        auto c = char_buff.consume();
+
+        if (!c || !std::isxdigit(*c)) {
+            return LexerError::create_error(LexerErrorType::MALFORMED_UNICODE, char_buff,
+                    "Found unexpected character while reading unicode character: " + 
+                    (c ? "EOF" : "'" + std::string(*c, 1) + "'"));
+        }
+
+        hex.push_back(*c);
+    }
+
+    char_buff.back();
+
+    uint32_t hex_v = std::stoi(hex, nullptr, 16);
+    std::u8string v;
+
+    uint32_t bits_6 = 0x3f;
+    uint32_t bits_5 = 0x1f;
+    uint32_t bits_4 = 0xf;
+    uint32_t bits_3 = 0x7;
+
+    if (hex_v <= 0x7f) {
+        v.push_back(hex_v);
+        return v;
+    }
+
+    if (hex_v <= 0x7ff) {
+        // 110xxxxx
+        uint8_t first  = 0xC0;
+        // 10xxxxxx
+        uint8_t other = 0x80;
+        
+        v.push_back(first | (hex_v >> 6) & bits_5);
+        v.push_back(other | hex_v & bits_6);
+
+        return v;
+    }
+
+    if (hex_v <= 0xffff) {
+        // 1110xxxx
+        uint8_t first = 0xE0;
+        // 10xxxxxx
+        uint8_t other = 0x80;
+
+        v.push_back(first  | (hex_v >> 12) & bits_4);
+        v.push_back(other  | (hex_v >> 6)  & bits_6);
+        v.push_back(other  | (hex_v)       & bits_6);
+        return v;
+    }
+
+    if (hex_v <= 0x10ffff) {
+        // 11110xxx
+        uint8_t first = 0xF0;
+        // 10xxxxxx
+        uint8_t other = 0x80;
+
+        v.push_back(first | (hex_v >> 18) & bits_3);
+        v.push_back(other | (hex_v >> 12) & bits_6);
+        v.push_back(other | (hex_v >> 6)  & bits_6);
+        v.push_back(other | hex_v & bits_6);
+        return v;
+    }
+
+    return LexerError::create_error(LexerErrorType::MALFORMED_UNICODE, char_buff,
+              "Unicode encoding is >0x10ffff.");
+}
+
+#pragma GCC diagnostic pop
