@@ -2,11 +2,13 @@
 #include <iostream>
 
 int main() {
-    auto l = Lexer::create("test001");
+    auto l = Lexer::create("test108", Lexer::OnTokenError::CONTINUE);
 
     if (!l) {
         std::cout << l.error().message;
-    } else {
-        l->output_tokens();
+    }
+
+    for (auto t : (*l).get_tokens()) {
+        std::cout << t.get_type_string() << "\n";
     }
 }

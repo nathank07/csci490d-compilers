@@ -67,4 +67,6 @@ struct Token {
     std::size_t line_number;
     std::size_t column_number;
     TokenValue data;
+
+    std::string get_type_string();
 };

@@ -1,24 +1,32 @@
 #include "lexer.hpp"
 #include "token.hpp"
+#include <optional>
+#include <variant>
 
-std::expected<Lexer, LexerError> Lexer::create(const std::string &filename) {
+std::expected<Lexer, LexerError> Lexer::create(const std::string &filename, OnTokenError on_err = OnTokenError::HALT) {
     auto input = Input::create(filename);
 
     if (input.error() == Input::ErrorCode::FAILED_TO_READ_FILE) {
-        return create_error(LexerErrorType::FAILED_TO_READ_FILE, 
+        return LexerError::create_error(LexerErrorType::FAILED_TO_READ_FILE, 
             "Input buffer failed to read the provided filepath: " + filename);
     }
 
     if (!input) {
-        return create_error(LexerErrorType::UNKNOWN_ERROR, "Failed to open input buffer for an unknown reason.");
+        return LexerError::create_error(LexerErrorType::UNKNOWN_ERROR, "Failed to open input buffer for an unknown reason.");
     }
 
-    auto lexer = Lexer(*input);
+    auto lexer = Lexer(*input, on_err);
 
     auto result = lexer.consume_tokens();
 
-    if (!result) {
-        return std::unexpected(result.error());
+    while (!result) {
+
+        if (!lexer.continue_on_err) {
+            return std::unexpected(result.error());
+        }
+
+        lexer.char_buff.next();
+        result = lexer.consume_tokens();
     }
 
     return lexer;
@@ -43,8 +51,12 @@ void Lexer::push_token_peek(const TokenType &success, const TokenType &fail, uns
     }
 }
 
+#include <iostream>
+
 std::expected<void, LexerError> Lexer::consume_tokens() {
     while (true) {
+        std::cout << "consume_tokens() " << char_buff.get_line_number() << ":" << char_buff.get_col_number() << "\n";
+
         auto c = char_buff.peek();
         if (!c) {
             push_token(TokenType::END_OF_FILE);
@@ -81,7 +93,7 @@ std::expected<void, LexerError> Lexer::consume_tokens() {
                     push_token(TokenType::NOT_EQUALS);
                     break;
                 } else {
-                    return create_error(LexerErrorType::UNEXPECTED_TOKEN, char_buff,
+                    return LexerError::create_error(LexerErrorType::UNEXPECTED_TOKEN, char_buff,
                         "Expected '=' after '~', found " +  
                             (next ? "'" + std::string(1, *next) + "'" : 
                                     std::string("EOF")));
@@ -90,14 +102,21 @@ std::expected<void, LexerError> Lexer::consume_tokens() {
             case '"': {
                 auto s = consume_string();
                 if (!s) {
-                    return std::unexpected(s.error());
+                    return s;
                 }
                 break;
             }
             default: {
                 if (std::isspace(*c)) break;
+                if (std::isdigit(*c)) {
+                    auto n = consume_number();
+                    if (!n) {
+                        return n;
+                    }
+                    break;
+                }
 
-                return create_error(LexerErrorType::UNEXPECTED_TOKEN, char_buff,
+                return LexerError::create_error(LexerErrorType::UNEXPECTED_TOKEN, char_buff,
                     "Found illegal character: '" + std::string(1, *c) + "'");
             }
         }
@@ -121,7 +140,7 @@ std::expected<void, LexerError> Lexer::consume_string() {
         auto c = char_buff.consume();
 
         if (!c) {
-            return create_error(LexerErrorType::UNEXPECTED_EOF, char_buff,
+            return LexerError::create_error(LexerErrorType::UNEXPECTED_EOF, char_buff,
                 "Found EOF while consuming string");
         }
 
@@ -156,7 +175,7 @@ std::expected<void, LexerError> Lexer::consume_string() {
                         break;
                     }
                     default: {
-                        return create_error(LexerErrorType::INVALID_ESCAPE, char_buff,
+                        return LexerError::create_error(LexerErrorType::INVALID_ESCAPE, char_buff,
                                 "Invalid escape sequence found while consuming string.");
                     }
                 }
@@ -168,58 +187,128 @@ std::expected<void, LexerError> Lexer::consume_string() {
 
 #include <iostream>
 
-void Lexer::output_tokens() {
-    for (auto token : tokens) {
-        switch (token.type) {
-            case TokenType::ADD: std::cout << "TOKEN_ADD"; break;
-            case TokenType::SUB: std::cout << "TOKEN_SUB"; break; 
-            case TokenType::MULTIPLY: std::cout << "TOKEN_MULTIPLY"; break;
-            case TokenType::DIVIDE: std::cout << "TOKEN_DIVIDE"; break;
-            case TokenType::EXPONENT: std::cout << "TOKEN_EXPONENT"; break;
-            case TokenType::LESS_THAN: std::cout << "TOKEN_LESS_THAN"; break;
-            case TokenType::LESS_THAN_EQ: std::cout << "TOKEN_LESS_THAN_EQ"; break;
-            case TokenType::GREATER_THAN: std::cout << "TOKEN_GREATER_THAN"; break;
-            case TokenType::GREATER_THAN_EQ: std::cout << "TOKEN_GREATER_THAN_EQ"; break;
-            case TokenType::EQUALS: std::cout << "TOKEN_EQUALS"; break;
-            case TokenType::NOT_EQUALS: std::cout << "TOKEN_NOT_EQUALS"; break;
-            case TokenType::NOT: std::cout << "TOKEN_NOT"; break;
-            case TokenType::ASSIGN: std::cout << "TOKEN_ASSIGN"; break;
-            case TokenType::LEFT_PAREN: std::cout << "TOKEN_LEFT_PAREN"; break;
-            case TokenType::RIGHT_PAREN: std::cout << "TOKEN_RIGHT_PAREN"; break;
-            case TokenType::LEFT_BRACE: std::cout << "TOKEN_LEFT_BRACE"; break;
-            case TokenType::RIGHT_BRACE: std::cout << "TOKEN_RIGHT_BRACE"; break;
-            case TokenType::LEFT_SQ_BRACKET: std::cout << "TOKEN_LEFT_SQ_BRACKET"; break;
-            case TokenType::RIGHT_SQ_BRACKET: std::cout << "TOKEN_RIGHT_SQ_BRACKET"; break;
-            case TokenType::AND: std::cout << "TOKEN_AND"; break;
-            case TokenType::OR: std::cout << "TOKEN_OR"; break;
-            case TokenType::DOT: std::cout << "TOKEN_DOT"; break;
-            case TokenType::AT: std::cout << "TOKEN_AT"; break;
-            case TokenType::COLON: std::cout << "TOKEN_COLON"; break;
-            case TokenType::SEMICOLON: std::cout << "TOKEN_SEMICOLON"; break;
-            case TokenType::COMMA: std::cout << "TOKEN_COMMA"; break;
-            case TokenType::END_OF_FILE: std::cout << "EOF"; break;
-            case TokenType::STRING: {
-                const auto &str = std::get<TokenString>(token.data);
-                std::cout << "TOKEN_STRING: " << str.value;
+
+std::expected<void, LexerError> Lexer::consume_number() {
+    std::string v;
+    auto line_start = char_buff.get_line_number();
+    auto col_start = char_buff.get_col_number();
+
+
+    while (true) {
+        auto c = char_buff.peek();
+        auto is_int = c && std::isdigit(*c);
+        auto is_real = c && (*c == '.' || *c == 'e');
+
+        if (is_real) {
+            return consume_float(v, line_start, col_start);
+        }
+
+        if(!is_int) {
+            TokenValue token_value = TokenInteger{std::stoi(v)};
+            
+            tokens.push_back({
+                TokenType::INTEGER,
+                line_start,
+                col_start,
+                token_value
+            });
+
+            char_buff.back();
+            
+            return {};
+        }
+
+        v += *c;
+        char_buff.next();
+    }
+}
+
+std::expected<void, LexerError> Lexer::consume_float() {
+    std::string v = "";
+
+    return consume_float(v, char_buff.get_line_number(), 
+                            char_buff.get_col_number());
+}
+
+
+std::expected<void, LexerError> Lexer::consume_float(std::string& context, std::size_t line_start, std::size_t col_start) {
+    
+    std::string& v = context; // alias
+    
+    bool has_decimal = false;
+    bool has_e = false;
+    bool done = false;
+    
+
+    while (true) {
+        
+        auto c = char_buff.peek();
+
+        if (done || !c) {
+            TokenValue token_value = TokenReal{std::stod(v)};
+
+            tokens.push_back({
+                TokenType::REAL_NUMBER,
+                line_start,
+                col_start,
+                token_value
+            });
+
+            char_buff.back();
+
+            return {};
+        }
+        
+
+        switch (*c) {
+            case '.': {
+                if (has_decimal || has_e) {
+                    return LexerError::create_error(LexerErrorType::MALFORMED_REAL, char_buff,
+                        "Read decimal point after exponent or decimal was already read.");
+                }
+
+                has_decimal = true;
+
+                v += *c;
+
                 break;
             }
-            case TokenType::IDENTIFER: {
-                const auto &str = std::get<TokenIdentifier>(token.data);
-                std::cout << "TOKEN_IDENT: " << str.value;
-                break;
+            case 'e': {
+                if (has_e) {
+                    return LexerError::create_error(LexerErrorType::MALFORMED_REAL, char_buff,
+                        "Read more than one exponent.");
+                }
+
+                char_buff.next();
+                auto next = char_buff.peek();
+
+                if (next && (*next == '-' || *next == '+')) {
+                    v += *c;
+                    v += *next;
+                    next = char_buff.peek();
+                }
+
+                if (next && std::isdigit(*next)) {
+                    v += *next;
+                    break;
+                }
+
+                return LexerError::create_error(LexerErrorType::MALFORMED_REAL, char_buff,
+                    "Expected integer after exponent, read " +
+                        (next ? "'" + std::string(1, *next) + "'" : std::string("EOF")));
             }
-            case TokenType::INTEGER: {
-                const auto &i = std::get<TokenInteger>(token.data);
-                std::cout << "TOKEN_INTEGER: " << i.value;
-                break;
-            }
-            case TokenType::REAL_NUMBER: {
-                const auto &f = std::get<TokenReal>(token.data);
-                std::cout << "TOKEN_REAL: " << f.value;
+            default: {
+                if (!std::isdigit(*c)) {
+                    done = true;
+                    continue; // don't go to .next(), jump straight to top
+                }
+
+                v += *c;
                 break;
             }
         }
 
-        std::cout << " " << token.line_number << ":" << token.column_number << std::endl;
+        char_buff.next();
     }
 }
+
