@@ -46,7 +46,7 @@ struct TokenIdentifier {
 };
 
 struct TokenInteger {
-    int value;
+    long long value;
 };
 
 struct TokenReal {

@@ -1,7 +1,7 @@
 #include "lexer.hpp"
 #include "token.hpp"
+#include <cctype>
 #include <optional>
-#include <variant>
 
 std::expected<Lexer, LexerError> Lexer::create(const std::string &filename, OnTokenError on_err = OnTokenError::HALT) {
     auto input = Input::create(filename);
@@ -116,6 +116,7 @@ std::expected<void, LexerError> Lexer::consume_tokens() {
                 char_buff.back();
 
                 push_token(TokenType::LESS_THAN);
+                break;
             }
             case '"': {
                 auto s = consume_string();
@@ -133,6 +134,10 @@ std::expected<void, LexerError> Lexer::consume_tokens() {
                         return n;
                     }
                     break;
+                }
+                if (std::isalnum(*c) || *c == '_') {
+                    consume_ident();
+                    break; 
                 }
 
                 return LexerError::create_error(LexerErrorType::UNEXPECTED_TOKEN, char_buff,
@@ -198,11 +203,15 @@ std::expected<void, LexerError> Lexer::consume_string() {
                                 "Invalid escape sequence found while consuming string.");
                     }
                 }
+
+                break;
             }
             default: v += *c; break;
         }
     }
 }
+
+#include <iostream>
 
 
 std::expected<void, LexerError> Lexer::consume_number() {
@@ -221,7 +230,8 @@ std::expected<void, LexerError> Lexer::consume_number() {
         }
 
         if(!is_int) {
-            TokenValue token_value = TokenInteger{std::stoi(v)};
+            
+            TokenValue token_value = TokenInteger{std::stoll(v)};
             
             tokens.push_back({
                 TokenType::INTEGER,
@@ -383,4 +393,33 @@ std::expected<void, LexerError> Lexer::consume_multi_line_comment() {
 
     return LexerError::create_error(LexerErrorType::UNEXPECTED_EOF, char_buff,
                 "Expected to see block comment end with '->>', got EOF");
+}
+
+#include <iostream>
+
+void Lexer::consume_ident() {
+    std::string v;
+    auto line_start = char_buff.get_line_number();
+    auto col_start = char_buff.get_col_number();
+
+    while (true) {
+        auto c = char_buff.peek();
+        if (!c || (!std::isalnum(*c) && *c != '_')) {
+
+            tokens.push_back({
+                TokenType::IDENTIFER,
+                line_start,
+                col_start,
+                TokenIdentifier {v}
+            });
+
+            char_buff.back();
+
+            return;
+        }
+
+        v += *c;
+
+        char_buff.next();
+    }
 }
