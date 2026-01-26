@@ -21,8 +21,8 @@ public:
 private:
 
     Input char_buff;
-    Lexer(Input char_buff, OnTokenError on_err) : char_buff(char_buff),
-                                                continue_on_err(on_err == OnTokenError::CONTINUE) {}
+    Lexer(Input p_char_buff, OnTokenError on_err) : char_buff(p_char_buff),
+                                                  continue_on_err(on_err == OnTokenError::CONTINUE) {}
     std::expected<void, LexerError> consume_tokens();
     void push_token(const TokenType &t);
     void push_token_peek(const TokenType &success, const TokenType &fail, unsigned char look_for);
