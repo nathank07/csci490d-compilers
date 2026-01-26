@@ -228,8 +228,9 @@ std::expected<void, LexerError> Lexer::consume_string() {
                         break;
                     }
                     default: {
-                        err = LexerError::create_error(LexerErrorType::INVALID_ESCAPE, char_buff,
-                                "Invalid escape sequence found while consuming string.").error();
+                        err = LexerError::create_error(LexerErrorType::INVALID_ESCAPE, 
+                                char_buff, "Invalid escape sequence '\\" + std::string(1, *next) 
+                                + "' found while consuming string.").error();
                     }
                 }
 
@@ -319,7 +320,7 @@ std::expected<void, LexerError> Lexer::consume_float(std::string& context, std::
             case '.': {
                 if (has_decimal || has_e) {
                     return LexerError::create_error(LexerErrorType::MALFORMED_REAL, char_buff,
-                        "Read decimal point after exponent or decimal was already read.");
+                        "Read decimal point after exponent or decimal was already read in a real number.");
                 }
 
                 has_decimal = true;
