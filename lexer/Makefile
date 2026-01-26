@@ -1,11 +1,24 @@
 CXX = g++
-CXXFLAGS = -std=c++23
+CXXFLAGS = -std=c++23 -Wall -Wextra -Wpedantic -Wconversion -MMD -MP
 SRC = input/input.cpp lexer.cpp error.cpp token.cpp main.cpp
+OBJ = $(SRC:.cpp=.o)
+DEP = $(OBJ:.o=.d)
+TARGET = main
 
+all: $(TARGET)
 
-all:
-	$(CXX) $(SRC) -o main $(CXXFLAGS) -Wall -Wextra -Wpedantic -Wconversion
+$(TARGET): $(OBJ)
+	$(CXX) $(OBJ) -o $(TARGET) $(CXXFLAGS)
 
-test:
-	$(CXX) $(SRC) -o main $(CXXFLAGS) -Wall -Wextra -Wpedantic -Wconversion
+%.o: %.cpp
+	$(CXX) -c $< -o $@ $(CXXFLAGS)
+
+-include $(DEP)
+
+test: $(TARGET)
 	python3 test.py | colordiff
+
+clean:
+	rm -f $(OBJ) $(DEP) $(TARGET)
+
+.PHONY: all test clean
