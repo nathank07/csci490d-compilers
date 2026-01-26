@@ -170,12 +170,21 @@ std::expected<void, LexerError> Lexer::consume_string() {
     // skip initial quotation
     char_buff.next();
 
+    // instead of simply returning errors on failures, strings need to keep
+    // being consumed so the lexer doesn't keep consuming a string thinking
+    // it's consuming something else
+    std::optional<LexerError> err;
+
     while (true) {
         auto c = char_buff.consume();
 
         if (!c) {
             return LexerError::create_error(LexerErrorType::UNEXPECTED_EOF, char_buff,
                 "Found EOF while consuming string");
+        }
+
+        if (!continue_on_err && err) {
+            return std::unexpected(*err);
         }
 
         switch (*c) {
@@ -186,6 +195,11 @@ std::expected<void, LexerError> Lexer::consume_string() {
                     col_start,
                     TokenString {v}
                 });
+
+                if (err) {
+                    return std::unexpected(*err);
+                }
+                
                 return {};
             }
             case '\n': v += '\n'; break;
@@ -208,14 +222,14 @@ std::expected<void, LexerError> Lexer::consume_string() {
                     case 'u': {
                         auto e = consume_unicode_char();
                         if (!e) {
-                            return std::unexpected(e.error());
+                            err = e.error();
                         }
                         v += *e;
                         break;
                     }
                     default: {
-                        return LexerError::create_error(LexerErrorType::INVALID_ESCAPE, char_buff,
-                                "Invalid escape sequence found while consuming string.");
+                        err = LexerError::create_error(LexerErrorType::INVALID_ESCAPE, char_buff,
+                                "Invalid escape sequence found while consuming string.").error();
                     }
                 }
 

@@ -18,12 +18,12 @@ public:
     std::optional<unsigned char> consume();
     void next();
     void back();
-    bool eof();
+    bool eof() const;
 
-    std::size_t get_line_number();
-    std::size_t get_col_number();
+    std::size_t get_line_number() const;
+    std::size_t get_col_number() const;
 
-    std::expected<std::string, ErrorCode> get_line(std::size_t line_number);
+    std::expected<std::string, ErrorCode> get_line(std::size_t line_number) const;
     static std::expected<Input, ErrorCode> create(const std::string& filepath);
 
 private:

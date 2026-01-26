@@ -13,7 +13,7 @@ void Input::read(std::istream& in) {
             line_idxs.push_back(i);
         }
 
-        buff.push_back(c);
+        buff.push_back(static_cast<unsigned char> (c));
         
     }
 }
@@ -64,7 +64,7 @@ std::optional<unsigned char> Input::consume() {
     return c;
 }
 
-bool Input::eof() {
+bool Input::eof() const {
     return buff_idx >= buff.size();
 }
 
@@ -84,15 +84,15 @@ std::size_t Input::get_col_number_from_vec(std::size_t from_line_start) {
     return (buff_idx - line_start);
 }
 
-std::size_t Input::get_col_number() {
+std::size_t Input::get_col_number() const {
     return curr_col + 1;
 }
 
-std::size_t Input::get_line_number() {
+std::size_t Input::get_line_number() const {
     return curr_line + 1;
 }
 
-std::expected<std::string, Input::ErrorCode> Input::get_line(std::size_t line_number) {
+std::expected<std::string, Input::ErrorCode> Input::get_line(std::size_t line_number) const {
     if (line_number > line_idxs.size()) {
         return std::unexpected(Input::ErrorCode::OUT_OF_BOUNDS);
     }
