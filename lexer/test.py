@@ -4,7 +4,7 @@ import os
 import difflib
 
 
-for file in os.listdir('tests'):
+for file in sorted(os.listdir('tests')):
     match = re.match(r'test(\d+)', file)
     if match and os.path.isfile(f"tests/out{match.group(1)}"):
         lex_output = subprocess.run(['./main', f"tests/{file}"], capture_output=True, text=True).stdout
