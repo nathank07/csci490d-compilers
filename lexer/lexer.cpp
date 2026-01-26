@@ -8,7 +8,7 @@
 std::expected<Lexer, LexerError> Lexer::create(const std::string &filename, OnTokenError on_err = OnTokenError::HALT) {
     auto input = Input::create(filename);
 
-    if (input.error() == Input::ErrorCode::FAILED_TO_READ_FILE) {
+    if (!input && input.error() == Input::ErrorCode::FAILED_TO_READ_FILE) {
         return LexerError::create_error(LexerErrorType::FAILED_TO_READ_FILE, 
             "Input buffer failed to read the provided filepath: " + filename);
     }

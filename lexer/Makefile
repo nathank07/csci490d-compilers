@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -std=c++23 -Wall -Wextra -Wpedantic -Wconversion -MMD -MP
+CXXFLAGS = -std=c++23 -Wall -Wextra -Wpedantic -Wconversion -MMD -MP -D_GLIBCXX_ASSERTIONS -g
 SRC = input/input.cpp lexer.cpp error.cpp token.cpp main.cpp
 OBJ = $(SRC:.cpp=.o)
 DEP = $(OBJ:.o=.d)
