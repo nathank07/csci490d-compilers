@@ -109,6 +109,7 @@ std::expected<void, LexerError> Lexer::consume_tokens() {
                 auto third = char_buff.peek();
 
                 if (second == '<' && third == '-') {
+                    char_buff.next(); // prevents <<->> from being a valid comment
                     auto e = consume_multi_line_comment();
                     if (!e) {
                         return e;
@@ -479,7 +480,7 @@ std::expected<std::u8string, LexerError> Lexer::consume_unicode_char() {
         if (!c || !std::isxdigit(*c)) {
             return LexerError::create_error(LexerErrorType::MALFORMED_UNICODE, char_buff,
                     "Found unexpected character while reading unicode character: " + 
-                    (c ? "EOF" : "'" + std::string(*c, 1) + "'"));
+                    (c ? "EOF" : "'" + std::string(1, *c) + "'"));
         }
 
         hex.push_back(*c);
