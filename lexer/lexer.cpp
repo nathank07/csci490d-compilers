@@ -117,6 +117,7 @@ std::expected<void, LexerError> Lexer::consume_tokens() {
                     break;
                 }
 
+                // undos character advancement caused by attempting to read comment
                 char_buff.back();
                 char_buff.back();
                 push_token_peek(TokenType::LESS_THAN_EQ, TokenType::LESS_THAN, '=');
