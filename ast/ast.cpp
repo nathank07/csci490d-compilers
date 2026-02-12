@@ -15,11 +15,11 @@ MaybeNode AbstractSyntaxTree::create(const Lexer& lexerResult) {
 
 MaybeNode AbstractSyntaxTree::parse_expression(std::span<const Token> tokens) {
     return std::move(
-        parse_unary(tokens)
-        .or_else([&]() { return parse_paren(tokens); })
-        .or_else([&]() { return parse_as(tokens); })
+        parse_as(tokens)
         .or_else([&]() { return parse_md(tokens); })
         .or_else([&]() { return parse_exp(tokens); })
+        .or_else([&]() { return parse_unary(tokens); })
+        .or_else([&]() { return parse_paren(tokens); })
         .or_else([&]() { return parse_term(tokens);  })
     );
 }
@@ -33,9 +33,7 @@ MaybeNode AbstractSyntaxTree::parse_unary(std::span<const Token> tokens) {
 
     auto token_subview = tokens.subspan(1);
 
-    return parse_paren(token_subview)
-           .or_else([&]() { return parse_term(token_subview); })
-           .or_else([&]() { return parse_unary(token_subview); })
+    return parse_expression(token_subview)
            .and_then([&](auto exp) -> MaybeNode {
                 return op == 
                     TokenType::SUB ?
@@ -125,7 +123,7 @@ MaybeNode AbstractSyntaxTree::parse_binary(std::span<const Token> tokens, std::f
     }
 
     auto dist = std::distance(tokens.rbegin(), it);
-    auto pos = (tokens.size() - 1) - dist;
+    auto pos = tokens.size() - 1 - dist;
 
     if (pos == 0 || pos == tokens.size() - 1) {
         return std::nullopt;
@@ -134,7 +132,15 @@ MaybeNode AbstractSyntaxTree::parse_binary(std::span<const Token> tokens, std::f
     auto l_expr = parse_expression(tokens.subspan(0, pos));
     auto r_expr = parse_expression(tokens.subspan(pos + 1));
 
-    if (!l_expr || !r_expr) {
+    // We may have been looking at a unary operator, so keep
+    // searching for a binary operator...
+    if (!l_expr) {
+        return parse_binary(tokens, [&](const Token& t) {
+            return is_op(t) && (&t < &(*it));
+        });
+    }
+
+    if (!r_expr) {
         return std::nullopt;
     }
 
@@ -155,7 +161,7 @@ MaybeNode AbstractSyntaxTree::parse_binary(std::span<const Token> tokens, std::f
 
 
 MaybeNode AbstractSyntaxTree::parse_term(std::span<const Token> tokens) {
-    if (tokens.size() != 1) {
+    if (tokens.size() == 0) {
         return std::nullopt;
     }
 
