@@ -17,6 +17,10 @@ int main(int argc, char** argv) {
     }
 
     AbstractSyntaxTree a;
-    auto t = a.create(*l);
-    a.print_tree(std::cout, std::move(t));
+    auto nodeOpt = a.create(*l);
+    if (nodeOpt) {
+        a.print_tree(std::cout, *nodeOpt);
+    } else {
+        std::cout << "failed to parse";
+    }
 }

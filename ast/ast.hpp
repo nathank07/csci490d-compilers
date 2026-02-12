@@ -12,18 +12,39 @@ struct overloads : Ts... { using Ts::operator()...; };
 
 class AbstractSyntaxTree {
 
-    MaybeNode parseExpression(std::span<const Token> tokens);
-    MaybeNode parseUnary(std::span<const Token> tokens);
-    MaybeNode parseTerm(std::span<const Token> tokens);
+    MaybeNode parse_expression(std::span<const Token> tokens);
+    MaybeNode parse_unary(std::span<const Token> tokens);
+    MaybeNode parse_paren(std::span<const Token> tokens);
+    MaybeNode parse_md(std::span<const Token> tokens);
+    MaybeNode parse_as(std::span<const Token> tokens);
+    MaybeNode parse_term(std::span<const Token> tokens);
 
 public:
-    std::unique_ptr<Expression> create(const Lexer& lexerResult);
-    void print_tree(std::ostream& o, std::unique_ptr<Expression> tree) {
+    MaybeNode create(const Lexer& lexerResult);
+    void print_tree(std::ostream& o, const std::unique_ptr<Expression>& tree) {
         const auto visitor = overloads 
         {
             [&](std::monostate) { o << "empty"; },
-            [&](const Term& t) { o << "term"; },
-            [&](const Negated& e) { o << "negated"; },
+            [&](const Term& t) { 
+                auto v = overloads {
+                    [&](std::string s) {
+                        o << s << "\n";
+                    },
+                    [&](std::u8string s) {
+                        o << std::string(s.begin(), s.end()) << "\n";
+                    },
+                    [&](long long l) {
+                        o << l << "\n";
+                    },
+                    [&](double d) {
+                        o << d << "\n";
+                    }
+                };
+                
+                o << "term: ";
+                std::visit(v, t.v); 
+            },
+            [&](const Negated& e) { o << "negated "; print_tree(o, e.expression); },
             [&](const Add& v) { o<< "hi"; },
             [&](const Sub& v) { o<< "hi"; },
             [&](const Mult& v) { o<< "hi"; },

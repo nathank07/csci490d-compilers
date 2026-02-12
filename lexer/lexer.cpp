@@ -2,6 +2,7 @@
 #include "error.hpp"
 #include "token.hpp"
 #include <cctype>
+#include <cstdint>
 #include <optional>
 #include <string>
 
