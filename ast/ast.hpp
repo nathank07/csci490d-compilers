@@ -3,6 +3,7 @@
 #include <memory>
 #include <span>
 #include <variant>
+#include <functional>
 
 using MaybeNode = std::optional<std::unique_ptr<Expression>>;
 
@@ -17,6 +18,7 @@ class AbstractSyntaxTree {
     MaybeNode parse_paren(std::span<const Token> tokens);
     MaybeNode parse_md(std::span<const Token> tokens);
     MaybeNode parse_as(std::span<const Token> tokens);
+    MaybeNode parse_binary(std::span<const Token> tokens, std::function<bool (const Token&)> is_op);
     MaybeNode parse_term(std::span<const Token> tokens);
 
 public:
@@ -44,11 +46,27 @@ public:
                 o << "term: ";
                 std::visit(v, t.v); 
             },
-            [&](const Negated& e) { o << "negated "; print_tree(o, e.expression); },
-            [&](const Add& v) { o<< "hi"; },
-            [&](const Sub& v) { o<< "hi"; },
-            [&](const Mult& v) { o<< "hi"; },
-            [&](const Div& v) { o<< "hi"; },
+            [&](const Negated& e) { o << "negated ("; print_tree(o, e.expression); o << ")"; },
+            [&](const Add& v) { 
+                o << "+ \n"; 
+                print_tree(o, v.left);
+                print_tree(o, v.right);
+            },
+            [&](const Sub& v) { 
+                o << "- \n"; 
+                print_tree(o, v.left);
+                print_tree(o, v.right);
+            },
+            [&](const Mult& v) { 
+                o << "* \n"; 
+                print_tree(o, v.left);
+                print_tree(o, v.right);
+            },
+            [&](const Div& v) { 
+                o << "/ \n";
+                print_tree(o, v.left);
+                print_tree(o, v.right);
+            },
             [&](const Exp& v) { o<< "hi"; }
         };
 
