@@ -43,9 +43,9 @@ MaybeNode AbstractSyntaxTree::parse_unary(std::span<const Token> tokens) {
 }
 
 std::optional<std::size_t> find_r_paren(std::span<const Token> tokens) {
-    std::size_t l_parens = 0;
+    std::size_t l_parens = 0, idx = 0;
     
-    for (int idx = 0; auto& token : tokens) {
+    for (auto& token : tokens) {
 
         if (token.type == TokenType::LEFT_PAREN) {
             l_parens++;
@@ -161,7 +161,7 @@ MaybeNode AbstractSyntaxTree::parse_binary(std::span<const Token> tokens, std::f
 
 
 MaybeNode AbstractSyntaxTree::parse_term(std::span<const Token> tokens) {
-    if (tokens.size() == 0) {
+    if (tokens.size() != 1) {
         return std::nullopt;
     }
 
