@@ -18,6 +18,7 @@ class AbstractSyntaxTree {
     MaybeNode parse_paren(std::span<const Token> tokens);
     MaybeNode parse_md(std::span<const Token> tokens);
     MaybeNode parse_as(std::span<const Token> tokens);
+    MaybeNode parse_exp(std::span<const Token> tokens);
     MaybeNode parse_binary(std::span<const Token> tokens, std::function<bool (const Token&)> is_op);
     MaybeNode parse_term(std::span<const Token> tokens);
 
@@ -67,7 +68,16 @@ public:
                 print_tree(o, v.left);
                 print_tree(o, v.right);
             },
-            [&](const Exp& v) { o<< "hi"; }
+            [&](const Mod& v) { 
+                o << "mod \n";
+                print_tree(o, v.left);
+                print_tree(o, v.right);
+            },
+            [&](const Exp& v) { 
+                o << "^ \n";
+                print_tree(o, v.base);
+                print_tree(o, v.exponent);
+             }
         };
 
 

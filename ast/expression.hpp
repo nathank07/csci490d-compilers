@@ -6,6 +6,7 @@ struct Add;
 struct Sub;
 struct Mult;
 struct Div;
+struct Mod;
 struct Exp;
 struct Term;
 
@@ -17,6 +18,7 @@ using Expression =
         Sub,
         Mult,
         Div,
+        Mod,
         Exp,
         Term
     >;
@@ -49,6 +51,11 @@ struct Mult {
 };
 
 struct Div {
+    std::unique_ptr<Expression> left;
+    std::unique_ptr<Expression> right;
+};
+
+struct Mod {
     std::unique_ptr<Expression> left;
     std::unique_ptr<Expression> right;
 };

@@ -19,6 +19,7 @@ MaybeNode AbstractSyntaxTree::parse_expression(std::span<const Token> tokens) {
         .or_else([&]() { return parse_paren(tokens); })
         .or_else([&]() { return parse_as(tokens); })
         .or_else([&]() { return parse_md(tokens); })
+        .or_else([&]() { return parse_exp(tokens); })
         .or_else([&]() { return parse_term(tokens);  })
     );
 }
@@ -84,7 +85,9 @@ MaybeNode AbstractSyntaxTree::parse_paren(std::span<const Token> tokens) {
 
 MaybeNode AbstractSyntaxTree::parse_md(std::span<const Token> tokens) {
     return parse_binary(tokens, [](const Token& t) -> bool {
-        return t.type == TokenType::MULTIPLY || t.type == TokenType::DIVIDE;
+        return t.type == TokenType::MULTIPLY || t.type == TokenType::DIVIDE
+            || (t.type == TokenType::IDENTIFER && 
+                std::get<TokenIdentifier>(t.data).value == std::string("mod"));
     });
 }
 
@@ -92,6 +95,26 @@ MaybeNode AbstractSyntaxTree::parse_as(std::span<const Token> tokens) {
     return parse_binary(tokens, [](const Token& t) -> bool {
         return t.type == TokenType::ADD || t.type == TokenType::SUB;
     });
+}
+
+MaybeNode AbstractSyntaxTree::parse_exp(std::span<const Token> tokens) {
+    auto it = std::find_if(tokens.begin(), tokens.end(), [&](const Token& c) {
+        return c.type == TokenType::EXPONENT;
+    });
+
+    if (it == tokens.end()) {
+        return std::nullopt;
+    }
+
+    auto pos = std::distance(tokens.begin(), it);
+    auto l_expr = parse_expression(tokens.subspan(0, pos));
+    auto r_expr = parse_expression(tokens.subspan(pos + 1));
+
+    if (!l_expr || !r_expr) {
+        return std::nullopt;
+    }
+
+    return std::make_unique<Expression>(Exp{ std::move(*l_expr), std::move(*r_expr) });
 }
 
 MaybeNode AbstractSyntaxTree::parse_binary(std::span<const Token> tokens, std::function<bool (const Token&)> is_op) {
@@ -103,6 +126,11 @@ MaybeNode AbstractSyntaxTree::parse_binary(std::span<const Token> tokens, std::f
 
     auto dist = std::distance(tokens.rbegin(), it);
     auto pos = (tokens.size() - 1) - dist;
+
+    if (pos == 0 || pos == tokens.size() - 1) {
+        return std::nullopt;
+    }
+
     auto l_expr = parse_expression(tokens.subspan(0, pos));
     auto r_expr = parse_expression(tokens.subspan(pos + 1));
 
@@ -115,10 +143,12 @@ MaybeNode AbstractSyntaxTree::parse_binary(std::span<const Token> tokens, std::f
     };
 
     switch (it->type) {
-        case TokenType::ADD:      return create_node.operator()<Add>();
-        case TokenType::SUB:      return create_node.operator()<Sub>();
-        case TokenType::MULTIPLY: return create_node.operator()<Mult>();
-        case TokenType::DIVIDE:   return create_node.operator()<Div>();
+        case TokenType::ADD:       return create_node.operator()<Add>();
+        case TokenType::SUB:       return create_node.operator()<Sub>();
+        case TokenType::MULTIPLY:  return create_node.operator()<Mult>();
+        case TokenType::DIVIDE:    return create_node.operator()<Div>();
+        // since mod is the only ident
+        case TokenType::IDENTIFER: return create_node.operator()<Mod>();
         default: return std::nullopt;
     }
 }
