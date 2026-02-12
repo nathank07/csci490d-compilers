@@ -34,8 +34,8 @@ public:
     };
 
     static std::expected<Lexer, LexerError> create(const std::string &filename, OnTokenError on_err);
-    const std::vector<Token>& get_tokens() { return tokens; };
-    const std::vector<LexerError>& get_invalid_tokens() { return invalid_tokens; };
+    const std::vector<Token>& get_tokens() const { return tokens; };
+    const std::vector<LexerError>& get_invalid_tokens() const { return invalid_tokens; };
 
 private:
 
