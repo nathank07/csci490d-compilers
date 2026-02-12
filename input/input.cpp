@@ -5,7 +5,7 @@
 
 void Input::read(std::istream& in) {
     int c;
-    int i = 0;
+    size_t i = 0;
     while ((c = in.get()) != std::char_traits<char>::eof()) {
         i++;
 

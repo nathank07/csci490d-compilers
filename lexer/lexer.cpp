@@ -226,6 +226,7 @@ std::expected<void, LexerError> Lexer::consume_string() {
                         auto e = consume_unicode_char();
                         if (!e) {
                             err = e.error();
+                            break;
                         }
                         v += *e;
                         break;
@@ -482,7 +483,7 @@ std::expected<std::u8string, LexerError> Lexer::consume_unicode_char() {
         if (!c || !std::isxdigit(*c)) {
             return LexerError::create_error(LexerErrorType::MALFORMED_UNICODE, char_buff,
                     "Found unexpected character while reading unicode character: " + 
-                    (c ? "EOF" : "'" + std::string(1, *c) + "'"));
+                    (!c ? "EOF" : "'" + std::string(1, *c) + "'"));
         }
 
         hex.push_back(*c);

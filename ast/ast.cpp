@@ -1,5 +1,3 @@
-#pragma once
-
 #include "ast.hpp"
 #include <algorithm>
 #include <memory>
@@ -25,6 +23,10 @@ MaybeNode AbstractSyntaxTree::parse_expression(std::span<const Token> tokens) {
 }
 
 MaybeNode AbstractSyntaxTree::parse_unary(std::span<const Token> tokens) {
+    if (tokens.empty()) {
+        return std::nullopt;
+    }
+    
     auto op = tokens.front().type;
     
     if (op != TokenType::ADD && op != TokenType::SUB) {
@@ -66,6 +68,10 @@ std::optional<std::size_t> find_r_paren(std::span<const Token> tokens) {
 }
 
 MaybeNode AbstractSyntaxTree::parse_paren(std::span<const Token> tokens) {
+    if (tokens.empty()) {
+        return std::nullopt;
+    }
+
     auto paren = tokens.front().type;
 
     if (paren != TokenType::LEFT_PAREN) {
