@@ -1,0 +1,74 @@
+#include <variant>
+#include <expected>
+
+
+template<typename T, typename E>
+class ParseResult {
+    struct Just { T value; };
+    struct Nothing {};
+    struct Err { E error; };
+
+    std::variant<Just, Nothing, Err> value;
+
+    ParseResult(Just j) : value(std::move(j)) {}
+    ParseResult(Nothing n) : value(n) {}
+    ParseResult(Err e) : value(std::move(e)) {}
+
+public:
+    static ParseResult just(T val) { return Just{std::move(val)}; }
+    static ParseResult nothing() { return Nothing{}; }
+    static ParseResult error(E err) { return Err{std::move(err)}; }
+
+    explicit operator bool() const {
+        return std::holds_alternative<Just>(value);
+    }
+
+    bool operator! () const {
+        return !std::holds_alternative<Just>(value);
+    }
+
+    T& operator* () & {
+        return std::get<Just>(value).value;
+    }
+
+    T&& operator* () && {
+        return std::move(std::get<Just>(value).value);
+    }
+
+    template <typename F>
+    ParseResult and_then(F&& next) {
+        if (std::holds_alternative<Just>(value)) {
+            return next(std::move(std::get<Just>(value).value));
+        }
+        return std::move(*this); 
+    }
+
+    template <typename F>
+    ParseResult transform(F&& f) {
+        if (std::holds_alternative<Just>(value)) {
+            auto current_val = std::move(std::get<Just>(value).value);
+            auto new_val = f(std::move(current_val));
+            return ParseResult(Just{std::move(new_val)});
+        }
+        return std::move(*this);
+    }
+
+    template<typename F>
+    ParseResult or_else(F&& next) {
+        if (std::holds_alternative<Nothing>(value)) {
+            return next();
+        }
+        return std::move(*this);
+    }
+
+    std::expected<T, E> to_expected(E if_nothing) && {
+        if (std::holds_alternative<Just>(value)) {
+            return std::move(std::get<Just>(value).value);
+        }
+        if (std::holds_alternative<Err>(value)) {
+            return std::unexpected(std::get<Err>(value).error);
+        }
+        return std::unexpected(if_nothing);
+    }
+
+};

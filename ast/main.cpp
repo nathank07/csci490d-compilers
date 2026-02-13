@@ -17,7 +17,7 @@ int main(int argc, char** argv) {
     }
 
     AbstractSyntaxTree a;
-    auto nodeOpt = a.create(*l);
+    auto nodeOpt = a.create(std::move(*l));
     if (nodeOpt) {
         a.print_tree(std::cout, *nodeOpt);
     } else {

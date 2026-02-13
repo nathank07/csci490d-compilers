@@ -1,27 +1,9 @@
 #include <memory>
 #include <variant>
+#include <span>
+#include "../lexer/token.hpp"
 
-struct Negated;
-struct Add;
-struct Sub;
-struct Mult;
-struct Div;
-struct Mod;
-struct Exp;
-struct Term;
-
-using Expression =
-    std::variant<
-        std::monostate,
-        Negated,
-        Add,
-        Sub,
-        Mult,
-        Div,
-        Mod,
-        Exp,
-        Term
-    >;
+struct Expression;
 
 using TermValue = 
     std::variant<
@@ -70,3 +52,38 @@ struct Term {
 };
 
 
+struct Expression {
+    std::variant<
+        std::monostate, 
+        Negated, 
+        Add, 
+        Sub, 
+        Mult, 
+        Div, 
+        Mod, 
+        Exp, 
+        Term
+    > expression;
+
+    std::span<const Token> token_span;
+};
+
+inline std::span<const Token> span_covering(const Expression& left, const Expression& right) {
+    auto start_ptr = left.token_span.data();
+    auto end_ptr = right.token_span.data() + right.token_span.size();
+    return {start_ptr, static_cast<std::size_t>(end_ptr - start_ptr)};
+}
+
+template<typename T>
+std::unique_ptr<Expression> make_binary(std::unique_ptr<Expression>& left, std::unique_ptr<Expression>& right) {
+    auto span = span_covering(*left, *right);
+    return std::make_unique<Expression>(T{std::move(left), std::move(right)}, span);
+}
+
+inline std::unique_ptr<Expression> make_negated(std::unique_ptr<Expression> inner, std::span<const Token> tokens) {
+    return std::make_unique<Expression>(Negated{std::move(inner)}, tokens);
+}
+
+inline std::unique_ptr<Expression> make_term(Term term, std::span<const Token> tokens) {
+    return std::make_unique<Expression>(std::move(term), tokens);
+}
