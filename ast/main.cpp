@@ -17,10 +17,11 @@ int main(int argc, char** argv) {
     }
 
     AbstractSyntaxTree a;
-    auto nodeOpt = a.create(std::move(*l));
-    if (nodeOpt) {
-        a.print_tree(std::cout, *nodeOpt);
-    } else {
-        std::cout << "failed to parse";
+    auto node_v = std::move(a.create(std::move(*l)));
+
+    std::cout << "node_v len" << node_v.size() << "\n";
+    
+    for (auto& node : node_v) {
+        a.print_tree(std::cout, *node);
     }
 }

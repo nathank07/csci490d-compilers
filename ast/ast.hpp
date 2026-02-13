@@ -6,6 +6,7 @@
 #include <span>
 #include <variant>
 #include <functional>
+#include <vector>
 
 using NodeResult = ParseResult<std::unique_ptr<Expression>, AstError>;
 
@@ -25,7 +26,7 @@ class AbstractSyntaxTree {
     NodeResult parse_term(std::span<const Token> tokens);
 
 public:
-    NodeResult create(const Lexer& lexerResult);
+    std::vector<NodeResult> create(const Lexer& lexerResult);
     void print_tree(std::ostream& o, const std::unique_ptr<Expression>& tree, std::size_t indent = 0) {
         if (!tree || tree->token_span.empty()) 
             return;

@@ -1,12 +1,40 @@
 #include "ast.hpp"
 #include <algorithm>
 #include <optional>
+#include <vector>
 
-NodeResult AbstractSyntaxTree::create(const Lexer& lexerResult) {
+#include <iostream>
+
+std::vector<NodeResult> AbstractSyntaxTree::create(const Lexer& lexerResult) {
     const auto& tokens = lexerResult.get_tokens();
     std::span<const Token> tokenSpan(tokens.data(), tokens.size() - 1);
+    std::vector<NodeResult> v;
 
-    return parse_expression(tokenSpan);
+    while (!tokenSpan.empty()) {
+        auto exp = parse_expression(tokenSpan);
+
+        // std::cout << "current tokenspan: ";
+
+        // for (auto tok : tokenSpan) {
+        //     std::cout << tok.get_type_string() << " ";
+        // }
+
+        // std::cout << "\n";
+                
+        if (!exp) {
+            // std::cout << exp.error().message;
+            // tokenSpan = tokenSpan.subspan(exp.error().skip_x_tok);
+            continue;
+        }
+
+        size_t consumed = (*exp)->token_span.size();
+        std::cout << "consumed: " << consumed << "\n";
+        v.push_back(std::move(exp));
+        tokenSpan = tokenSpan.subspan(consumed);
+    }
+    
+    
+    return v; 
 }
 
 
@@ -26,9 +54,9 @@ NodeResult AbstractSyntaxTree::parse_unary(std::span<const Token> tokens) {
         return NodeResult::nothing();
     }
     
-    auto op = tokens.front().type;
+    auto op = tokens.front();
     
-    if (op != TokenType::ADD && op != TokenType::SUB) {
+    if (op.type != TokenType::ADD && op.type != TokenType::SUB) {
         return NodeResult::nothing();
     }
 
@@ -37,10 +65,14 @@ NodeResult AbstractSyntaxTree::parse_unary(std::span<const Token> tokens) {
     return parse_paren(token_subview)
            .or_else([&]() { return parse_term(token_subview); })
            .and_then([&](auto exp) -> NodeResult {
-                return op ==
+                return op.type ==
                     TokenType::SUB ?
                     NodeResult::just(make_negated(std::move(exp), tokens)) :
                     NodeResult::just(std::move(exp));
+            })
+            .or_else([&]() { 
+                return parse_unary(token_subview)
+                .and_then([&](auto&&) { return NodeResult::error(AstError::extra_unary(op)); });
             });
 }
 
@@ -69,22 +101,28 @@ std::optional<std::size_t> find_r_paren(std::span<const Token> tokens) {
 
 NodeResult AbstractSyntaxTree::parse_paren(std::span<const Token> tokens) {
     if (tokens.empty()) {
-        return NodeResult::nothing();;
+        return NodeResult::nothing();
     }
 
-    auto paren = tokens.front().type;
+    auto paren = tokens.front();
 
-    if (paren != TokenType::LEFT_PAREN) {
-        return NodeResult::nothing();;
+    if (paren.type != TokenType::LEFT_PAREN) {
+        return NodeResult::nothing();
     }
 
     auto idx = find_r_paren(tokens);
 
     if (!idx) {
-        return NodeResult::error(AstError::mismatched_bracket(tokens));
+        return NodeResult::error(AstError::mismatched_bracket(paren));
     }
     
-    return parse_expression(tokens.subspan(1, *idx - 1));        
+    return parse_expression(tokens.subspan(1, *idx - 1))
+            .and_then([&](auto exp) -> NodeResult {
+                // trick the top level parser into thinking parens tokens
+                // are apart of the full expression so AST parses correctly
+                exp->token_span = tokens.subspan(0, *idx + 1);
+                return NodeResult::just(std::move(exp));
+            });
 }
 
 NodeResult AbstractSyntaxTree::parse_md(std::span<const Token> tokens) {
@@ -107,7 +145,7 @@ NodeResult AbstractSyntaxTree::parse_exp(std::span<const Token> tokens) {
     });
 
     if (it == tokens.end()) {
-        return NodeResult::nothing();;
+        return NodeResult::nothing();
     }
 
     auto pos = std::distance(tokens.begin(), it);
@@ -115,38 +153,40 @@ NodeResult AbstractSyntaxTree::parse_exp(std::span<const Token> tokens) {
     auto r_expr = parse_expression(tokens.subspan(pos + 1));
 
     if (!l_expr || !r_expr) {
-        return NodeResult::nothing();;
+        return NodeResult::nothing();
     }
 
     return NodeResult::just(make_binary<Exp>(*l_expr, *r_expr));
 }
 
 NodeResult AbstractSyntaxTree::parse_binary(std::span<const Token> tokens, std::function<bool (const Token&)> is_op) {
-    auto it = std::find_if(tokens.rbegin(), tokens.rend(), is_op);
+    auto it = std::find_if(tokens.begin(), tokens.end(), is_op);
 
-    if (it == tokens.rend()) {
+    if (it == tokens.end()) {
         return NodeResult::nothing();
     }
 
-    auto dist = std::distance(tokens.rbegin(), it);
-    auto pos = tokens.size() - 1 - dist;
+    auto pos = std::distance(tokens.begin(), it);
 
-    if (pos == 0 || pos == tokens.size() - 1) {
+    if (pos == 0 || pos == tokens.size()) {
         return NodeResult::nothing();
     }
 
-    auto l_expr = parse_expression(tokens.subspan(0, pos));
-    auto r_expr = parse_expression(tokens.subspan(pos + 1));
+    auto r_span = tokens.subspan(pos + 1);
+    auto r_expr = parse_paren(r_span)
+                    .or_else([&](){ return parse_unary(r_span); })
+                    .or_else([&](){ return parse_term(r_span); });
 
-    // We may have been looking at a unary operator, so keep
-    // searching for a binary operator...
-    if (!l_expr) {
+    if (!r_expr) {
         return parse_binary(tokens, [&](const Token& t) {
-            return is_op(t) && (&t < &(*it));
+            return is_op(t) && (&t > &(*it));
         });
     }
 
-    if (!r_expr) {
+    auto l_span = tokens.subspan(0, pos);
+    auto l_expr = parse_expression(l_span);
+
+    if (!l_expr) {
         return NodeResult::nothing();
     }
 
@@ -169,7 +209,7 @@ NodeResult AbstractSyntaxTree::parse_term(std::span<const Token> tokens) {
 
     auto token = tokens.front();
 
-    auto get_node = [&]<typename T>(const Token& t) -> NodeResult {
+    auto get_node = [&]<typename T>(const Token& t) {
         auto tokenData = std::get<T>(t.data);
         return NodeResult::just(make_term(Term{TermValue{tokenData.value}}, tokens));
     };

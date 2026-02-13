@@ -85,5 +85,5 @@ inline std::unique_ptr<Expression> make_negated(std::unique_ptr<Expression> inne
 }
 
 inline std::unique_ptr<Expression> make_term(Term term, std::span<const Token> tokens) {
-    return std::make_unique<Expression>(std::move(term), tokens);
+    return std::make_unique<Expression>(std::move(term), tokens.subspan(0, 1));
 }

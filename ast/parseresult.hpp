@@ -1,6 +1,4 @@
 #include <variant>
-#include <expected>
-
 
 template<typename T, typename E>
 class ParseResult {
@@ -35,6 +33,10 @@ public:
         return std::move(std::get<Just>(value).value);
     }
 
+    E& error() & {
+        return std::get<Err>(value).error;
+    }
+
     template <typename F>
     ParseResult and_then(F&& next) {
         if (std::holds_alternative<Just>(value)) {
@@ -60,15 +62,4 @@ public:
         }
         return std::move(*this);
     }
-
-    std::expected<T, E> to_expected(E if_nothing) && {
-        if (std::holds_alternative<Just>(value)) {
-            return std::move(std::get<Just>(value).value);
-        }
-        if (std::holds_alternative<Err>(value)) {
-            return std::unexpected(std::get<Err>(value).error);
-        }
-        return std::unexpected(if_nothing);
-    }
-
 };
