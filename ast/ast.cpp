@@ -29,14 +29,9 @@ std::vector<NodeResult> AbstractSyntaxTree::create(const Lexer& lexerResult) {
 }
 
 
-NodeResult AbstractSyntaxTree::parse_expression(std::span<const Token> tokens) {
-    std::cout << "parsing token span: ";
-    for (auto& t : tokens) {
-        std::cout << t.get_type_string() << " ";
-    }
-    std::cout << "\n";
-
-    auto e = parse_as(tokens)
+NodeResult AbstractSyntaxTree::parse_expression(std::span<const Token> tokens) {    
+    return std::move(
+        parse_as(tokens)
         .or_else([&]() { return parse_md(tokens); })
         .or_else([&]() { return parse_exp(tokens); })
         .or_else([&]() { return parse_unary(tokens); })
@@ -44,12 +39,8 @@ NodeResult AbstractSyntaxTree::parse_expression(std::span<const Token> tokens) {
         .or_else([&]() { return parse_term(tokens);  })
         .or_else([&]() { 
             return NodeResult::error(AstError::bad_symbol(tokens.front())); 
-        });
-    
-    if (e.is_error()) {
-        std::cout << "got error: " << e.error().message << "\n";
-    }
-    return std::move(e);
+        })
+    );
 }
 
 NodeResult AbstractSyntaxTree::parse_unary(std::span<const Token> tokens) {
@@ -178,32 +169,35 @@ NodeResult AbstractSyntaxTree::parse_binary(std::span<const Token> tokens, std::
     auto r_span = tokens.subspan(pos + 1);
     auto l_span = tokens.subspan(0, pos);
 
-    if (r_span.empty () || l_span.empty()) {
+    if (r_span.empty() || l_span.empty()) {
         return NodeResult::nothing();
     }
 
-    std::cout << "parsing l_expr\n";
     auto l_expr = parse_expression(l_span);
 
     if (l_expr && ((*l_expr)->token_span.size()) != l_span.size()) {
         return NodeResult::nothing(); 
     }
 
-    std::cout << "valid l_expr found\n";
+    auto r_expr = parse_expression(r_span);
 
-    std::cout << "parsing r_expr\n";
-    auto r_expr = parse_expression(r_span);//parse_paren(r_span)
-                  //  .or_else([&](){ return parse_unary(r_span); })
-                  //  .or_else([&](){ return parse_term(r_span.subspan(0, 1)); });
-    std::cout << "valid r_expr found\n";
+    // r_expr should not error out unless there is literally an error,
+    // so just consume the left expression and the existing operand
+    // and let top level loop deal with the error later
+    if (r_expr.is_error()) {
+        return l_expr.and_then([&](auto exp) -> NodeResult {
+            exp->token_span = tokens.subspan(0 , pos + 1);
+            return NodeResult::just(std::move(exp));
+        });
+    }
 
-    // could be memoized (?) hilariously expensive solution
+    // could be memoized (?) hilariously expensive solution for
+    // left association
     auto next_valid_bin_exists = parse_binary(tokens, [&](const Token& t) {
        return is_op(t) && (&t > &(*it));
     });
 
     if (l_expr && r_expr && next_valid_bin_exists) {
-        std::cout << "next valid exists\n";
         return parse_binary(tokens, [&](const Token& t) {
             return is_op(t) && (&t > &(*it));
         });

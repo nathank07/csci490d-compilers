@@ -1,4 +1,3 @@
-#include <span>
 #include "../lexer/token.hpp"
 
 enum class AstErrorType {
@@ -21,7 +20,7 @@ struct AstError {
     }
 
     static AstError bad_symbol(Token bad_symbol) {
-        return AstError{AstErrorType::EXTRA_UNARY, "Bad symbol " + bad_symbol.get_type_string(), 1};
+        return AstError{AstErrorType::FAILED_TO_PARSE_SYMBOL, "Bad symbol " + bad_symbol.get_type_string(), 1};
     }
 
 };
