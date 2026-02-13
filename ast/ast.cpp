@@ -12,41 +12,44 @@ std::vector<NodeResult> AbstractSyntaxTree::create(const Lexer& lexerResult) {
 
     while (!tokenSpan.empty()) {
         auto exp = parse_expression(tokenSpan);
-
-        // std::cout << "current tokenspan: ";
-
-        // for (auto tok : tokenSpan) {
-        //     std::cout << tok.get_type_string() << " ";
-        // }
-
-        // std::cout << "\n";
-                
-        if (!exp) {
-            // std::cout << exp.error().message;
-            // tokenSpan = tokenSpan.subspan(exp.error().skip_x_tok);
-            continue;
+        if (exp) {
+            size_t consumed = (*exp)->token_span.size();
+            v.push_back(std::move(exp));
+            tokenSpan = tokenSpan.subspan(consumed);
+        } else if (exp.is_error()) {
+            std::cout << exp.error().message << "\n";
+            tokenSpan = tokenSpan.subspan(exp.error().skip_x_tok);
+        } else {
+            std::cout << "unreachable point reached\n";
+            tokenSpan = tokenSpan.subspan(1);
         }
-
-        size_t consumed = (*exp)->token_span.size();
-        std::cout << "consumed: " << consumed << "\n";
-        v.push_back(std::move(exp));
-        tokenSpan = tokenSpan.subspan(consumed);
     }
-    
     
     return v; 
 }
 
 
 NodeResult AbstractSyntaxTree::parse_expression(std::span<const Token> tokens) {
-    return std::move(
-        parse_as(tokens)
+    std::cout << "parsing token span: ";
+    for (auto& t : tokens) {
+        std::cout << t.get_type_string() << " ";
+    }
+    std::cout << "\n";
+
+    auto e = parse_as(tokens)
         .or_else([&]() { return parse_md(tokens); })
         .or_else([&]() { return parse_exp(tokens); })
         .or_else([&]() { return parse_unary(tokens); })
         .or_else([&]() { return parse_paren(tokens); })
         .or_else([&]() { return parse_term(tokens);  })
-    );
+        .or_else([&]() { 
+            return NodeResult::error(AstError::bad_symbol(tokens.front())); 
+        });
+    
+    if (e.is_error()) {
+        std::cout << "got error: " << e.error().message << "\n";
+    }
+    return std::move(e);
 }
 
 NodeResult AbstractSyntaxTree::parse_unary(std::span<const Token> tokens) {
@@ -173,20 +176,40 @@ NodeResult AbstractSyntaxTree::parse_binary(std::span<const Token> tokens, std::
     }
 
     auto r_span = tokens.subspan(pos + 1);
-    auto r_expr = parse_paren(r_span)
-                    .or_else([&](){ return parse_unary(r_span); })
-                    .or_else([&](){ return parse_term(r_span); });
+    auto l_span = tokens.subspan(0, pos);
 
-    if (!r_expr) {
+    if (r_span.empty () || l_span.empty()) {
+        return NodeResult::nothing();
+    }
+
+    std::cout << "parsing l_expr\n";
+    auto l_expr = parse_expression(l_span);
+
+    if (l_expr && ((*l_expr)->token_span.size()) != l_span.size()) {
+        return NodeResult::nothing(); 
+    }
+
+    std::cout << "valid l_expr found\n";
+
+    std::cout << "parsing r_expr\n";
+    auto r_expr = parse_expression(r_span);//parse_paren(r_span)
+                  //  .or_else([&](){ return parse_unary(r_span); })
+                  //  .or_else([&](){ return parse_term(r_span.subspan(0, 1)); });
+    std::cout << "valid r_expr found\n";
+
+    // could be memoized (?) hilariously expensive solution
+    auto next_valid_bin_exists = parse_binary(tokens, [&](const Token& t) {
+       return is_op(t) && (&t > &(*it));
+    });
+
+    if (l_expr && r_expr && next_valid_bin_exists) {
+        std::cout << "next valid exists\n";
         return parse_binary(tokens, [&](const Token& t) {
             return is_op(t) && (&t > &(*it));
         });
     }
 
-    auto l_span = tokens.subspan(0, pos);
-    auto l_expr = parse_expression(l_span);
-
-    if (!l_expr) {
+    if (!l_expr || !r_expr) {
         return NodeResult::nothing();
     }
 
@@ -203,7 +226,7 @@ NodeResult AbstractSyntaxTree::parse_binary(std::span<const Token> tokens, std::
 
 
 NodeResult AbstractSyntaxTree::parse_term(std::span<const Token> tokens) {
-    if (tokens.size() != 1) {
+    if (tokens.empty()) {
         return NodeResult::nothing();
     }
 
@@ -211,7 +234,7 @@ NodeResult AbstractSyntaxTree::parse_term(std::span<const Token> tokens) {
 
     auto get_node = [&]<typename T>(const Token& t) {
         auto tokenData = std::get<T>(t.data);
-        return NodeResult::just(make_term(Term{TermValue{tokenData.value}}, tokens));
+        return NodeResult::just(make_term(Term{TermValue{tokenData.value}}, tokens.subspan(0, 1)));
     };
 
     switch (token.type) {

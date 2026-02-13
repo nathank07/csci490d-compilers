@@ -3,7 +3,8 @@
 
 enum class AstErrorType {
     MISMATCH_PAREN,
-    EXTRA_UNARY
+    EXTRA_UNARY,
+    FAILED_TO_PARSE_SYMBOL
 };
 
 struct AstError {
@@ -18,4 +19,9 @@ struct AstError {
     static AstError extra_unary(Token bad_unary) {
         return AstError{AstErrorType::EXTRA_UNARY, "Bad unary", 2};
     }
+
+    static AstError bad_symbol(Token bad_symbol) {
+        return AstError{AstErrorType::EXTRA_UNARY, "Bad symbol " + bad_symbol.get_type_string(), 1};
+    }
+
 };

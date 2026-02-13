@@ -1,7 +1,7 @@
 #include <variant>
 
 template<typename T, typename E>
-class ParseResult {
+struct ParseResult {
     struct Just { T value; };
     struct Nothing {};
     struct Err { E error; };
@@ -12,7 +12,7 @@ class ParseResult {
     ParseResult(Nothing n) : value(n) {}
     ParseResult(Err e) : value(std::move(e)) {}
 
-public:
+    
     static ParseResult just(T val) { return Just{std::move(val)}; }
     static ParseResult nothing() { return Nothing{}; }
     static ParseResult error(E err) { return Err{std::move(err)}; }
@@ -61,5 +61,9 @@ public:
             return next();
         }
         return std::move(*this);
+    }
+
+    bool is_error() {
+        return std::holds_alternative<Err>(value);
     }
 };
