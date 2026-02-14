@@ -4,27 +4,24 @@
 #include <algorithm>
 #include <optional>
 #include <vector>
-
 #include <iostream>
 
 std::vector<NodeResult> AbstractSyntaxTree::create(const Lexer& lexerResult) {
     const auto& tokens = lexerResult.get_tokens();
-    std::span<const Token> tokenSpan(tokens.data(), tokens.size() - 1);
+    std::span<const Token> tokenSpan(tokens.data(), tokens.size());
     std::vector<NodeResult> v;
 
-    while (!tokenSpan.empty()) {
+    while (!tokenSpan.empty() && tokenSpan.front().type != TokenType::END_OF_FILE) {
         auto exp = parse_expression(tokenSpan);
         if (exp) {
             size_t consumed = *exp.get_expr_width();
             v.push_back(std::move(exp));
             tokenSpan = tokenSpan.subspan(consumed);
         } else if (exp.is_error()) {
-            std::cout << exp.error().message << "\n";
+            std::cout << "found error";
+            v.push_back(std::move(exp));
             tokenSpan = tokenSpan.subspan(exp.error().skip_x_tok);
-        } else {
-            std::cout << "unreachable point reached\n";
-            tokenSpan = tokenSpan.subspan(1);
-        }
+        } 
     }
     
     return v; 
@@ -91,6 +88,20 @@ std::optional<std::size_t> find_r_paren(std::span<const Token> tokens) {
     return std::nullopt;
 }
 
+NodeResult AbstractSyntaxTree::unwrap_balanced_paren_result(std::span<const Token> paren_result) {
+    auto it = std::find_if(paren_result.begin(), paren_result.end(), [](const auto& t) {
+        return t.type != TokenType::LEFT_PAREN;
+    });
+
+    auto pos = std::distance(paren_result.begin(), it);
+
+    if (pos == static_cast<decltype(pos)>(paren_result.size() / 2)) {
+        return NodeResult::error(AstError::empty_parens(paren_result));
+    }
+
+    return parse_expression(paren_result.subspan(pos, paren_result.size() - pos));
+}
+
 NodeResult AbstractSyntaxTree::parse_paren(std::span<const Token> tokens) {
     if (tokens.empty()) {
         return NodeResult::nothing();
@@ -108,13 +119,13 @@ NodeResult AbstractSyntaxTree::parse_paren(std::span<const Token> tokens) {
         return NodeResult::error(AstError::mismatched_bracket(paren));
     }
     
-    return parse_expression(tokens.subspan(1, *idx - 1))
-            .and_then([&](auto exp) -> NodeResult {
+    return unwrap_balanced_paren_result(tokens.subspan(0, *idx + 1))
+        .and_then([&](auto&& exp) {
                 // trick the top level parser into thinking parens tokens
                 // are apart of the full expression so AST parses correctly
                 exp->token_span = tokens.subspan(0, *idx + 1);
                 return NodeResult::just(std::move(exp));
-            });
+        });
 }
 
 NodeResult AbstractSyntaxTree::parse_exp(std::span<const Token> tokens) {

@@ -1,5 +1,6 @@
 #include "ast.hpp"
 #include "../lexer/lexer.hpp"
+#include "expression.hpp"
 #include <iostream>
 
 int main(int argc, char** argv) {
@@ -22,6 +23,13 @@ int main(int argc, char** argv) {
     std::cout << "node_v len" << node_v.size() << "\n";
     
     for (auto& node : node_v) {
-        a.print_tree(std::cout, *node);
+        if (!node.is_error()) {
+            a.print_tree(std::cout, *node);
+        } else {
+            node.map_err([](auto&& err) {
+                std::cout << err.message << "\n";
+                return NodeResult::Err(err);
+            });
+        }
     }
 }

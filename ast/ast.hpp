@@ -16,6 +16,7 @@ class AbstractSyntaxTree {
     NodeResult parse_expression(std::span<const Token> tokens);
     NodeResult parse_unary(std::span<const Token> tokens);
     NodeResult parse_paren(std::span<const Token> tokens);
+    NodeResult unwrap_balanced_paren_result(std::span<const Token> paren_result);
     NodeResult parse_md(std::span<const Token> tokens);
     NodeResult parse_as(std::span<const Token> tokens);
     NodeResult parse_exp(std::span<const Token> tokens);

@@ -5,7 +5,8 @@
 enum class AstErrorType {
     MISMATCH_PAREN,
     EXTRA_UNARY,
-    FAILED_TO_PARSE_SYMBOL
+    FAILED_TO_PARSE_SYMBOL,
+    EMPTY_PARENS
 };
 
 struct AstError {
@@ -27,6 +28,11 @@ struct AstError {
 
     static AstError malformed_rhs(std::span <const Token> context, AstError e) {
         return AstError{AstErrorType::MISMATCH_PAREN, "", 0};
+    }
+
+    
+    static AstError empty_parens(std::span <const Token> parens) {
+        return AstError{AstErrorType::EMPTY_PARENS, "Empty parens", parens.size()};
     }
 
 };

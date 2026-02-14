@@ -112,7 +112,6 @@ inline NodeResult make_term(const Token& t, std::span<const Token> tokens) {
     }
 }
 
-
 inline NodeResult make_term(std::unique_ptr<Expression> term, std::span<const Token> tokens) {
     return NodeResult::just(std::make_unique<Expression>(std::move(term->expression), tokens));
 }
