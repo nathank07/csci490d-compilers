@@ -27,7 +27,13 @@ int main(int argc, char** argv) {
             a.print_tree(std::cout, *node);
         } else {
             node.map_err([](auto&& err) {
-                std::cout << err.message << "\n";
+                std::cout << err.message << " ";
+
+                if (err.offending_token) {
+                    std::cout << err.offending_token->line_number << ":" << err.offending_token->column_number; 
+                }
+
+                std::cout << "\n";
                 return NodeResult::Err(err);
             });
         }

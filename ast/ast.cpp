@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <optional>
 #include <vector>
-#include <iostream>
 
 std::vector<NodeResult> AbstractSyntaxTree::create(const Lexer& lexerResult) {
     const auto& tokens = lexerResult.get_tokens();
@@ -18,7 +17,6 @@ std::vector<NodeResult> AbstractSyntaxTree::create(const Lexer& lexerResult) {
             v.push_back(std::move(exp));
             tokenSpan = tokenSpan.subspan(consumed);
         } else if (exp.is_error()) {
-            std::cout << "found error";
             v.push_back(std::move(exp));
             tokenSpan = tokenSpan.subspan(exp.error().skip_x_tok);
         } 
@@ -26,7 +24,6 @@ std::vector<NodeResult> AbstractSyntaxTree::create(const Lexer& lexerResult) {
     
     return v; 
 }
-
 
 NodeResult AbstractSyntaxTree::parse_expression(std::span<const Token> tokens) {
     return std::move(
@@ -65,68 +62,44 @@ NodeResult AbstractSyntaxTree::parse_unary(std::span<const Token> tokens) {
             });
 }
 
-std::optional<std::size_t> find_r_paren(std::span<const Token> tokens) {
-    std::size_t l_parens = 0, idx = 0;
-    
-    for (auto& token : tokens) {
-
-        if (token.type == TokenType::LEFT_PAREN) {
-            l_parens++;
-        }
-
-        if (token.type == TokenType::RIGHT_PAREN) {
-            l_parens--;
-        }
-
-        if (l_parens == 0) {
-            return idx;
-        }
-
-        idx++;
-    }
-
-    return std::nullopt;
-}
-
-NodeResult AbstractSyntaxTree::unwrap_balanced_paren_result(std::span<const Token> paren_result) {
-    auto it = std::find_if(paren_result.begin(), paren_result.end(), [](const auto& t) {
-        return t.type != TokenType::LEFT_PAREN;
-    });
-
-    auto pos = std::distance(paren_result.begin(), it);
-
-    if (pos == static_cast<decltype(pos)>(paren_result.size() / 2)) {
-        return NodeResult::error(AstError::empty_parens(paren_result));
-    }
-
-    return parse_expression(paren_result.subspan(pos, paren_result.size() - pos));
-}
-
 NodeResult AbstractSyntaxTree::parse_paren(std::span<const Token> tokens) {
-    if (tokens.empty()) {
-        return NodeResult::nothing();
-    }
-
-    auto paren = tokens.front();
-
-    if (paren.type != TokenType::LEFT_PAREN) {
-        return NodeResult::nothing();
-    }
-
-    auto idx = find_r_paren(tokens);
-
-    if (!idx) {
-        return NodeResult::error(AstError::mismatched_bracket(paren));
-    }
     
-    return unwrap_balanced_paren_result(tokens.subspan(0, *idx + 1))
-        .and_then([&](auto&& exp) {
-                // trick the top level parser into thinking parens tokens
-                // are apart of the full expression so AST parses correctly
-                exp->token_span = tokens.subspan(0, *idx + 1);
-                return NodeResult::just(std::move(exp));
-        });
+    if (tokens.empty() || tokens.front().type != TokenType::LEFT_PAREN) {
+        return NodeResult::nothing();
+    }
+
+    return parse_expression(tokens.subspan(1))
+            .and_then([&](auto&& expr) {
+                size_t inner_width = expr->token_span.size();
+                size_t r_paren_idx = 1 + inner_width;
+
+                if (r_paren_idx >= tokens.size() || 
+                    tokens[r_paren_idx].type != TokenType::RIGHT_PAREN) {
+                    return NodeResult::error(AstError::mismatched_bracket(tokens.front()));
+                }
+
+                expr->token_span = tokens.subspan(0, r_paren_idx + 1);
+                return NodeResult::just(std::move(expr));
+            })
+            .map_err([&](auto&& e) {
+                if (e.type == AstErrorType::FAILED_TO_PARSE_SYMBOL 
+                    && e.offending_token->type == TokenType::RIGHT_PAREN) {
+                    return NodeResult::error(AstError::empty_parens(tokens.subspan(0, 2)));
+                }
+
+                size_t expected_r_paren_idx = 1 + e.skip_x_tok;
+
+                if (expected_r_paren_idx < tokens.size() && 
+                    tokens[expected_r_paren_idx].type == TokenType::RIGHT_PAREN) {
+                    
+                    e.skip_x_tok += 2; 
+                    return NodeResult::error(std::move(e));
+                } 
+                
+                return NodeResult::error(AstError::mismatched_bracket(tokens.front()));
+            });
 }
+
 
 NodeResult AbstractSyntaxTree::parse_exp(std::span<const Token> tokens) {
     
