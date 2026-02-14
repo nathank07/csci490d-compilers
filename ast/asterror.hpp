@@ -8,6 +8,7 @@ enum class AstErrorType {
     FAILED_TO_PARSE_SYMBOL,
     EMPTY_PARENS,
     MALFORMED_RHS,
+    EXPECTED_EXPRESSION
 };
 
 struct AstError {
@@ -28,9 +29,8 @@ struct AstError {
         return AstError{AstErrorType::FAILED_TO_PARSE_SYMBOL, "Bad symbol " + bad_symbol.get_type_string(), 1, bad_symbol};
     }
 
-    static AstError malformed_rhs(std::span <const Token> context, AstError e) {
-        return AstError{AstErrorType::MALFORMED_RHS, "Invalid RHS while parsing expression.", 
-                        context.size() + e.skip_x_tok - 1, e.offending_token};
+    static AstError expected_expression() {
+        return AstError{AstErrorType::EXPECTED_EXPRESSION, "Tried reading expression and parsed nothing.", 0};
     }
 
     static AstError empty_parens(std::span <const Token> parens) {

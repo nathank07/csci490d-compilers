@@ -126,8 +126,10 @@ NodeResult AbstractSyntaxTree::parse_exp(std::span<const Token> tokens) {
                return make_binary(op, std::move(l_expr), 
                                     std::move(NodeResult::just(std::move(r_expr))));
            })
-           .map_err([&](auto&& e) {
-               return NodeResult::error(AstError::malformed_rhs(rest.subspan(1), std::move(e)));
+           .or_else([&]() {
+                // rhs failed to parse so just give the built lhs
+                // and let the expression parser deal with stray op
+               return std::move(l_expr);
            });
 }
 
@@ -171,17 +173,16 @@ NodeResult AbstractSyntaxTree::parse_binary_rest(NodeResult base, std::span<cons
     }
 
     return get_expr(tokens.subspan(1))
-            .or_else([&]() {
-                return NodeResult::error(AstError::malformed_rhs(tokens.subspan(1), AstError::bad_symbol(op)));
-            })
             .and_then([&](auto&& l_expr) {
                 auto r_subspan = tokens.subspan(l_expr->token_span.size() + 1);
                 auto new_base = make_binary(op, std::move(base), 
                                 std::move(NodeResult::just(std::move(l_expr))));
                 return parse_binary_rest(std::move(new_base), r_subspan, is_op_predicate, get_expr);
             })
-            .map_err([&](auto&& rhs_err) {
-                return NodeResult::error(AstError::malformed_rhs((*base)->token_span, std::move(rhs_err)));
+            .or_else([&]() {
+                // rhs failed to parse so just give the built lhs
+                // and let the expression parser deal with stray op
+                return std::move(base);
             });
 }
 
