@@ -1,7 +1,7 @@
 #include "token.hpp"
 #include <sstream>
 
-std::string Token::get_type_string() {
+std::string Token::get_type_string() const {
     switch (type) {
         case TokenType::ADD: return "TOKEN_PLUS";
         case TokenType::SUB: return "TOKEN_MINUS"; 

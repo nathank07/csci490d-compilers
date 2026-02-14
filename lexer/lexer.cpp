@@ -291,6 +291,7 @@ std::expected<void, LexerError> Lexer::consume_float() {
                             char_buff.get_col_number());
 }
 
+#include <iostream>
 
 std::expected<void, LexerError> Lexer::consume_float(std::string& context, std::size_t line_start, std::size_t col_start) {
     std::string& v = context; // alias
@@ -332,7 +333,7 @@ std::expected<void, LexerError> Lexer::consume_float(std::string& context, std::
                 char_buff.next();
                 auto next = char_buff.peek();
 
-                if (v.empty() && !std::isdigit(*next)) {
+                if (v.empty() && (!next || !std::isdigit(*next))) {
                     char_buff.back(); // for line/col pos
                     push_token(TokenType::DOT);
                     return {};

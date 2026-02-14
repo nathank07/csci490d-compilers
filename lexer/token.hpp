@@ -2,6 +2,7 @@
 
 #include <string>
 #include <variant>
+#include "../input/input.hpp"
 
 enum class TokenType {
     END_OF_FILE,
@@ -68,5 +69,8 @@ struct Token {
     std::size_t column_number;
     TokenValue data;
 
-    std::string get_type_string();
+    std::string get_type_string() const;
+    static Token create_token(TokenType type, Input i);
+    static Token create_token(TokenType type, Input i, TokenValue value);
 };
+
