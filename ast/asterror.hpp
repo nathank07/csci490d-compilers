@@ -8,7 +8,6 @@ enum class AstErrorType {
     FAILED_TO_PARSE_SYMBOL,
     EMPTY_PARENS,
     MALFORMED_RHS,
-    UNEXPECTED_EOF_PAREN
 };
 
 struct AstError {
@@ -31,10 +30,6 @@ struct AstError {
 
     static AstError malformed_rhs(std::span <const Token> context, AstError e) {
         return AstError{AstErrorType::MALFORMED_RHS, "Invalid RHS while parsing expression.", context.size() + 1, e.offending_token};
-    }
-
-    static AstError unexpected_eof_paren() {
-        return AstError{AstErrorType::UNEXPECTED_EOF_PAREN, "Read EOF while parsing parenthesis.", 0};
     }
 
     static AstError empty_parens(std::span <const Token> parens) {
