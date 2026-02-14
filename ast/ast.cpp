@@ -5,20 +5,20 @@
 #include <optional>
 #include <vector>
 
-std::vector<NodeResult> AbstractSyntaxTree::create(const Lexer& lexerResult) {
-    const auto& tokens = lexerResult.get_tokens();
-    std::span<const Token> tokenSpan(tokens.data(), tokens.size());
+std::vector<NodeResult> AbstractSyntaxTree::create(const Lexer& lexer_result) {
+    const auto& tokens = lexer_result.get_tokens();
+    std::span<const Token> token_span(tokens.data(), tokens.size());
     std::vector<NodeResult> v;
 
-    while (!tokenSpan.empty() && tokenSpan.front().type != TokenType::END_OF_FILE) {
-        auto exp = parse_expression(tokenSpan);
+    while (!token_span.empty() && token_span.front().type != TokenType::END_OF_FILE) {
+        auto exp = parse_expression(token_span);
         if (exp) {
             size_t consumed = *exp.get_expr_width();
             v.push_back(std::move(exp));
-            tokenSpan = tokenSpan.subspan(consumed);
+            token_span = token_span.subspan(consumed);
         } else if (exp.is_error()) {
+            token_span = token_span.subspan(exp.error().skip_x_tok);
             v.push_back(std::move(exp));
-            tokenSpan = tokenSpan.subspan(exp.error().skip_x_tok);
         } 
     }
     
