@@ -29,7 +29,8 @@ struct AstError {
     }
 
     static AstError malformed_rhs(std::span <const Token> context, AstError e) {
-        return AstError{AstErrorType::MALFORMED_RHS, "Invalid RHS while parsing expression.", context.size() + 1, e.offending_token};
+        return AstError{AstErrorType::MALFORMED_RHS, "Invalid RHS while parsing expression.", 
+                        context.size() + e.skip_x_tok - 1, e.offending_token};
     }
 
     static AstError empty_parens(std::span <const Token> parens) {
