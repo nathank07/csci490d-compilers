@@ -343,7 +343,7 @@ std::expected<void, LexerError> Lexer::consume_float(std::string& context, std::
                 // ".e" is <TOKEN_DOT> and <IDENT e>
                 // The same applies with 1.-2 which should be
                 // <TOKEN_REAL 1.> <TOKEN_SUB> <TOKEN_INT 2>
-                if (!next || (std::tolower(*next) == 'e' || *next == '-' || *next == '+')) {
+                if (!next || (!std::isdigit(*next) || *next == '-' || *next == '+')) {
                     done = true;
                     continue;
                 }
