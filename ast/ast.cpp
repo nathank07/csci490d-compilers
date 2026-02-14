@@ -68,6 +68,27 @@ NodeResult AbstractSyntaxTree::parse_paren(std::span<const Token> tokens) {
         return NodeResult::nothing();
     }
 
+    std::size_t l_parens = 0;
+    
+    for (const auto& token : tokens) {
+        if (token.type == TokenType::LEFT_PAREN) l_parens++;
+        else if (token.type == TokenType::RIGHT_PAREN) l_parens--;
+
+        if (l_parens == 0) {
+            break;
+        }
+    }
+
+    if (l_parens != 0) {
+        auto err = AstError::mismatched_bracket(tokens.front());
+        err.skip_x_tok = 1;
+        return NodeResult::error(std::move(err));
+    }
+
+    if (tokens.size() > 1 && tokens[1].type == TokenType::RIGHT_PAREN) {
+        return NodeResult::error(AstError::empty_parens(tokens.subspan(0, 2)));
+    }
+
     return parse_expression(tokens.subspan(1))
             .and_then([&](auto&& expr) {
                 size_t inner_width = expr->token_span.size();
@@ -82,21 +103,14 @@ NodeResult AbstractSyntaxTree::parse_paren(std::span<const Token> tokens) {
                 return NodeResult::just(std::move(expr));
             })
             .map_err([&](auto&& e) {
-                if (e.type == AstErrorType::FAILED_TO_PARSE_SYMBOL 
-                    && e.offending_token->type == TokenType::RIGHT_PAREN) {
-                    return NodeResult::error(AstError::empty_parens(tokens.subspan(0, 2)));
+                e.skip_x_tok += 1;
+
+                if (e.skip_x_tok < tokens.size() && 
+                    tokens[e.skip_x_tok].type == TokenType::RIGHT_PAREN) {
+                    e.skip_x_tok += 1;
                 }
-
-                size_t expected_r_paren_idx = 1 + e.skip_x_tok;
-
-                if (expected_r_paren_idx < tokens.size() && 
-                    tokens[expected_r_paren_idx].type == TokenType::RIGHT_PAREN) {
-                    
-                    e.skip_x_tok += 2; 
-                    return NodeResult::error(std::move(e));
-                } 
                 
-                return NodeResult::error(AstError::mismatched_bracket(tokens.front()));
+                return NodeResult::error(std::move(e));
             });
 }
 
