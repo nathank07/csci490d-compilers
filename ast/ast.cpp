@@ -82,6 +82,8 @@ NodeResult AbstractSyntaxTree::parse_paren(std::span<const Token> tokens) {
                     return NodeResult::error(AstError::mismatched_bracket(tokens.front()));
                 }
 
+                // trick the top level parser into thinking parens tokens
+                // are apart of the full expression so AST parses correctly
                 expr->token_span = tokens.subspan(0, r_paren_idx + 1);
                 return NodeResult::just(std::move(expr));
             })
