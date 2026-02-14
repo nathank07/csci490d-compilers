@@ -1,5 +1,6 @@
 #pragma once
 #include "../lexer/token.hpp"
+#include <span>
 
 enum class AstErrorType {
     MISMATCH_PAREN,
@@ -22,6 +23,10 @@ struct AstError {
 
     static AstError bad_symbol(Token bad_symbol) {
         return AstError{AstErrorType::FAILED_TO_PARSE_SYMBOL, "Bad symbol " + bad_symbol.get_type_string(), 1};
+    }
+
+    static AstError malformed_rhs(std::span <const Token> context, AstError e) {
+        return AstError{AstErrorType::MISMATCH_PAREN, "", 0};
     }
 
 };

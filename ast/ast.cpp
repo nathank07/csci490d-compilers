@@ -32,14 +32,8 @@ std::vector<NodeResult> AbstractSyntaxTree::create(const Lexer& lexerResult) {
 
 
 NodeResult AbstractSyntaxTree::parse_expression(std::span<const Token> tokens) {
-    std::cout << "parse_expr called\n";
     return std::move(
         parse_as(tokens)
-        .or_else([&]() { return parse_md(tokens); })
-        .or_else([&]() { return parse_exp(tokens); })
-        .or_else([&]() { return parse_unary(tokens); })
-        .or_else([&]() { return parse_paren(tokens); })
-        .or_else([&]() { return parse_term(tokens);  })
         .or_else([&]() { 
             return NodeResult::error(AstError::bad_symbol(tokens.front())); 
         })
@@ -54,7 +48,9 @@ NodeResult AbstractSyntaxTree::parse_unary(std::span<const Token> tokens) {
     auto op = tokens.front();
     
     if (op.type != TokenType::ADD && op.type != TokenType::SUB) {
-        return NodeResult::nothing();
+        // nested unaries are illegal
+        return parse_paren(tokens)
+                .or_else([&]() { return parse_term(tokens); });
     }
 
     auto token_subview = tokens.subspan(1);
@@ -62,14 +58,13 @@ NodeResult AbstractSyntaxTree::parse_unary(std::span<const Token> tokens) {
     return parse_paren(token_subview)
            .or_else([&]() { return parse_term(token_subview); })
            .and_then([&](auto exp) -> NodeResult {
+                auto width = 1 + exp->token_span.size();
+                auto expr_span = tokens.subspan(0, width);
+
                 return op.type ==
                     TokenType::SUB ?
-                    NodeResult::just(make_negated(std::move(exp), tokens)) :
-                    NodeResult::just(std::move(exp));
-            })
-            .or_else([&]() { 
-                return parse_unary(token_subview)
-                .and_then([&](auto&&) { return NodeResult::error(AstError::extra_unary(op)); });
+                    make_negated(std::move(exp), expr_span) :
+                    make_term(std::move(exp), expr_span);
             });
 }
 
@@ -123,23 +118,32 @@ NodeResult AbstractSyntaxTree::parse_paren(std::span<const Token> tokens) {
 }
 
 NodeResult AbstractSyntaxTree::parse_exp(std::span<const Token> tokens) {
-    auto it = std::find_if(tokens.begin(), tokens.end(), [&](const Token& c) {
-        return c.type == TokenType::EXPONENT;
-    });
+    
+    auto l_expr = parse_unary(tokens);
 
-    if (it == tokens.end()) {
-        return NodeResult::nothing();
+    if (!l_expr) {
+        return l_expr;
+    }
+    
+    auto rest = tokens.subspan(*l_expr.get_expr_width());
+
+    if (rest.empty()) {
+        return l_expr;
     }
 
-    auto pos = std::distance(tokens.begin(), it);
-    auto l_expr = parse_expression(tokens.subspan(0, pos));
-    auto r_expr = parse_expression(tokens.subspan(pos + 1));
+    auto op = rest.front();
 
-    if (!l_expr || !r_expr) {
-        return NodeResult::nothing();
+    if (op.type != TokenType::EXPONENT) {
+        return l_expr;
     }
 
-    return make_binary(*it, std::move(l_expr), std::move(r_expr));
+    auto r_expr = parse_exp(rest.subspan(1));
+    
+    if (!r_expr) {
+        return NodeResult::error(AstError::malformed_rhs(rest.subspan(1), r_expr.error()));
+    }
+
+    return make_binary(op, std::move(l_expr), std::move(r_expr));
 }
 
 NodeResult AbstractSyntaxTree::parse_md(std::span<const Token> tokens) {
@@ -148,9 +152,7 @@ NodeResult AbstractSyntaxTree::parse_md(std::span<const Token> tokens) {
            || (t.type == TokenType::IDENTIFER && 
                std::get<TokenIdentifier>(t.data).value == std::string("mod"));
     }, [&](auto&& span) -> NodeResult {
-        return parse_unary(span)
-        .or_else([&]() { return parse_paren(span); })
-        .or_else([&]() { return parse_term(span);  });
+        return parse_exp(span);
     });
 }
 
@@ -164,6 +166,10 @@ NodeResult AbstractSyntaxTree::parse_as(std::span<const Token> tokens) {
 
 NodeResult AbstractSyntaxTree::parse_binary_base(std::span<const Token> tokens, auto is_op_predicate, auto get_expr) {
     auto l_expr = get_expr(tokens);
+
+    if (l_expr.is_error()) {
+        return l_expr;
+    }
 
     if (!l_expr) {
         return NodeResult::nothing();
@@ -202,19 +208,5 @@ NodeResult AbstractSyntaxTree::parse_term(std::span<const Token> tokens) {
         return NodeResult::nothing();
     }
 
-    auto token = tokens.front();
-
-    auto get_node = [&]<typename T>(const Token& t) {
-        auto tokenData = std::get<T>(t.data);
-        return NodeResult::just(make_term(Term{TermValue{tokenData.value}}, tokens.subspan(0, 1)));
-    };
-
-    switch (token.type) {
-        case TokenType::STRING:      return get_node.operator()<TokenString>(token); 
-        case TokenType::IDENTIFER:   return get_node.operator()<TokenIdentifier>(token); 
-        case TokenType::REAL_NUMBER: return get_node.operator()<TokenReal>(token);
-        case TokenType::INTEGER:     return get_node.operator()<TokenInteger>(token);
-        default: return NodeResult::nothing();
-    }
-
+    return make_term(tokens.front(), tokens.subspan(0, 1));
 }

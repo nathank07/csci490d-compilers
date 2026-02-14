@@ -94,10 +94,25 @@ inline NodeResult make_binary(const Token& t, NodeResult left, NodeResult right)
 
 }
 
-inline std::unique_ptr<Expression> make_negated(std::unique_ptr<Expression> inner, std::span<const Token> tokens) {
-    return std::make_unique<Expression>(Negated{std::move(inner)}, tokens);
+inline NodeResult make_negated(std::unique_ptr<Expression> inner, std::span<const Token> tokens) {
+    return NodeResult::just(std::make_unique<Expression>(Negated{std::move(inner)}, tokens));
 }
 
-inline std::unique_ptr<Expression> make_term(Term term, std::span<const Token> tokens) {
-    return std::make_unique<Expression>(std::move(term), tokens.subspan(0, 1));
+inline NodeResult make_term(Term term, std::span<const Token> tokens) {
+    return NodeResult::just(std::make_unique<Expression>(std::move(term), tokens));
+}
+
+inline NodeResult make_term(const Token& t, std::span<const Token> tokens) {
+    switch (t.type) {
+        case TokenType::STRING:      return make_term(Term{TermValue{std::get<TokenString>(t.data).value}}, tokens);
+        case TokenType::IDENTIFER:   return make_term(Term{TermValue{std::get<TokenIdentifier>(t.data).value}}, tokens);
+        case TokenType::REAL_NUMBER: return make_term(Term{TermValue{std::get<TokenReal>(t.data).value}}, tokens);
+        case TokenType::INTEGER:     return make_term(Term{TermValue{std::get<TokenInteger>(t.data).value}}, tokens);
+        default: return NodeResult::nothing();
+    }
+}
+
+
+inline NodeResult make_term(std::unique_ptr<Expression> term, std::span<const Token> tokens) {
+    return NodeResult::just(std::make_unique<Expression>(std::move(term->expression), tokens));
 }
