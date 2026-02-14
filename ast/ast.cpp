@@ -137,20 +137,21 @@ NodeResult AbstractSyntaxTree::parse_exp(std::span<const Token> tokens) {
         return l_expr;
     }
 
-    auto r_expr = parse_exp(rest.subspan(1));
-    
-    if (!r_expr) {
-        return NodeResult::error(AstError::malformed_rhs(rest.subspan(1), r_expr.error()));
-    }
-
-    return make_binary(op, std::move(l_expr), std::move(r_expr));
+    return parse_exp(rest.subspan(1))
+           .and_then([&](auto&& r_expr) {
+               return make_binary(op, std::move(l_expr), 
+                                    std::move(NodeResult::just(std::move(r_expr))));
+           })
+           .map_err([&](auto&& e) {
+               return NodeResult::error(AstError::malformed_rhs(rest.subspan(1), std::move(e)));
+           });
 }
 
 NodeResult AbstractSyntaxTree::parse_md(std::span<const Token> tokens) {
     return parse_binary_base(tokens, [](const Token& t) -> bool {
         return t.type == TokenType::MULTIPLY || t.type == TokenType::DIVIDE
            || (t.type == TokenType::IDENTIFER && 
-               std::get<TokenIdentifier>(t.data).value == std::string("mod"));
+               std::get<TokenIdentifier>(t.data).value == "mod");
     }, [&](auto&& span) -> NodeResult {
         return parse_exp(span);
     });
@@ -165,17 +166,12 @@ NodeResult AbstractSyntaxTree::parse_as(std::span<const Token> tokens) {
 }
 
 NodeResult AbstractSyntaxTree::parse_binary_base(std::span<const Token> tokens, auto is_op_predicate, auto get_expr) {
-    auto l_expr = get_expr(tokens);
-
-    if (l_expr.is_error()) {
-        return l_expr;
-    }
-
-    if (!l_expr) {
-        return NodeResult::nothing();
-    }
-
-    return parse_binary_rest(std::move(l_expr), tokens.subspan(*l_expr.get_expr_width()), is_op_predicate, get_expr);
+    return get_expr(tokens)
+            .and_then([&](auto&& l_expr) {
+                return parse_binary_rest(NodeResult::just(std::move(l_expr)),
+                        tokens.subspan(l_expr->token_span.size()),
+                        is_op_predicate, get_expr);
+            });
 }
 
 NodeResult AbstractSyntaxTree::parse_binary_rest(NodeResult base, std::span<const Token> tokens, auto is_op_predicate, auto get_expr) {
@@ -189,17 +185,20 @@ NodeResult AbstractSyntaxTree::parse_binary_rest(NodeResult base, std::span<cons
     if (!is_op_predicate(op)) {
         return base;
     }
-    
-    auto l_expr = get_expr(tokens.subspan(1));
 
-    if (!l_expr) {
-        return NodeResult::error(AstError::bad_symbol(op));
-    }
-
-    auto r_subspan = tokens.subspan(*l_expr.get_expr_width() + 1);
-    auto new_base = make_binary(op, std::move(base), std::move(l_expr));
-
-    return parse_binary_rest(std::move(new_base), r_subspan, is_op_predicate, get_expr);
+    return get_expr(tokens.subspan(1))
+            .and_then([&](auto&& l_expr) {
+                auto r_subspan = tokens.subspan(l_expr->token_span.size() + 1);
+                auto new_base = make_binary(op, std::move(base), 
+                                std::move(NodeResult::just(std::move(l_expr))));
+                return parse_binary_rest(std::move(new_base), r_subspan, is_op_predicate, get_expr);
+            })
+            .or_else([&]() {
+                return NodeResult::error(AstError::malformed_rhs(tokens.subspan(1), AstError::bad_symbol(op)));
+            })
+            .map_err([&](auto&& e) {
+                return NodeResult::error(AstError::malformed_rhs(tokens.subspan(1), std::move(e)));
+            });
 }
 
 

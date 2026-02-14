@@ -65,6 +65,14 @@ struct ParseResult {
         return std::move(*this);
     }
 
+    template<typename F>
+    ParseResult map_err(F&& next) {
+        if (std::holds_alternative<Err>(value)) {
+            return next(std::move(std::get<Err>(value).error));
+        }
+        return std::move(*this);
+    }
+
     bool is_error() {
         return std::holds_alternative<Err>(value);
     }
