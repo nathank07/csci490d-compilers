@@ -1,3 +1,4 @@
+#pragma once
 #include "../lexer/token.hpp"
 
 enum class AstErrorType {

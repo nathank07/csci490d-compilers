@@ -1,4 +1,6 @@
+#pragma once
 #include <variant>
+#include <optional>
 
 template<typename T, typename E>
 struct ParseResult {
@@ -65,5 +67,13 @@ struct ParseResult {
 
     bool is_error() {
         return std::holds_alternative<Err>(value);
+    }
+
+    std::optional<std::size_t> get_expr_width() {
+        if (std::holds_alternative<Just>(value)) {
+            return std::get<Just>(value).value->token_span.size();
+        }
+
+        return std::nullopt;
     }
 };

@@ -1,9 +1,14 @@
+#pragma once
 #include <memory>
 #include <variant>
 #include <span>
 #include "../lexer/token.hpp"
+#include "parseresult.hpp"
+#include "asterror.hpp"
 
 struct Expression;
+
+using NodeResult = ParseResult<std::unique_ptr<Expression>, AstError>;
 
 using TermValue = 
     std::variant<
@@ -74,10 +79,19 @@ inline std::span<const Token> span_covering(const Expression& left, const Expres
     return {start_ptr, static_cast<std::size_t>(end_ptr - start_ptr)};
 }
 
-template<typename T>
-std::unique_ptr<Expression> make_binary(std::unique_ptr<Expression>& left, std::unique_ptr<Expression>& right) {
-    auto span = span_covering(*left, *right);
-    return std::make_unique<Expression>(T{std::move(left), std::move(right)}, span);
+inline NodeResult make_binary(const Token& t, NodeResult left, NodeResult right) {    
+    auto span = span_covering(**left, **right);
+
+    switch (t.type) {
+        case TokenType::ADD: return NodeResult::just(std::make_unique<Expression>(Add{std::move(*left), std::move(*right)}, span));
+        case TokenType::SUB: return NodeResult::just(std::make_unique<Expression>(Sub{std::move(*left), std::move(*right)}, span));
+        case TokenType::MULTIPLY: return NodeResult::just(std::make_unique<Expression>(Mult{std::move(*left), std::move(*right)}, span));
+        case TokenType::DIVIDE: return NodeResult::just(std::make_unique<Expression>(Div{std::move(*left), std::move(*right)}, span));
+        case TokenType::IDENTIFER: return NodeResult::just(std::make_unique<Expression>(Mod{std::move(*left), std::move(*right)}, span));
+        case TokenType::EXPONENT: return NodeResult::just(std::make_unique<Expression>(Exp{std::move(*left), std::move(*right)}, span));
+        default: return NodeResult::error(AstError::bad_symbol(t));
+    }
+
 }
 
 inline std::unique_ptr<Expression> make_negated(std::unique_ptr<Expression> inner, std::span<const Token> tokens) {

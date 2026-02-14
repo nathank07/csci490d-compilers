@@ -1,14 +1,11 @@
+#pragma once
+
 #include "../lexer/lexer.hpp"
 #include "expression.hpp"
-#include "parseresult.hpp"
-#include "asterror.hpp"
 #include <memory>
 #include <span>
 #include <variant>
-#include <functional>
 #include <vector>
-
-using NodeResult = ParseResult<std::unique_ptr<Expression>, AstError>;
 
 // helper type for the visitor
 template<class... Ts>
@@ -22,7 +19,8 @@ class AbstractSyntaxTree {
     NodeResult parse_md(std::span<const Token> tokens);
     NodeResult parse_as(std::span<const Token> tokens);
     NodeResult parse_exp(std::span<const Token> tokens);
-    NodeResult parse_binary(std::span<const Token> tokens, std::function<bool (const Token&)> is_op);
+    NodeResult parse_binary_base(std::span<const Token> tokens, auto is_op_predicate, auto get_expr);
+    NodeResult parse_binary_rest(NodeResult base, std::span<const Token> tokens, auto is_op_predicate, auto get_expr);
     NodeResult parse_term(std::span<const Token> tokens);
 
 public:

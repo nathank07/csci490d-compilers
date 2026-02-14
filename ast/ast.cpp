@@ -1,4 +1,6 @@
 #include "ast.hpp"
+#include "asterror.hpp"
+#include "expression.hpp"
 #include <algorithm>
 #include <optional>
 #include <vector>
@@ -13,7 +15,7 @@ std::vector<NodeResult> AbstractSyntaxTree::create(const Lexer& lexerResult) {
     while (!tokenSpan.empty()) {
         auto exp = parse_expression(tokenSpan);
         if (exp) {
-            size_t consumed = (*exp)->token_span.size();
+            size_t consumed = *exp.get_expr_width();
             v.push_back(std::move(exp));
             tokenSpan = tokenSpan.subspan(consumed);
         } else if (exp.is_error()) {
@@ -29,7 +31,8 @@ std::vector<NodeResult> AbstractSyntaxTree::create(const Lexer& lexerResult) {
 }
 
 
-NodeResult AbstractSyntaxTree::parse_expression(std::span<const Token> tokens) {    
+NodeResult AbstractSyntaxTree::parse_expression(std::span<const Token> tokens) {
+    std::cout << "parse_expr called\n";
     return std::move(
         parse_as(tokens)
         .or_else([&]() { return parse_md(tokens); })
@@ -119,20 +122,6 @@ NodeResult AbstractSyntaxTree::parse_paren(std::span<const Token> tokens) {
             });
 }
 
-NodeResult AbstractSyntaxTree::parse_md(std::span<const Token> tokens) {
-    return parse_binary(tokens, [](const Token& t) -> bool {
-        return t.type == TokenType::MULTIPLY || t.type == TokenType::DIVIDE
-            || (t.type == TokenType::IDENTIFER && 
-                std::get<TokenIdentifier>(t.data).value == std::string("mod"));
-    });
-}
-
-NodeResult AbstractSyntaxTree::parse_as(std::span<const Token> tokens) {
-    return parse_binary(tokens, [](const Token& t) -> bool {
-        return t.type == TokenType::ADD || t.type == TokenType::SUB;
-    });
-}
-
 NodeResult AbstractSyntaxTree::parse_exp(std::span<const Token> tokens) {
     auto it = std::find_if(tokens.begin(), tokens.end(), [&](const Token& c) {
         return c.type == TokenType::EXPONENT;
@@ -150,72 +139,61 @@ NodeResult AbstractSyntaxTree::parse_exp(std::span<const Token> tokens) {
         return NodeResult::nothing();
     }
 
-    return NodeResult::just(make_binary<Exp>(*l_expr, *r_expr));
+    return make_binary(*it, std::move(l_expr), std::move(r_expr));
 }
 
-NodeResult AbstractSyntaxTree::parse_binary(std::span<const Token> tokens, std::function<bool (const Token&)> is_op) {
-    auto it = std::find_if(tokens.begin(), tokens.end(), is_op);
-
-    if (it == tokens.end()) {
-        return NodeResult::nothing();
-    }
-
-    auto pos = std::distance(tokens.begin(), it);
-
-    if (pos == 0 || pos == tokens.size()) {
-        return NodeResult::nothing();
-    }
-
-    auto r_span = tokens.subspan(pos + 1);
-    auto l_span = tokens.subspan(0, pos);
-
-    if (r_span.empty() || l_span.empty()) {
-        return NodeResult::nothing();
-    }
-
-    auto l_expr = parse_expression(l_span);
-
-    if (l_expr && ((*l_expr)->token_span.size()) != l_span.size()) {
-        return NodeResult::nothing(); 
-    }
-
-    auto r_expr = parse_expression(r_span);
-
-    // r_expr should not error out unless there is literally an error,
-    // so just consume the left expression and the existing operand
-    // and let top level loop deal with the error later
-    if (r_expr.is_error()) {
-        return l_expr.and_then([&](auto exp) -> NodeResult {
-            exp->token_span = tokens.subspan(0 , pos + 1);
-            return NodeResult::just(std::move(exp));
-        });
-    }
-
-    // could be memoized (?) hilariously expensive solution for
-    // left association
-    auto next_valid_bin_exists = parse_binary(tokens, [&](const Token& t) {
-       return is_op(t) && (&t > &(*it));
+NodeResult AbstractSyntaxTree::parse_md(std::span<const Token> tokens) {
+    return parse_binary_base(tokens, [](const Token& t) -> bool {
+        return t.type == TokenType::MULTIPLY || t.type == TokenType::DIVIDE
+           || (t.type == TokenType::IDENTIFER && 
+               std::get<TokenIdentifier>(t.data).value == std::string("mod"));
+    }, [&](auto&& span) -> NodeResult {
+        return parse_unary(span)
+        .or_else([&]() { return parse_paren(span); })
+        .or_else([&]() { return parse_term(span);  });
     });
+}
 
-    if (l_expr && r_expr && next_valid_bin_exists) {
-        return parse_binary(tokens, [&](const Token& t) {
-            return is_op(t) && (&t > &(*it));
-        });
-    }
+NodeResult AbstractSyntaxTree::parse_as(std::span<const Token> tokens) {
+    return parse_binary_base(tokens, [](const Token& t) -> bool {
+        return t.type == TokenType::ADD || t.type == TokenType::SUB;
+    }, [&](auto&& span) -> NodeResult {
+        return parse_md(span);
+    });
+}
 
-    if (!l_expr || !r_expr) {
+NodeResult AbstractSyntaxTree::parse_binary_base(std::span<const Token> tokens, auto is_op_predicate, auto get_expr) {
+    auto l_expr = get_expr(tokens);
+
+    if (!l_expr) {
         return NodeResult::nothing();
     }
 
-    switch (it->type) {
-        case TokenType::ADD:       return NodeResult::just(make_binary<Add>(*l_expr, *r_expr));
-        case TokenType::SUB:       return NodeResult::just(make_binary<Sub>(*l_expr, *r_expr));
-        case TokenType::MULTIPLY:  return NodeResult::just(make_binary<Mult>(*l_expr, *r_expr));
-        case TokenType::DIVIDE:    return NodeResult::just(make_binary<Div>(*l_expr, *r_expr));
-        // since mod is the only ident
-        case TokenType::IDENTIFER: return NodeResult::just(make_binary<Mod>(*l_expr, *r_expr));
-        default: return NodeResult::nothing();
+    return parse_binary_rest(std::move(l_expr), tokens.subspan(*l_expr.get_expr_width()), is_op_predicate, get_expr);
+}
+
+NodeResult AbstractSyntaxTree::parse_binary_rest(NodeResult base, std::span<const Token> tokens, auto is_op_predicate, auto get_expr) {
+
+    if (tokens.empty()) {
+        return base;
     }
+
+    auto op = tokens.front();
+
+    if (!is_op_predicate(op)) {
+        return base;
+    }
+    
+    auto l_expr = get_expr(tokens.subspan(1));
+
+    if (!l_expr) {
+        return NodeResult::error(AstError::bad_symbol(op));
+    }
+
+    auto r_subspan = tokens.subspan(*l_expr.get_expr_width() + 1);
+    auto new_base = make_binary(op, std::move(base), std::move(l_expr));
+
+    return parse_binary_rest(std::move(new_base), r_subspan, is_op_predicate, get_expr);
 }
 
 
