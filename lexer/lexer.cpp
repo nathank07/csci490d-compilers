@@ -50,7 +50,7 @@ void Lexer::push_token_peek(const TokenType &success, const TokenType &fail, uns
     char_buff.next();
     auto c = char_buff.peek();
     char_buff.back(); // for position
-    if (c == look_for) {
+    if (c && *c == look_for) {
         push_token(success);
         char_buff.next();
     } else {
@@ -290,8 +290,6 @@ std::expected<void, LexerError> Lexer::consume_float() {
     return consume_float(v, char_buff.get_line_number(), 
                             char_buff.get_col_number());
 }
-
-#include <iostream>
 
 std::expected<void, LexerError> Lexer::consume_float(std::string& context, std::size_t line_start, std::size_t col_start) {
     std::string& v = context; // alias
