@@ -60,7 +60,7 @@ NodeResult AbstractSyntaxTree::parse_paren(std::span<const Token> tokens) {
     return parse_expression(tokens.subspan(1))
         .and_then_span([&](auto&& expr, auto&& expr_span) {
             // this is safe, because even if it's the last character, it will be EOF
-            auto last_tok = tokens.subspan(expr_span.size() + 1)[0];
+            auto last_tok = tokens[expr_span.size() + 1];
 
             if (last_tok.type != TokenType::RIGHT_PAREN) {
                 return NodeResult::error(AstError::mismatched_bracket(tokens.front()));
