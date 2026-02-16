@@ -73,14 +73,24 @@ NodeResult AbstractSyntaxTree::parse_paren(std::span<const Token> tokens) {
         .map_err([&](auto&& err) {
 
             // cascade empty parens error so it's only one error
-            // instead of however many parens there was
+            // instead of however many parens there was, this will cause
+            // ((((() to be matched as one empty_parens but it's not the
+            // end of the world because things like ((1() will get properly 
+            // flagged
             if (err.type == AstErrorType::EMPTY_PARENS) {
                 return NodeResult::error(AstError::empty_parens(err));
             }
 
-            if (err.type == AstErrorType::FAILED_TO_PARSE_SYMBOL 
-                && err.offending_token->type == TokenType::RIGHT_PAREN) {
-                return NodeResult::error(AstError::empty_parens(tokens));
+            if (err.type == AstErrorType::FAILED_TO_PARSE_SYMBOL) {
+
+                if (err.offending_token->type == TokenType::RIGHT_PAREN) {
+                    return NodeResult::error(AstError::empty_parens(tokens));
+                }
+
+                if (err.offending_token->type == TokenType::END_OF_FILE) {
+                    return NodeResult::error(AstError::mismatched_bracket(tokens.front()));
+                }
+
             }
 
             return NodeResult::error(std::move(err));
