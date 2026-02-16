@@ -106,8 +106,8 @@ NodeResult AbstractSyntaxTree::parse_exp(std::span<const Token> tokens) {
                         NodeResult::just(std::move(r_expr)));
                 })
                 .or_else([&]() {
-                        // rhs failed to parse so just give the built lhs
-                        // and let the expression parser deal with stray op
+                    // rhs failed to parse so just give the built lhs
+                    // and let the expression parser deal with stray op
                     return NodeResult::just(std::move(l_expr));
                 });
         });
