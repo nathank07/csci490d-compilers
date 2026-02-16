@@ -47,6 +47,18 @@ struct ParseResult {
         return std::move(*this); 
     }
 
+    // exactly the same as and_then, but allows a second variable in the
+    // lambda to allow binding of the token span (saves boilerplate)
+    template <typename F>
+    ParseResult and_then_span(F&& next) {
+        if (std::holds_alternative<Just>(value)) {
+            auto v = std::move(std::get<Just>(value).value);
+            auto span = v->token_span;
+            return next(std::move(v), span);
+        }
+        return std::move(*this);
+    }
+
     template <typename F>
     ParseResult transform(F&& f) {
         if (std::holds_alternative<Just>(value)) {

@@ -34,7 +34,11 @@ struct AstError {
     }
 
     static AstError empty_parens(std::span <const Token> parens) {
-        return AstError{AstErrorType::EMPTY_PARENS, "Empty parens", parens.size()};
+        return AstError{AstErrorType::EMPTY_PARENS, "Empty parens", 2};
+    }
+
+    static AstError empty_parens(const AstError& empty_parens_err) {
+        return AstError{AstErrorType::EMPTY_PARENS, "Empty parens", empty_parens_err.skip_x_tok + 2};
     }
 
 };
