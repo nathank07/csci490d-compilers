@@ -135,9 +135,10 @@ NodeResult AbstractSyntaxTree::parse_binary_base(std::span<const Token> tokens, 
     return get_expr(tokens)
         .and_then_span([&](auto&& l_expr, auto&& l_expr_span) {
             return parse_binary_rest(
-                    NodeResult::just(std::move(l_expr)),
-                    tokens.subspan(l_expr_span.size()),
-                    is_op_predicate, get_expr);
+                NodeResult::just(std::move(l_expr)),
+                tokens.subspan(l_expr_span.size()),
+                is_op_predicate, get_expr
+            );
         });
 }
 
