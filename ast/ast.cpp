@@ -27,9 +27,9 @@ std::vector<NodeResult> AbstractSyntaxTree::create(const Lexer& lexer_result) {
 
 NodeResult AbstractSyntaxTree::parse_expression(std::span<const Token> tokens) {
     return parse_as(tokens)
-            .or_else([&]() { 
-                return NodeResult::error(AstError::bad_symbol(tokens.front())); 
-            });
+        .or_else([&]() { 
+            return NodeResult::error(AstError::bad_symbol(tokens.front())); 
+        });
 }
 
 NodeResult AbstractSyntaxTree::parse_unary(std::span<const Token> tokens) {
