@@ -24,7 +24,21 @@ class AbstractSyntaxTree {
     NodeResult parse_term(std::span<const Token> tokens);
 
 public:
-    std::vector<NodeResult> create(const Lexer& lexerResult);
+    std::vector<NodeResult> create(const Lexer& lexer_result);
+
+    std::vector<std::unique_ptr<Expression>> unwrap_valid_nodes(std::vector<NodeResult>& node_v) {
+        std::vector<std::unique_ptr<Expression>> expressions;
+
+        for (auto& node : node_v) {
+            node.and_then([&](auto&& expr) {
+                expressions.push_back(std::move(expr));
+                return NodeResult::just(std::move(expr));
+            });
+        }
+
+        return expressions;
+    }
+    
     void print_tree(std::ostream& o, const std::unique_ptr<Expression>& tree, std::size_t indent = 0) {
         if (!tree || tree->token_span.empty()) 
             return;
