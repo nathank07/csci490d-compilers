@@ -66,7 +66,6 @@ inline char get_byte_32_mr(Register dst_r, Register src_r) {
 }
 
 
-
 inline char get_byte_32(Address a) {
 
 }

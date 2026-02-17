@@ -15,6 +15,14 @@ class x86Generator {
         };
     }
 
+    static auto handle_neg() {
+        return [](struct x86Prog& p) {
+            p.pop(Register::EAX);
+            p.neg(Register::EAX);
+            p.push(Register::EAX);
+        };
+    }
+
     static auto handle_add() {
         return [](struct x86Prog& p) {
             p.pop(Register::ECX); 
@@ -35,19 +43,30 @@ class x86Generator {
 
     static auto handle_mult() {
         return [](struct x86Prog& p) {
-            
+            p.pop(Register::ECX);
+            p.pop(Register::EAX);
+            p.imul(Register::ECX);
+            p.push(Register::EAX);
         };
     }
 
     static auto handle_div() {
         return [](struct x86Prog& p) {
-
+            p.pop(Register::ECX);
+            p.pop(Register::EAX);
+            p.cdq();
+            p.idiv(Register::ECX);
+            p.push(Register::EAX);
         };
     }
 
     static auto handle_mod() {
         return [](struct x86Prog& p) {
-
+            p.pop(Register::ECX);
+            p.pop(Register::EAX);
+            p.cdq();
+            p.idiv(Register::ECX);
+            p.push(Register::EDX);
         };
     }
 
@@ -128,7 +147,10 @@ public:
                 );
             },
             [&](Negated& e) -> Instructions {
-                return evaluate_expression(std::move(e.expression));
+                return compose(
+                    evaluate_expression(std::move(e.expression)),
+                    handle_neg()
+                );
             },
             [&](std::monostate) -> Instructions {
                 return [](x86Prog&) {};

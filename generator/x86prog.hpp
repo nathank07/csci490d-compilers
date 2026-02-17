@@ -46,6 +46,25 @@ struct x86Prog {
         prog[ptr++] = get_byte_32_mr(dst_r, src_r);
     }
 
+    void imul(Register dst_r) {
+        prog[ptr++] = 0xF7;
+        prog[ptr++] = get_byte_32(dst_r, OpcodeExtension::Five);
+    }
+
+    void cdq() {
+        prog[ptr++] = 0x99;
+    }
+
+    void neg(Register dst_r) {
+        prog[ptr++] = 0xF7;
+        prog[ptr++] = get_byte_32(dst_r, OpcodeExtension::Three);
+    }
+
+    void idiv(Register dst_r) {
+        prog[ptr++] = 0xF7;
+        prog[ptr++] = get_byte_32(dst_r, OpcodeExtension::Seven);
+    }
+
     void ret() {
         prog[ptr++] = 0xc3;
     }
