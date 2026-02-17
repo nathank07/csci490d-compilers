@@ -21,18 +21,8 @@ int main(int argc, char** argv) {
     auto node_v = std::move(a.create(std::move(*l)));
     auto expressions = a.unwrap_valid_nodes(node_v);
 
-    std::cout << "value: " << x86Prog::run_prog(x86Generator::generate(std::move(expressions[0]))) << "\n";
-
-    // auto test = [](x86Prog& p) {
-        // p.mov(Register::EAX, Immediate{-7});
-    // };
-
-    // auto r = x86Prog::run_prog([&](x86Prog p) {
-    //     p.mov(Register::EAX, Immediate{1});
-    //     // p.push(Register::EAX);
-    //     p.ret();
-    // });
-    // p.add_instructions([&](x86Prog p) { p.ret(); });
-
-    // std::cout << "value: " << p.execute() << "\n";
+    for (auto& expr : expressions) {
+        std::cout << "value: " << x86Prog::run_prog(x86Generator::generate(std::move(expr))) << "\n";
+    }
+    
 }

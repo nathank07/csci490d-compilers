@@ -91,7 +91,11 @@ struct x86Prog {
 
         instructions(program);
 
-        return ((int (*) (void)) prog) ();
+        auto rv = ((int (*) (void)) prog) ();
+        
+        munmap(prog, max_size);
+
+        return rv;
     }
         
 };
