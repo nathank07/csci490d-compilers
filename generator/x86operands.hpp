@@ -61,7 +61,7 @@ inline char get_byte_32(Register r, OpcodeExtension ext) {
     return 0xC0 + (static_cast<int>(r) + static_cast<int>(ext) * 8);
 }
 
-inline char get_byte_32(Register dst_r, Register src_r) {
+inline char get_byte_32_mr(Register dst_r, Register src_r) {
     return get_byte_32(dst_r, static_cast<OpcodeExtension>(src_r));
 }
 

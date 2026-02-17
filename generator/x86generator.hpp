@@ -3,87 +3,138 @@
 #include "../ast/ast.hpp"
 #include "x86operands.hpp"
 #include "x86prog.hpp"
+#include <functional>
 #include <memory>
 
 class x86Generator {
 
     static auto put_stack(long long term) {
-        return [term](x86Prog& p) {
+        return [term](struct x86Prog& p) {
             p.mov(Register::EAX, Immediate{term});
             p.push(Register::EAX);
         };
     }
 
     static auto handle_add() {
-        return [](x86Prog& p) {
+        return [](struct x86Prog& p) {
+            p.pop(Register::ECX); 
             p.pop(Register::EAX);
+            p.add(Register::EAX, Register::ECX);
+            p.push(Register::EAX);
         };
     }
 
     static auto handle_sub() {
-        return [](x86Prog& p) {
-
+        return [](struct x86Prog& p) {
+            p.pop(Register::ECX);
+            p.pop(Register::EAX);
+            p.sub(Register::EAX, Register::ECX);
+            p.push(Register::EAX);
         };
     }
 
     static auto handle_mult() {
-        return [](x86Prog& p) {
-
+        return [](struct x86Prog& p) {
+            
         };
     }
 
     static auto handle_div() {
-        return [](x86Prog& p) {
+        return [](struct x86Prog& p) {
 
         };
     }
 
     static auto handle_mod() {
-        return [](x86Prog& p) {
+        return [](struct x86Prog& p) {
 
         };
     }
 
     static auto handle_exp() {
-        return [](x86Prog& p) {
+        return [](struct x86Prog& p) {
 
         };
     }
 
 public:
-    static void evaluate_expression(x86Prog& p, std::unique_ptr<Expression> expr) {
+
+    using Instructions = std::function<void(x86Prog&)>;
+
+    static auto compose(auto f1, auto f2) {
+        return [f1, f2](struct x86Prog& p) {
+            f1(p);
+            f2(p);
+        };
+    }
+    
+    static Instructions evaluate_expression(std::unique_ptr<Expression> expr) {
         const auto visitor = overloads {
-            [&](Term& t) {
-                p.add_instructions(put_stack(std::get<long long>(t.v)));
+            [&](Term& t) -> Instructions {
+                return put_stack(std::get<long long>(t.v));
             },
-            [&](Add& e) {
-                evaluate_expression(p, std::move(e.left));
-                evaluate_expression(p, std::move(e.right));
-                p.add_instructions(handle_add());
+            [&](Add& e) -> Instructions {
+                return compose(
+                    compose(
+                        evaluate_expression(std::move(e.left)),
+                        evaluate_expression(std::move(e.right))
+                    ),
+                    handle_add()
+                );
             },
-            [&](Sub& e) {
-
+            [&](Sub& e) -> Instructions {
+                return compose(
+                    compose(
+                        evaluate_expression(std::move(e.left)),
+                        evaluate_expression(std::move(e.right))
+                    ),
+                    handle_sub()
+                );
             },
-            [&](Mult& e) {
-
+            [&](Mult& e) -> Instructions {
+                return compose(
+                    compose(
+                        evaluate_expression(std::move(e.left)),
+                        evaluate_expression(std::move(e.right))
+                    ),
+                    handle_mult()
+                );
             },
-            [&](Div& e) {
-
+            [&](Div& e) -> Instructions {
+                return compose(
+                    compose(
+                        evaluate_expression(std::move(e.left)),
+                        evaluate_expression(std::move(e.right))
+                    ),
+                    handle_div()
+                );
             },
-            [&](Mod& e) {
-
+            [&](Mod& e) -> Instructions {
+                return compose(
+                    compose(
+                        evaluate_expression(std::move(e.left)),
+                        evaluate_expression(std::move(e.right))
+                    ),
+                    handle_mod()
+                );
             },
-            [&](Exp& e) {
-
+            [&](Exp& e) -> Instructions {
+                return compose(
+                    compose(
+                        evaluate_expression(std::move(e.base)),
+                        evaluate_expression(std::move(e.exponent))
+                    ),
+                    handle_exp()
+                );
             },
-            [&](Negated& e) {
-
+            [&](Negated& e) -> Instructions {
+                return evaluate_expression(std::move(e.expression));
             },
-            [&](std::monostate) {
-
+            [&](std::monostate) -> Instructions {
+                return [](x86Prog&) {};
             }
         };
 
-        std::visit(visitor, expr->expression);
+        return std::visit(visitor, expr->expression);
     }
 };

@@ -21,10 +21,18 @@ int main(int argc, char** argv) {
     auto node_v = std::move(a.create(std::move(*l)));
     auto expressions = a.unwrap_valid_nodes(node_v);
 
-    x86Prog p;
     x86Generator gen;
 
-    gen.evaluate_expression(p, std::move(expressions[0]));
+    auto hi = gen.evaluate_expression(std::move(expressions[0]));
+
+    std::cout << "value: " << x86Prog::run_prog(
+        x86Generator::compose(
+            hi,
+            [](x86Prog& p) {
+                p.pop(Register::EAX);
+                p.ret();
+            })
+    ) << "\n";
 
     // auto test = [](x86Prog& p) {
         // p.mov(Register::EAX, Immediate{-7});
@@ -35,7 +43,7 @@ int main(int argc, char** argv) {
     //     // p.push(Register::EAX);
     //     p.ret();
     // });
-    p.add_instructions([&](x86Prog p) { p.ret(); });
+    // p.add_instructions([&](x86Prog p) { p.ret(); });
 
-    std::cout << "value: " << p.execute() << "\n";
+    // std::cout << "value: " << p.execute() << "\n";
 }
