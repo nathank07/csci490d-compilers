@@ -17,6 +17,14 @@ class x86Generator {
         };
     }
 
+    static auto compose(auto f1, auto f2, auto f3) {
+        return [f1, f2, f3](struct x86Prog& p) {
+            f1(p);
+            f2(p);
+            f3(p);
+        };
+    }
+
     static auto put_stack(long long term) {
         return [term](struct x86Prog& p) {
             p.mov(Register::EAX, Immediate{term});
@@ -91,44 +99,44 @@ class x86Generator {
                 return put_stack(std::get<long long>(t.v));
             },
             [&](Add& e) -> Instructions {
-                return compose(compose(
+                return compose(
                     eval(std::move(e.left)),
-                    eval(std::move(e.right))),
+                    eval(std::move(e.right)),
                     handle_add()
                 );
             },
             [&](Sub& e) -> Instructions {
-                return compose(compose(
+                return compose(
                     eval(std::move(e.left)),
-                    eval(std::move(e.right))),
+                    eval(std::move(e.right)),
                     handle_sub()
                 );
             },
             [&](Mult& e) -> Instructions {
-                return compose(compose(
+                return compose(
                     eval(std::move(e.left)),
-                    eval(std::move(e.right))),
+                    eval(std::move(e.right)),
                     handle_mult()
                 );
             },
             [&](Div& e) -> Instructions {
-                return compose(compose(
+                return compose(
                     eval(std::move(e.left)),
-                    eval(std::move(e.right))),
+                    eval(std::move(e.right)),
                     handle_div()
                 );
             },
             [&](Mod& e) -> Instructions {
-                return compose(compose(
+                return compose(
                     eval(std::move(e.left)),
-                    eval(std::move(e.right))),
+                    eval(std::move(e.right)),
                     handle_mod()
                 );
             },
             [&](Exp& e) -> Instructions {
-                return compose(compose(
+                return compose(
                     eval(std::move(e.base)),
-                    eval(std::move(e.exponent))),      
+                    eval(std::move(e.exponent)),      
                     handle_exp()
                 );
             },
