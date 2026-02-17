@@ -8,6 +8,15 @@
 
 class x86Generator {
 
+    using Instructions = std::function<void(x86Prog&)>;
+
+    static auto compose(auto f1, auto f2) {
+        return [f1, f2](struct x86Prog& p) {
+            f1(p);
+            f2(p);
+        };
+    }
+
     static auto put_stack(long long term) {
         return [term](struct x86Prog& p) {
             p.mov(Register::EAX, Immediate{term});
@@ -76,18 +85,7 @@ class x86Generator {
         };
     }
 
-public:
-
-    using Instructions = std::function<void(x86Prog&)>;
-
-    static auto compose(auto f1, auto f2) {
-        return [f1, f2](struct x86Prog& p) {
-            f1(p);
-            f2(p);
-        };
-    }
-    
-    static Instructions evaluate_expression(std::unique_ptr<Expression> expr) {
+    static Instructions eval(std::unique_ptr<Expression> expr) {
         const auto visitor = overloads {
             [&](Term& t) -> Instructions {
                 return put_stack(std::get<long long>(t.v));
@@ -95,8 +93,8 @@ public:
             [&](Add& e) -> Instructions {
                 return compose(
                     compose(
-                        evaluate_expression(std::move(e.left)),
-                        evaluate_expression(std::move(e.right))
+                        eval(std::move(e.left)),
+                        eval(std::move(e.right))
                     ),
                     handle_add()
                 );
@@ -104,8 +102,8 @@ public:
             [&](Sub& e) -> Instructions {
                 return compose(
                     compose(
-                        evaluate_expression(std::move(e.left)),
-                        evaluate_expression(std::move(e.right))
+                        eval(std::move(e.left)),
+                        eval(std::move(e.right))
                     ),
                     handle_sub()
                 );
@@ -113,8 +111,8 @@ public:
             [&](Mult& e) -> Instructions {
                 return compose(
                     compose(
-                        evaluate_expression(std::move(e.left)),
-                        evaluate_expression(std::move(e.right))
+                        eval(std::move(e.left)),
+                        eval(std::move(e.right))
                     ),
                     handle_mult()
                 );
@@ -122,8 +120,8 @@ public:
             [&](Div& e) -> Instructions {
                 return compose(
                     compose(
-                        evaluate_expression(std::move(e.left)),
-                        evaluate_expression(std::move(e.right))
+                        eval(std::move(e.left)),
+                        eval(std::move(e.right))
                     ),
                     handle_div()
                 );
@@ -131,8 +129,8 @@ public:
             [&](Mod& e) -> Instructions {
                 return compose(
                     compose(
-                        evaluate_expression(std::move(e.left)),
-                        evaluate_expression(std::move(e.right))
+                        eval(std::move(e.left)),
+                        eval(std::move(e.right))
                     ),
                     handle_mod()
                 );
@@ -140,15 +138,15 @@ public:
             [&](Exp& e) -> Instructions {
                 return compose(
                     compose(
-                        evaluate_expression(std::move(e.base)),
-                        evaluate_expression(std::move(e.exponent))
+                        eval(std::move(e.base)),
+                        eval(std::move(e.exponent))
                     ),
                     handle_exp()
                 );
             },
             [&](Negated& e) -> Instructions {
                 return compose(
-                    evaluate_expression(std::move(e.expression)),
+                    eval(std::move(e.expression)),
                     handle_neg()
                 );
             },
@@ -158,5 +156,15 @@ public:
         };
 
         return std::visit(visitor, expr->expression);
+    }
+
+public:
+
+    static Instructions generate(std::unique_ptr<Expression> expr) {
+        return compose(eval(std::move(expr)), 
+            [](x86Prog& p) {
+                p.pop(Register::EAX);
+                p.ret();
+            });
     }
 };
