@@ -19,7 +19,22 @@ std::vector<NodeResult> AbstractSyntaxTree::create(const Lexer& lexer_result) {
             token_span = token_span.subspan(consumed);
         } else if (exp.is_error()) {
             token_span = token_span.subspan(exp.error().skip_x_tok);
-            v.push_back(std::move(exp));
+            auto& err = exp.error();
+
+            // for instance, "1 + 1 + (1" will propogate the same
+            // paren mismatch error due to constantly trying to evaluate the rhs
+            // and print multiple of the same message. the easiest fix for this is 
+            // to just remove duplicates
+            bool err_in_vec = std::any_of(v.begin(), v.end(), [&](auto& node) {
+                return node.is_error()
+                    && node.error().type == err.type
+                    && node.error().offending_token.column_number 
+                             == err.offending_token.column_number
+                    && node.error().offending_token.line_number
+                             == err.offending_token.line_number;
+            });
+
+            if (!err_in_vec) v.push_back(std::move(exp));
         } 
     }
     

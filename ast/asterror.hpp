@@ -1,6 +1,5 @@
 #pragma once
 #include "../lexer/token.hpp"
-#include "printf.h"
 
 enum class AstErrorType {
     MISMATCH_PAREN,
@@ -66,14 +65,7 @@ struct AstError {
                   << ot.line_number << ":"
                   << ot.column_number << std::endl;
 
-                auto line = i.get_line(ot.line_number);
-
-                if (!line) {
-                    o << "<error printing line>" << std::endl;
-                    return;
-                }
-
-                o << *line;
+                print_line(ot.line_number, i, o);
                 pretty_print_arrow(ot.column_number, o);
             }
         }
@@ -111,6 +103,21 @@ private:
         o << "╯\n";
     }
 
+    static void print_line(std::size_t line, const Input& in, std::ostream& o) {
+        auto l = in.get_line(line);
+
+        if (!l) {
+            o << "<error printing line>\n";
+            return;
+        }
+
+        o << *l;
+
+        if (l->back() != '\n') {
+            o << "\n";
+        }
+    }
+
     static void pretty_print_mismatch(const AstError& err, const Input& in, std::ostream& o) {
         auto& expr_end = err.offending_token;
         auto& bt = *err.begin_tok;
@@ -118,14 +125,7 @@ private:
         
         o << "Expected ')' at " << expr_end.line_number << ":" << col << "\n";
 
-        auto line = in.get_line(expr_end.line_number);
-
-        if (!line) {
-            o << "<error printing line>\n";
-            return;
-        }
-
-        o << *line;
+        print_line(expr_end.line_number, in, o);
 
         pretty_print_arrow(bt.column_number, col, o);
 
@@ -136,14 +136,7 @@ private:
         auto& ot = err.offending_token;
         o << "Unexpected symbol at " << ot.line_number << ":" << ot.column_number << "\n";
 
-        auto line = in.get_line(ot.line_number);
-
-        if (!line) {
-            o << "<error printing line>\n";
-            return;
-        }
-
-        o << *line;
+        print_line(ot.line_number, in, o);
 
         pretty_print_arrow(ot.column_number, o);
 

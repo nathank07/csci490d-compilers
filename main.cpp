@@ -25,7 +25,7 @@ int main(int argc, char** argv) {
             AbstractSyntaxTree::print_tree(std::cout, *node);
             auto p = x86Prog::run_prog_bytes(x86Generator::generate(std::move(*node)));
             std::cout << "Code size: " << p.second << " bytes.\n"
-                      << "Code execution: " << p.first << "\n\n"; 
+                      << "Code execution:\n" << p.first << "\n\n"; 
         } else {
             node.map_err([&](auto&& err) {
                 AstError::pretty_print(err, l->get_char_buff(), std::cout);
