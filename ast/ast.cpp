@@ -6,12 +6,13 @@
 #include <vector>
 
 std::vector<NodeResult> AbstractSyntaxTree::create(const Lexer& lexer_result) {
+    AbstractSyntaxTree factory;
     const auto& tokens = lexer_result.get_tokens();
     std::span<const Token> token_span(tokens.data(), tokens.size());
     std::vector<NodeResult> v;
 
     while (!token_span.empty() && token_span.front().type != TokenType::END_OF_FILE) {
-        auto exp = parse_expression(token_span);
+        auto exp = factory.parse_expression(token_span);
         if (exp) {
             size_t consumed = *exp.get_expr_width();
             v.push_back(std::move(exp));

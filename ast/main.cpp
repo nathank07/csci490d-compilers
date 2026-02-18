@@ -17,14 +17,13 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    AbstractSyntaxTree a;
-    auto node_v = std::move(a.create(std::move(*l)));
+    auto node_v = std::move(AbstractSyntaxTree::create(std::move(*l)));
 
     std::cout << "node_v len" << node_v.size() << "\n";
     
     for (auto& node : node_v) {
         if (!node.is_error()) {
-            a.print_tree(std::cout, *node);
+            AbstractSyntaxTree::print_tree(std::cout, *node);
         } else {
             node.map_err([](auto&& err) {
                 std::cout << err.message << " ";

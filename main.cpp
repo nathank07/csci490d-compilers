@@ -1,6 +1,6 @@
-#include "x86prog.hpp"
-#include "../ast/ast.hpp"
-#include "x86generator.hpp"
+#include "generator/x86prog.hpp"
+#include "generator/x86generator.hpp"
+#include "ast/ast.hpp"
 #include <iostream>
 
 int main(int argc, char** argv) {
@@ -17,8 +17,9 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    auto node_v = std::move(AbstractSyntaxTree::create(std::move(*l)));
-    auto expressions = AbstractSyntaxTree::unwrap_valid_nodes(node_v);
+    AbstractSyntaxTree a;
+    auto node_v = std::move(a.create(std::move(*l)));
+    auto expressions = a.unwrap_valid_nodes(node_v);
 
     for (auto& expr : expressions) {
         std::cout << "value: " << x86Prog::run_prog(x86Generator::generate(std::move(expr))) << "\n";

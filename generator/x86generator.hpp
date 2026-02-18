@@ -108,66 +108,7 @@ class x86Generator {
         };
     }
 
-    static Instructions eval(std::unique_ptr<Expression> expr) {
-        const auto visitor = overloads {
-            [&](Term& t) -> Instructions {
-                return put_stack(std::get<long long>(t.v));
-            },
-            [&](Add& e) -> Instructions {
-                return compose(
-                    eval(std::move(e.left)),
-                    eval(std::move(e.right)),
-                    handle_add()
-                );
-            },
-            [&](Sub& e) -> Instructions {
-                return compose(
-                    eval(std::move(e.left)),
-                    eval(std::move(e.right)),
-                    handle_sub()
-                );
-            },
-            [&](Mult& e) -> Instructions {
-                return compose(
-                    eval(std::move(e.left)),
-                    eval(std::move(e.right)),
-                    handle_mult()
-                );
-            },
-            [&](Div& e) -> Instructions {
-                return compose(
-                    eval(std::move(e.left)),
-                    eval(std::move(e.right)),
-                    handle_div()
-                );
-            },
-            [&](Mod& e) -> Instructions {
-                return compose(
-                    eval(std::move(e.left)),
-                    eval(std::move(e.right)),
-                    handle_mod()
-                );
-            },
-            [&](Exp& e) -> Instructions {
-                return compose(
-                    eval(std::move(e.base)),
-                    eval(std::move(e.exponent)),      
-                    handle_exp()
-                );
-            },
-            [&](Negated& e) -> Instructions {
-                return compose(
-                    eval(std::move(e.expression)),
-                    handle_neg()
-                );
-            },
-            [&](std::monostate) -> Instructions {
-                return [](x86Prog&) {};
-            }
-        };
-
-        return std::visit(visitor, expr->expression);
-    }
+    static Instructions eval(std::unique_ptr<Expression> expr);
 
 public:
 
