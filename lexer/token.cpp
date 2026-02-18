@@ -52,3 +52,54 @@ std::string Token::get_type_string() const {
         default: return "TOKEN_UNKNOWN"; // should never return
     }
 }
+
+std::size_t Token::get_token_width() const {
+    switch (type) {
+        case TokenType::ADD: return 1;
+        case TokenType::SUB: return 1; 
+        case TokenType::MULTIPLY: return 1;
+        case TokenType::DIVIDE: return 1;
+        case TokenType::EXPONENT: return 1;
+        case TokenType::LESS_THAN: return 1;
+        case TokenType::LESS_THAN_EQ: return 2;
+        case TokenType::GREATER_THAN: return 1;
+        case TokenType::GREATER_THAN_EQ: return 2;
+        case TokenType::EQUALS: return 1;
+        case TokenType::NOT_EQUALS: return 2;
+        case TokenType::NOT: return 1;
+        case TokenType::ASSIGN: return 2;
+        case TokenType::LEFT_PAREN: return 1;
+        case TokenType::RIGHT_PAREN: return 1;
+        case TokenType::LEFT_BRACE: return 1;
+        case TokenType::RIGHT_BRACE: return 1;
+        case TokenType::LEFT_SQ_BRACKET: return 1;
+        case TokenType::RIGHT_SQ_BRACKET: return 1;
+        case TokenType::AND: return 1;
+        case TokenType::OR: return 1;
+        case TokenType::DOT: return 1;
+        case TokenType::AT: return 1;
+        case TokenType::COLON: return 1;
+        case TokenType::SEMICOLON: return 1;
+        case TokenType::COMMA: return 1;
+        case TokenType::END_OF_FILE: return 0;
+        case TokenType::STRING: {
+            const auto &str = std::get<TokenString>(data);
+            return str.value.length();
+        }
+        case TokenType::IDENTIFIER: {
+            const auto &str = std::get<TokenIdentifier>(data);
+            return str.value.length();
+        }
+        case TokenType::INTEGER: {
+            const auto &i = std::get<TokenInteger>(data);
+            return std::to_string(i.value).length();
+        }
+        case TokenType::REAL_NUMBER: {
+            const auto &f = std::get<TokenReal>(data);
+            std::stringstream ss;
+            ss << f.value;
+            return ss.str().length();
+        }
+        default: return 0; // should never return
+    }
+}

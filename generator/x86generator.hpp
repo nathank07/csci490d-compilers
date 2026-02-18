@@ -4,7 +4,6 @@
 #include "x86operands.hpp"
 #include "x86prog.hpp"
 #include <functional>
-#include <memory>
 
 class x86Generator {
 
@@ -25,7 +24,7 @@ class x86Generator {
         };
     }
 
-    static auto put_stack(long long term) {
+    static auto put_stack(uint32_t term) {
         return [term](struct x86Prog& p) {
             p.mov(Register::EAX, Immediate{term});
             p.push(Register::EAX);

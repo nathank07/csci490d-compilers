@@ -3,8 +3,7 @@
 #include "x86operands.hpp"
 #include <sys/mman.h>
 #include <cstdio>
-#include <errno.h>
-#include <iostream>
+#include <utility>
 
 struct x86Prog {
     
@@ -12,13 +11,13 @@ struct x86Prog {
     int ptr;
 
     void write32(uint32_t v) {
-        prog[ptr++] = (char)(v & 0xFF);
-        prog[ptr++] = (char)((v >> 8) & 0xFF);
-        prog[ptr++] = (char)((v >> 16) & 0xFF);
-        prog[ptr++] = (char)((v >> 24) & 0xFF);
+        prog[ptr++] = (uint8_t)(v & 0xFF);
+        prog[ptr++] = (uint8_t)((v >> 8) & 0xFF);
+        prog[ptr++] = (uint8_t)((v >> 16) & 0xFF);
+        prog[ptr++] = (uint8_t)((v >> 24) & 0xFF);
     }
 
-    void write_extended(char opcode, ExtendedRegister dst_r, OpcodeExtension ext) {
+    void write_extended(uint8_t opcode, ExtendedRegister dst_r, OpcodeExtension ext) {
         // since we're not worried about width bit, this can be hardcoded
         // as 0x41 since this function is only called when dst_r >= 0x8 
         // such that (0x40 | (dst_r >> 3)) is always the same
@@ -27,15 +26,15 @@ struct x86Prog {
         prog[ptr++] = get_byte_32(get_lower_order(dst_r), ext);
     }
 
-    void write_extended(char opcode, ModRM dst_r, AnyRegister src_r, char prefix = 0) {
-        prog[ptr++] = 0x40 | (rex_bit(dst_r)) | (rex_bit(src_r) << 2);
+    void write_extended(uint8_t opcode, ModRM dst_r, AnyRegister src_r, uint8_t prefix = 0) {
+        prog[ptr++] = static_cast<uint8_t>(0x40 | (rex_bit(dst_r)) | (rex_bit(src_r) << 2));
         if (prefix) prog[ptr++] = prefix;
         prog[ptr++] = opcode;
         prog[ptr++] = get_byte_32_r_rm(get_lower_order(dst_r.reg), get_lower_order(src_r));
     }
 
-    void write_extended(char opcode, AnyRegister dst_r, ModRM src_r, char prefix = 0) {
-        prog[ptr++] = 0x40 | (rex_bit(src_r)) | (rex_bit(dst_r) << 2);
+    void write_extended(uint8_t opcode, AnyRegister dst_r, ModRM src_r, uint8_t prefix = 0) {
+        prog[ptr++] = static_cast<uint8_t>(0x40 | (rex_bit(src_r)) | (rex_bit(dst_r) << 2));
         if (prefix) prog[ptr++] = prefix;
         prog[ptr++] = opcode;
         prog[ptr++] = get_byte_32_rm_r(get_lower_order(dst_r), get_lower_order(src_r.reg));
@@ -152,7 +151,12 @@ struct x86Prog {
 
     template <typename F>
     static long long run_prog(F&& instructions, int max_size = 50000) {
-        unsigned char* prog = (unsigned char*) mmap(0, max_size,
+        return run_prog_bytes(instructions, max_size).first;
+    }
+
+    template <typename F>
+    static std::pair<long long, int> run_prog_bytes(F&& instructions, int max_size = 50000) {
+       unsigned char* prog = (unsigned char*) mmap(0, max_size,
                                 PROT_EXEC | PROT_READ | PROT_WRITE,
                                 MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         if (prog == MAP_FAILED) {
@@ -170,7 +174,7 @@ struct x86Prog {
         
         munmap(prog, max_size);
 
-        return rv;
+        return std::pair(rv, program.ptr);
     }
         
 };

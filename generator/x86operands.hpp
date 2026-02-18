@@ -34,7 +34,7 @@ struct ModRM {
 };
 
 struct Immediate {
-    int64_t value;
+    uint32_t value;
 };
 
 enum class OpcodeExtension {
@@ -48,20 +48,20 @@ enum class OpcodeExtension {
     Seven,
 };
 
-inline char get_byte_32(Register r, OpcodeExtension ext) {
-    return 0xC0 | (static_cast<char>(r) | static_cast<char>(ext) << 3);
+inline uint8_t get_byte_32(Register r, OpcodeExtension ext) {
+    return static_cast<uint8_t>(0xC0 | (static_cast<uint8_t>(r) | static_cast<uint8_t>(ext) << 3));
 }
 
-inline char get_byte_32_r_rm(Register dst_r, Register src_r) {
+inline uint8_t get_byte_32_r_rm(Register dst_r, Register src_r) {
     return get_byte_32(dst_r, static_cast<OpcodeExtension>(src_r));
 }
 
-inline char get_byte_32_rm_r(Register dst_r, Register src_r) {
+inline uint8_t get_byte_32_rm_r(Register dst_r, Register src_r) {
     return get_byte_32(src_r, static_cast<OpcodeExtension>(dst_r));
 }
 
 inline Register get_lower_order(ExtendedRegister r) {
-    return static_cast<Register>(static_cast<char>(r) & 0x7);
+    return static_cast<Register>(static_cast<uint8_t>(r) & 0x7);
 }
 
 inline Register get_lower_order(AnyRegister r) {
@@ -74,10 +74,10 @@ inline Register get_lower_order(AnyRegister r) {
     return std::visit(visitor, r);
 }
 
-inline char rex_bit(AnyRegister r) {
+inline uint8_t rex_bit(AnyRegister r) {
     return std::holds_alternative<ExtendedRegister>(r);
 }
 
-inline char rex_bit(ModRM r) {
+inline uint8_t rex_bit(ModRM r) {
     return std::holds_alternative<ExtendedRegister>(r.reg);
 }

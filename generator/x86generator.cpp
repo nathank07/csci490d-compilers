@@ -3,7 +3,7 @@
 std::function<void(x86Prog&)> x86Generator::eval(std::unique_ptr<Expression> expr) {
     const auto visitor = overloads {
         [&](Term& t) -> std::function<void(x86Prog&)> {
-            return put_stack(std::get<long long>(t.v));
+            return put_stack(static_cast<uint32_t>(std::get<long long>(t.v)));
         },
         [&](Add& e) -> std::function<void(x86Prog&)> {
             return compose(

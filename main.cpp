@@ -17,12 +17,20 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    AbstractSyntaxTree a;
-    auto node_v = std::move(a.create(std::move(*l)));
-    auto expressions = a.unwrap_valid_nodes(node_v);
+    auto nodes = std::move(AbstractSyntaxTree::create(std::move(*l)));
 
-    for (auto& expr : expressions) {
-        std::cout << "value: " << x86Prog::run_prog(x86Generator::generate(std::move(expr))) << "\n";
+    for (auto& node : nodes) {
+        if (!node.is_error()) {
+            std::cout << "Code tree:\n";
+            AbstractSyntaxTree::print_tree(std::cout, *node);
+            auto p = x86Prog::run_prog_bytes(x86Generator::generate(std::move(*node)));
+            std::cout << "Code size: " << p.second << " bytes.\n"
+                      << "Code execution: " << p.first << "\n\n"; 
+        } else {
+            node.map_err([&](auto&& err) {
+                AstError::pretty_print(err, l->get_char_buff(), std::cout);
+                return NodeResult::Err(err);
+            });
+        }
     }
-    
 }
