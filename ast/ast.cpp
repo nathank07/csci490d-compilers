@@ -1,9 +1,11 @@
 #include "ast.hpp"
 #include "asterror.hpp"
 #include "expression.hpp"
+#include "../utils.hpp"
 #include <algorithm>
 #include <optional>
 #include <vector>
+#include <variant>
 
 std::vector<NodeResult> AbstractSyntaxTree::create(const Lexer& lexer_result) {
     AbstractSyntaxTree factory;
@@ -39,6 +41,86 @@ std::vector<NodeResult> AbstractSyntaxTree::create(const Lexer& lexer_result) {
     }
     
     return v; 
+}
+
+std::vector<std::unique_ptr<Expression>> AbstractSyntaxTree::unwrap_valid_nodes(std::vector<NodeResult>& node_v) {
+    std::vector<std::unique_ptr<Expression>> expressions;
+
+    for (auto& node : node_v) {
+        node.and_then([&](auto&& expr) {
+            expressions.push_back(std::move(expr));
+            return NodeResult::just(std::move(expr));
+        });
+    }
+
+    return expressions;
+}
+
+void AbstractSyntaxTree::print_tree(std::ostream& o, const std::unique_ptr<Expression>& tree, std::size_t indent) {
+    if (!tree) 
+        return;
+
+    o << std::string(indent, ' ');
+    
+    const auto visitor = overloads 
+    {
+        [&](std::monostate) { o << "empty"; },
+        [&](const Term& t) { 
+            auto v = overloads {
+                [&](std::string s) {
+                    o << s;
+                },
+                [&](std::u8string s) {
+                    o << std::string(s.begin(), s.end());
+                },
+                [&](long long l) {
+                    o << l;
+                },
+                [&](double d) {
+                    o << d;
+                }
+            };
+            
+            std::visit(v, t.v);
+            o << "\n";
+        },
+        [&](const Negated& e) {
+            o << "- (neg)\n";
+            print_tree(o, e.expression, indent + 2); 
+        },
+        [&](const Add& v) { 
+            o << "+ (add)\n";
+            print_tree(o, v.left,  indent + 2);
+            print_tree(o, v.right, indent + 2);
+        },
+        [&](const Sub& v) { 
+            o << "- (sub)\n";
+            print_tree(o, v.left, indent + 2);
+            print_tree(o, v.right, indent + 2);
+        },
+        [&](const Mult& v) { 
+            o << "* (mult)\n";
+            print_tree(o, v.left, indent + 2);
+            print_tree(o, v.right, indent + 2);
+        },
+        [&](const Div& v) { 
+            o << "/ (div)\n";
+            print_tree(o, v.left, indent + 2);
+            print_tree(o, v.right, indent + 2);
+        },
+        [&](const Mod& v) { 
+            o << "mod \n";
+            print_tree(o, v.left, indent + 2);
+            print_tree(o, v.right, indent + 2);
+        },
+        [&](const Exp& v) { 
+            o << "^ (pow)\n";
+            print_tree(o, v.base, indent + 2);
+            print_tree(o, v.exponent, indent + 2);
+        }
+    };
+
+    std::visit(visitor, tree->expression);
 }
 
 NodeResult AbstractSyntaxTree::parse_expression(std::span<const Token> tokens) {
