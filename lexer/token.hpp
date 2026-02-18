@@ -10,7 +10,7 @@ enum class TokenType {
     SUB,
     MULTIPLY,
     DIVIDE,
-    IDENTIFER,
+    IDENTIFIER,
     EXPONENT,
     LESS_THAN,
     GREATER_THAN,

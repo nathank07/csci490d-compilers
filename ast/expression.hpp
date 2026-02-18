@@ -87,7 +87,7 @@ inline NodeResult make_binary(const Token& t, NodeResult left, NodeResult right)
         case TokenType::SUB: return NodeResult::just(std::make_unique<Expression>(Sub{std::move(*left), std::move(*right)}, span));
         case TokenType::MULTIPLY: return NodeResult::just(std::make_unique<Expression>(Mult{std::move(*left), std::move(*right)}, span));
         case TokenType::DIVIDE: return NodeResult::just(std::make_unique<Expression>(Div{std::move(*left), std::move(*right)}, span));
-        case TokenType::IDENTIFER: return NodeResult::just(std::make_unique<Expression>(Mod{std::move(*left), std::move(*right)}, span));
+        case TokenType::IDENTIFIER: return NodeResult::just(std::make_unique<Expression>(Mod{std::move(*left), std::move(*right)}, span));
         case TokenType::EXPONENT: return NodeResult::just(std::make_unique<Expression>(Exp{std::move(*left), std::move(*right)}, span));
         default: return NodeResult::error(AstError::bad_symbol(t));
     }
@@ -105,7 +105,7 @@ inline NodeResult make_term(Term term, std::span<const Token> tokens) {
 inline NodeResult make_term(const Token& t, std::span<const Token> tokens) {
     switch (t.type) {
         case TokenType::STRING:      return make_term(Term{TermValue{std::get<TokenString>(t.data).value}}, tokens);
-        case TokenType::IDENTIFER:   return make_term(Term{TermValue{std::get<TokenIdentifier>(t.data).value}}, tokens);
+        case TokenType::IDENTIFIER:   return make_term(Term{TermValue{std::get<TokenIdentifier>(t.data).value}}, tokens);
         case TokenType::REAL_NUMBER: return make_term(Term{TermValue{std::get<TokenReal>(t.data).value}}, tokens);
         case TokenType::INTEGER:     return make_term(Term{TermValue{std::get<TokenInteger>(t.data).value}}, tokens);
         default: return NodeResult::nothing();

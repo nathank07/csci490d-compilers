@@ -126,7 +126,7 @@ NodeResult AbstractSyntaxTree::parse_exp(std::span<const Token> tokens) {
 NodeResult AbstractSyntaxTree::parse_md(std::span<const Token> tokens) {
     return parse_binary_base(tokens, [](const Token& t) -> bool {
         return t.type == TokenType::MULTIPLY || t.type == TokenType::DIVIDE
-           || (t.type == TokenType::IDENTIFER && 
+           || (t.type == TokenType::IDENTIFIER && 
                std::get<TokenIdentifier>(t.data).value == "mod");
     }, [&](auto&& span) -> NodeResult {
         return parse_exp(span);

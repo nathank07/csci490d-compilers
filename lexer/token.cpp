@@ -35,7 +35,7 @@ std::string Token::get_type_string() const {
             std::string s(str.value.begin(), str.value.end());
             return "TOKEN_STRING: " + s + " ";
         }
-        case TokenType::IDENTIFER: {
+        case TokenType::IDENTIFIER: {
             const auto &str = std::get<TokenIdentifier>(data);
             return "TOKEN_IDENT: " + str.value + " ";
         }

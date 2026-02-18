@@ -6,10 +6,7 @@
 #include <span>
 #include <variant>
 #include <vector>
-
-// helper type for the visitor
-template<class... Ts>
-struct overloads : Ts... { using Ts::operator()...; };
+#include "../utils.hpp"
 
 class AbstractSyntaxTree {
 

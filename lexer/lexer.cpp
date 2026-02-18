@@ -442,7 +442,7 @@ void Lexer::consume_ident() {
         if (!c || (!std::isalnum(*c) && *c != '_')) {
 
             tokens.push_back({
-                TokenType::IDENTIFER,
+                TokenType::IDENTIFIER,
                 line_start,
                 col_start,
                 TokenIdentifier {v}
