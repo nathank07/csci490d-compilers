@@ -64,7 +64,7 @@ NodeResult AbstractSyntaxTree::parse_paren(std::span<const Token> tokens) {
             auto last_tok = tokens[expr_span.size() + 1];
 
             if (last_tok.type != TokenType::RIGHT_PAREN) {
-                return NodeResult::error(AstError::mismatched_bracket(tokens.front()));
+                return NodeResult::error(AstError::mismatched_bracket(tokens.front(), expr_span.back()));
             }
             // trick the top level parser into thinking parens tokens
             // are apart of the full expression so AST parses correctly
@@ -84,12 +84,12 @@ NodeResult AbstractSyntaxTree::parse_paren(std::span<const Token> tokens) {
 
             if (err.type == AstErrorType::FAILED_TO_PARSE_SYMBOL) {
 
-                if (err.offending_token->type == TokenType::RIGHT_PAREN) {
-                    return NodeResult::error(AstError::empty_parens(tokens));
+                if (err.offending_token.type == TokenType::RIGHT_PAREN) {
+                    return NodeResult::error(AstError::empty_parens(tokens.front(), err.offending_token));
                 }
 
-                if (err.offending_token->type == TokenType::END_OF_FILE) {
-                    return NodeResult::error(AstError::mismatched_bracket(tokens.front()));
+                if (err.offending_token.type == TokenType::END_OF_FILE) {
+                    return NodeResult::error(AstError::mismatched_bracket(tokens.front(), err.offending_token));
                 }
 
             }
