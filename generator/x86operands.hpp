@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <variant>
 #include <stdint.h>
+#include "../utils.hpp"
 
 enum class Register {
     EAX = 0,
@@ -15,8 +16,21 @@ enum class Register {
     EDI
 };
 
-struct Address {
+enum class ExtendedRegister {
+    R8 = 8,
+    R9,
+    R10,
+    R11,
+    R12,
+    R13,
+    R14,
+    R15
+};
 
+using AnyRegister = std::variant<Register, ExtendedRegister>;
+
+struct ModRM {
+    AnyRegister reg;
 };
 
 struct Immediate {
@@ -34,40 +48,36 @@ enum class OpcodeExtension {
     Seven,
 };
 
-
-using RegisterMemory = std::variant<Register, Address>;
-
-// uint64_t get_byte_64(Register r) {
-
-// }
-
-// uint64_t get_byte_64(Address a) {
-
-// }
-
-// uint64_t get_byte_64(RegisterMemory rm) {
-
-// }
-
-// uint32_t get_byte_32(Register r) {
-
-// }
-
-// uint32_t get_byte_32(Address a) {
-
-// }
-
 inline char get_byte_32(Register r, OpcodeExtension ext) {
-    return 0xC0 + (static_cast<int>(r) + static_cast<int>(ext) * 8);
+    return 0xC0 | (static_cast<char>(r) | static_cast<char>(ext) << 3);
 }
 
-inline char get_byte_32_mr(Register dst_r, Register src_r) {
+inline char get_byte_32_r_rm(Register dst_r, Register src_r) {
     return get_byte_32(dst_r, static_cast<OpcodeExtension>(src_r));
 }
 
-
-inline char get_byte_32(Address a) {
-
+inline char get_byte_32_rm_r(Register dst_r, Register src_r) {
+    return get_byte_32(src_r, static_cast<OpcodeExtension>(dst_r));
 }
 
+inline Register get_lower_order(ExtendedRegister r) {
+    return static_cast<Register>(static_cast<char>(r) & 0x7);
+}
 
+inline Register get_lower_order(AnyRegister r) {
+    
+    auto visitor = overloads {
+        [&](Register reg) { return reg; },
+        [&](ExtendedRegister reg) { return get_lower_order(reg); },
+    };
+
+    return std::visit(visitor, r);
+}
+
+inline char rex_bit(AnyRegister r) {
+    return std::holds_alternative<ExtendedRegister>(r);
+}
+
+inline char rex_bit(ModRM r) {
+    return std::holds_alternative<ExtendedRegister>(r.reg);
+}

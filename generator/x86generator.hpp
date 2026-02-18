@@ -89,7 +89,22 @@ class x86Generator {
 
     static auto handle_exp() {
         return [](struct x86Prog& p) {
-
+            p.xor_(ExtendedRegister::R8, ExtendedRegister::R8);
+            p.pop(ExtendedRegister::R10);
+            p.pop(ExtendedRegister::R9);
+            p.test(ExtendedRegister::R10, ExtendedRegister::R10);
+            p.jl(0x1E);
+            p.inc(ExtendedRegister::R8);
+            p.test(ExtendedRegister::R10, ExtendedRegister::R10);
+            p.je(0x16);
+            p.test(ExtendedRegister::R10, Immediate{1});
+            p.je(0x04);
+            p.imul(ExtendedRegister::R8, ExtendedRegister::R9);
+            p.imul(ExtendedRegister::R9, ExtendedRegister::R9);
+            p.sar1(ExtendedRegister::R10);
+            p.jmp(0xE5);
+            p.mov(Register::EAX, ExtendedRegister::R8);
+            p.push(Register::EAX);
         };
     }
 
