@@ -47,7 +47,7 @@ struct AstError {
         return AstError{
             AstErrorType::EMPTY_PARENS, 
             "Empty parens", 
-            empty_parens_err.skip_x_tok + 2,
+            empty_parens_err.skip_x_tok + 1,
             empty_parens_err.offending_token,
             empty_parens_err.begin_tok
         };
@@ -113,7 +113,7 @@ private:
 
         o << *l;
 
-        if (l->back() != '\n') {
+        if (l->empty() || l->back() != '\n') {
             o << "\n";
         }
     }
