@@ -71,7 +71,7 @@ void AbstractSyntaxTree::print_tree(std::ostream& o, const std::unique_ptr<Expre
                     o << s;
                 },
                 [&](std::u8string s) {
-                    o << std::string(s.begin(), s.end());
+                    o << "\"" << std::string(s.begin(), s.end()) << "\"";
                 },
                 [&](long long l) {
                     o << l;
