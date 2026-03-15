@@ -1,6 +1,6 @@
-#include "x86prog.hpp"
+#include "x86/x86prog.hpp"
 #include "../ast/ast.hpp"
-#include "x86generator.hpp"
+#include "x86/x86generator.hpp"
 #include <iostream>
 
 int main(int argc, char** argv) {

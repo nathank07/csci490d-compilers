@@ -1,5 +1,5 @@
-#include "generator/x86prog.hpp"
-#include "generator/x86generator.hpp"
+#include "generator/x86/x86prog.hpp"
+#include "generator/x86/x86generator.hpp"
 #include "ast/ast.hpp"
 #include <iostream>
 

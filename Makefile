@@ -1,6 +1,6 @@
 CXX = g++
 CXXFLAGS = -std=c++23 -Wall -Wextra -Wpedantic -Wconversion -MMD -MP -D_GLIBCXX_ASSERTIONS -g -fsanitize=undefined -Wshadow -Wunused # -fsanitize=address
-SRC = input/input.cpp lexer/lexer.cpp lexer/error.cpp lexer/token.cpp ast/ast.cpp generator/x86generator.cpp main.cpp
+SRC = input/input.cpp lexer/lexer.cpp lexer/error.cpp lexer/token.cpp ast/ast.cpp generator/x86/x86generator.cpp main.cpp
 OBJ = $(SRC:.cpp=.o)
 DEP = $(OBJ:.o=.d)
 TARGET = ncc
