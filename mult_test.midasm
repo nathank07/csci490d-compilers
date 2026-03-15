@@ -1,0 +1,65 @@
+; ---- PUSHING VALUE ONTO STACK BY ALLOCATING INTO REGISTER AND PUSHING ---- 
+movi r1, #50 ; r1 <- 50
+pushr r1 ; push r1
+; ---- Negation via subtracting from register ----
+popr r1 ; pop -> r1
+pushi #0 ; push 0
+pushr r1 ; push r1
+; ---- SUBTRACTION: r1 - r2 via loop ----
+popr r2 ; pop -> r2
+popr r1 ; pop -> r1
+cmpr r1, r2 ; compare r1 with r2
+pushr r1 ; push r1
+; ---- PUSHING VALUE ONTO STACK BY ALLOCATING INTO REGISTER AND PUSHING ---- 
+movi r1, #4 ; r1 <- 4
+pushr r1 ; push r1
+; ---- Negation via subtracting from register ----
+popr r1 ; pop -> r1
+pushi #0 ; push 0
+pushr r1 ; push r1
+; ---- SUBTRACTION: r1 - r2 via loop ----
+popr r2 ; pop -> r2
+popr r1 ; pop -> r1
+cmpr r1, r2 ; compare r1 with r2
+pushr r1 ; push r1
+; ------------------------ MULTIPLICATION ------------------------ 
+; R1 acts as the accumulator, R2 is RHS and decrements,
+; R3 is RHS, and R4 acts as a negation flag if RHS is negative.
+; ---------------------------------------------------------------- 
+movi r4, #0 ; r4 <- 0
+popr r3 ; pop -> r3
+popr r2 ; pop -> r2
+cmpr r2, r4 ; compare r2 with r4
+jgti #99 ; if greater, jump 99 bytes
+pushr r2 ; push r2
+; ---- Negation via subtracting from register ----
+popr r1 ; pop -> r1
+pushi #0 ; push 0
+pushr r1 ; push r1
+; ---- SUBTRACTION: r1 - r2 via loop ----
+popr r2 ; pop -> r2
+popr r1 ; pop -> r1
+cmpr r1, r2 ; compare r1 with r2
+pushr r1 ; push r1
+popr r2 ; pop -> r2
+incr r4 ; r4++
+movi r1, #0 ; r1 <- 0
+addr r1, r3 ; r1 <- r1 + r3
+addi r2, #-1 ; r2 <- r2 + -1
+cmpi r2, #0 ; compare r2 with 0
+jgti #-27 ; if greater, jump -27 bytes
+cmpi r4, #0 ; compare r4 with 0
+jei #90 ; if equal, jump 90 bytes
+pushr r1 ; push r1
+; ---- Negation via subtracting from register ----
+popr r1 ; pop -> r1
+pushi #0 ; push 0
+pushr r1 ; push r1
+; ---- SUBTRACTION: r1 - r2 via loop ----
+popr r2 ; pop -> r2
+popr r1 ; pop -> r1
+cmpr r1, r2 ; compare r1 with r2
+pushr r1 ; push r1
+popr r1 ; pop -> r1
+pushr r1 ; push r1
+; ------------------------ END MULTIPLICATION -------------------- 

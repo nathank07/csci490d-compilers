@@ -8,22 +8,7 @@ pushr r1 ; push r1
 ; ---- SUBTRACTION: r1 - r2 via loop ----
 popr r2 ; pop -> r2
 popr r1 ; pop -> r1
-cmpi r2, #0 ; compare r2 with 0
-jlti #72 ; if less, jump 72 bytes
-jgti #18 ; if greater, jump 18 bytes
-jmpi #90 ; jump 90 bytes
-; ---- r2 > 0: decrement r1 until r2 reaches 0 ----
-addi r1, #-1 ; r1 <- r1 + -1
-addi r2, #-1 ; r2 <- r2 + -1
-cmpi r2, #0 ; compare r2 with 0
-jgti #-27 ; if greater, jump -27 bytes
-jmpi #45 ; jump 45 bytes
-; ---- r2 < 0: increment r1 until r2 reaches 0 ----
-addi r1, #1 ; r1 <- r1 + 1
-addi r2, #1 ; r2 <- r2 + 1
-cmpi r2, #0 ; compare r2 with 0
-jlti #-27 ; if less, jump -27 bytes
-; ==== END SUBTRACTION ====
+cmpr r1, r2 ; compare r1 with r2
 pushr r1 ; push r1
 ; ---- PUSHING VALUE ONTO STACK BY ALLOCATING INTO REGISTER AND PUSHING ---- 
 movi r1, #20 ; r1 <- 20
@@ -39,22 +24,7 @@ pushr r1 ; push r1
 ; ---- SUBTRACTION: r1 - r2 via loop ----
 popr r2 ; pop -> r2
 popr r1 ; pop -> r1
-cmpi r2, #0 ; compare r2 with 0
-jlti #72 ; if less, jump 72 bytes
-jgti #18 ; if greater, jump 18 bytes
-jmpi #90 ; jump 90 bytes
-; ---- r2 > 0: decrement r1 until r2 reaches 0 ----
-addi r1, #-1 ; r1 <- r1 + -1
-addi r2, #-1 ; r2 <- r2 + -1
-cmpi r2, #0 ; compare r2 with 0
-jgti #-27 ; if greater, jump -27 bytes
-jmpi #45 ; jump 45 bytes
-; ---- r2 < 0: increment r1 until r2 reaches 0 ----
-addi r1, #1 ; r1 <- r1 + 1
-addi r2, #1 ; r2 <- r2 + 1
-cmpi r2, #0 ; compare r2 with 0
-jlti #-27 ; if less, jump -27 bytes
-; ==== END SUBTRACTION ====
+cmpr r1, r2 ; compare r1 with r2
 pushr r1 ; push r1
 ; ---- PUSHING VALUE ONTO STACK BY ALLOCATING INTO REGISTER AND PUSHING ---- 
 movi r1, #200 ; r1 <- 200

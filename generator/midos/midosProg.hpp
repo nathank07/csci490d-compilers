@@ -189,7 +189,34 @@ public:
     }
 
     void mult() {
-        
+        emitter
+        << "; ------------------------ MULTIPLICATION ------------------------ \n"
+        << "; R1 acts as the accumulator, R2 is RHS and decrements,\n"
+        << "; R3 is RHS, and R4 acts as a negation flag if RHS is negative.\n"
+        << "; ---------------------------------------------------------------- \n"
+        << Instructions::movi(Register::R4, 0)
+        << Instructions::popr(Register::R3)
+        << Instructions::popr(Register::R2)
+        << Instructions::cmpr(Register::R2, Register::R4)
+        << Instructions::jgti(99)
+        << Instructions::pushr(Register::R2);
+        neg();
+        emitter
+        << Instructions::popr(Register::R2)
+        << Instructions::incr(Register::R4)
+        << Instructions::movi(Register::R1, 0)
+        << Instructions::addr(Register::R1, Register::R3)
+        << Instructions::addi(Register::R2, -1)
+        << Instructions::cmpi(Register::R2, 0)
+        << Instructions::jgti(-27)
+        << Instructions::cmpi(Register::R4, 0)
+        << Instructions::jei(90)
+        << Instructions::pushr(Register::R1);
+        neg();
+        emitter
+        << Instructions::popr(Register::R1)
+        << Instructions::pushr(Register::R1)
+        << "; ------------------------ END MULTIPLICATION -------------------- \n";
     }
 
     void div() {}
