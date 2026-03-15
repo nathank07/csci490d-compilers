@@ -181,7 +181,7 @@ public:
 
     void sub() {
         emitter
-        << "; ---- SUBTRACTION: r1 - r2 via loop ----\n"
+        << "; ---- SUBTRACTION: r1 - r2 ----\n"
         << Instructions::popr(Register::R2)
         << Instructions::popr(Register::R1)
         << Instructions::cmpr(Register::R1, Register::R2)
@@ -219,7 +219,69 @@ public:
         << "; ------------------------ END MULTIPLICATION -------------------- \n";
     }
 
-    void div() {}
+    void div() {
+        emitter
+        << "; --------------------------- DIVISION --------------------------- \n"
+        << Instructions::popr(Register::R2)
+        << Instructions::popr(Register::R1)
+        << Instructions::movi(Register::R3, 0)
+        << Instructions::movi(Register::R4, 0)
+        << Instructions::movi(Register::R5, 0)
+        << Instructions::cmpr(Register::R2, Register::R4)
+        << Instructions::jgti(117)
+        << Instructions::pushr(Register::R1)
+        << Instructions::pushr(Register::R2);
+        neg();
+        emitter
+        << Instructions::popr(Register::R2)
+        << Instructions::popr(Register::R1)
+        << Instructions::incr(Register::R4)
+        << Instructions::cmpr(Register::R1, Register::R5)
+        << Instructions::jgti(117)
+        << Instructions::pushr(Register::R2)
+        << Instructions::pushr(Register::R1);
+        neg();
+        emitter
+        << Instructions::popr(Register::R1)
+        << Instructions::popr(Register::R2)
+        << Instructions::incr(Register::R5)
+        << Instructions::pushr(Register::R1)
+        << Instructions::pushr(Register::R2);
+        sub();
+        emitter
+        << Instructions::popr(Register::R1)
+        << Instructions::incr(Register::R3)
+        << Instructions::cmpi(Register::R1, 0)
+        << Instructions::jgti(-81)
+        << Instructions::pushr(Register::R3)
+        << Instructions::movr(Register::R3, Register::R1)
+        << Instructions::addr(Register::R3, Register::R2)
+        << Instructions::jei(54)
+        << Instructions::pushi(1);
+        sub();
+        emitter
+        << Instructions::cmpr(Register::R4, Register::R5)
+        << Instructions::jei(72);
+        neg();
+        emitter
+        << "; ------------------------- END DIVISION ------------------------- \n";
+    }
+
+    void mod() {
+        emitter
+        << Instructions::popr(Register::R7)
+        << Instructions::popr(Register::R6)
+        << Instructions::pushr(Register::R6)
+        << Instructions::pushr(Register::R7);
+        div();
+        emitter
+        << Instructions::cmpi(Register::R5, 0)
+        << Instructions::pushr(Register::R3)
+        << Instructions::jei(72);
+        neg();
+        emitter
+        << Instructions::popr(Register::R1);
+    }
 
     void neg() {
         emitter

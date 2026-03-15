@@ -36,7 +36,7 @@ class midosGenerator {
             [&](Mod& e) {
                 eval(p, std::move(e.left));
                 eval(p, std::move(e.right));
-                // TODO: mod not yet in midOsProg
+                p.mod();
             },
             [&](Exp& e) {
                 eval(p, std::move(e.base));
