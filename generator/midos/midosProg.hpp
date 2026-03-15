@@ -191,7 +191,7 @@ public:
     void mult() {
         emitter
         << "; ------------------------ MULTIPLICATION ------------------------ \n"
-        << "; R1 acts as the accumulator, R2 is RHS and decrements,\n"
+        << "; R1 acts as the accumulator, R2 is the LHS and decrements,\n"
         << "; R3 is RHS, and R4 acts as a negation flag if RHS is negative.\n"
         << "; ---------------------------------------------------------------- \n"
         << Instructions::movi(Register::R4, 0)
