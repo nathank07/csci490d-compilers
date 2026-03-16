@@ -265,11 +265,12 @@ inline Instruction unsafe_multr(Register r1, Register r2_counter) {
             negr(r2_counter),
             incr(Register::R10)
         )),
-        // OK to use unsafe_do_while here because 
+        // OK to use unsafe_do_while here because it's comparing vs 0
         unsafe_do_while(r2_counter, 0, Conditional::GT, compose(
             addr(Register::R9, r1),
             addi(r2_counter, -1)
         )),
+        // unsafe ok here because comparing vs 0
         unsafe_skip_if(Register::R10, 0, Conditional::EQ, compose(
             negr(Register::R9)
         )),
@@ -277,3 +278,14 @@ inline Instruction unsafe_multr(Register r1, Register r2_counter) {
     );
 }
 
+inline Instruction safe_multr(Register r1, Register r2) {
+    return compose(
+        pushr(r2),
+        pushr(Register::R9),
+        pushr(Register::R10),
+        unsafe_multr(r1, r2),
+        popr(Register::R10),
+        popr(Register::R9),
+        popr(r2)
+    );
+}
