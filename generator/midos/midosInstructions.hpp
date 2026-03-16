@@ -137,7 +137,7 @@ inline Instruction subr(Register r1, Register r2) {
 }
 
 // Helper function to compare registers without modifying r1
-inline Instruction safe_cmpr(Register r1, Register r2) {
+inline Instruction cmpr(Register r1, Register r2) {
     return compose(
         pushr(r1),
         unsafe_cmpr(r1, r2),
@@ -145,7 +145,7 @@ inline Instruction safe_cmpr(Register r1, Register r2) {
     );
 }
 
-inline Instruction safe_cmpi(Register r1, int32_t i) {
+inline Instruction cmpi(Register r1, int32_t i) {
     return compose(
         pushr(r1),
         unsafe_cmpi(r1, i),
@@ -203,7 +203,7 @@ inline Instruction unsafe_skip_if(Register r, int32_t v, Conditional cond, Instr
     );
 }
 
-inline Instruction safe_skip_if(Register r1, Register r2, Conditional cond, Instruction do_this) {
+inline Instruction skip_if(Register r1, Register r2, Conditional cond, Instruction do_this) {
     return compose(
         pushr(r1),
         unsafe_skip_if(r1, r2, cond, do_this),
@@ -211,7 +211,7 @@ inline Instruction safe_skip_if(Register r1, Register r2, Conditional cond, Inst
     );
 }
 
-inline Instruction safe_skip_if(Register r, int32_t v, Conditional cond, Instruction do_this) {
+inline Instruction skip_if(Register r, int32_t v, Conditional cond, Instruction do_this) {
     return compose(
         pushr(r),
         unsafe_skip_if(r, v, cond, do_this),
@@ -238,7 +238,7 @@ inline Instruction unsafe_do_while(Register r, int32_t v, Conditional cond, Inst
     );
 }
 
-inline Instruction safe_do_while(Register r, int32_t v, Conditional cond, Instruction do_this) {
+inline Instruction do_while(Register r, int32_t v, Conditional cond, Instruction do_this) {
     return compose(
         pushr(r),
         unsafe_do_while(r, v, cond, do_this),
@@ -279,7 +279,7 @@ inline Instruction unsafe_multr(Register r1, Register r2) {
 }
 
 // **Uses R8, R9, and R10.**
-inline Instruction unsafe_div(Register r1, Register r2) {
+inline Instruction unsafe_divr(Register r1, Register r2) {
     Register accumulator = r1;
     Register seed = r2;
     Register lhs_is_neg = Register::R8;
@@ -309,14 +309,14 @@ inline Instruction unsafe_div(Register r1, Register r2) {
             subi(quotient, 1),
             addr(accumulator, seed)
         )),
-        safe_skip_if(lhs_is_neg, rhs_is_neg, Conditional::EQ, negr(quotient)),
+        skip_if(lhs_is_neg, rhs_is_neg, Conditional::EQ, negr(quotient)),
         unsafe_skip_if(lhs_is_neg, 0, Conditional::EQ, negr(accumulator)),
         movr(r2, accumulator),
         movr(r1, quotient)
     );
 }
 
-inline Instruction safe_multr(Register r1, Register r2) {
+inline Instruction multr(Register r1, Register r2) {
     return compose(
         pushr(r2),
         pushr(Register::R9),
@@ -328,12 +328,12 @@ inline Instruction safe_multr(Register r1, Register r2) {
     );
 }
 
-inline Instruction safe_div(Register r1, Register r2) {
+inline Instruction divr(Register r1, Register r2) {
     return compose(
         pushr(Register::R8),
         pushr(Register::R9),
         pushr(Register::R10),
-        unsafe_div(r1, r2),
+        unsafe_divr(r1, r2),
         popr(Register::R10),
         popr(Register::R9),
         popr(Register::R8)

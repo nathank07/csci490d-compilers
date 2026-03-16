@@ -62,7 +62,7 @@ public:
         emit(compose(
             popr(Register::R2),
             popr(Register::R1),
-            unsafe_div(Register::R1, Register::R2),
+            unsafe_divr(Register::R1, Register::R2),
             pushr(Register::R1)
         ));
     }
@@ -71,7 +71,7 @@ public:
        emit(compose(
            popr(Register::R2),
            popr(Register::R1),
-           unsafe_div(Register::R1, Register::R2),
+           unsafe_divr(Register::R1, Register::R2),
            pushr(Register::R2)
        ));
     }
