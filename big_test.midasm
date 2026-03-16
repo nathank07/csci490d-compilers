@@ -1,307 +1,249 @@
-; ---- PUSHING VALUE ONTO STACK BY ALLOCATING INTO REGISTER AND PUSHING ---- 
-movi r1, #2 ; r1 <- 2
-pushr r1 ; push r1
-; ---- PUSHING VALUE ONTO STACK BY ALLOCATING INTO REGISTER AND PUSHING ---- 
-movi r1, #3 ; r1 <- 3
-pushr r1 ; push r1
-; ---- Negation via subtracting from register ----
-popr r1 ; pop -> r1
-pushi #0 ; push 0
-pushr r1 ; push r1
-; ---- SUBTRACTION: r1 - r2 ----
-popr r2 ; pop -> r2
-popr r1 ; pop -> r1
-cmpr r1, r2 ; compare r1 with r2
-pushr r1 ; push r1
-; ---- PUSHING VALUE ONTO STACK BY ALLOCATING INTO REGISTER AND PUSHING ---- 
-movi r1, #5 ; r1 <- 5
-pushr r1 ; push r1
-; ---- POPPING THE TOP TWO VALUES FROM THE STACK INTO R1 AND R2 TO ADD ---- 
-popr r1 ; pop -> r1
-popr r2 ; pop -> r2
-addr r1, r2 ; r1 <- r1 + r2
-pushr r1 ; push r1
-; ---- Negation via subtracting from register ----
-popr r1 ; pop -> r1
-pushi #0 ; push 0
-pushr r1 ; push r1
-; ---- SUBTRACTION: r1 - r2 ----
-popr r2 ; pop -> r2
-popr r1 ; pop -> r1
-cmpr r1, r2 ; compare r1 with r2
-pushr r1 ; push r1
-; ------------------------ MULTIPLICATION ------------------------ 
-; R1 acts as the accumulator, R2 is the LHS and decrements,
-; R3 is RHS, and R4 acts as a negation flag if RHS is negative.
-; ---------------------------------------------------------------- 
-movi r4, #0 ; r4 <- 0
-popr r3 ; pop -> r3
-popr r2 ; pop -> r2
-cmpr r2, r4 ; compare r2 with r4
-jgti #99 ; if greater, jump 99 bytes
-pushr r2 ; push r2
-; ---- Negation via subtracting from register ----
-popr r1 ; pop -> r1
-pushi #0 ; push 0
-pushr r1 ; push r1
-; ---- SUBTRACTION: r1 - r2 ----
-popr r2 ; pop -> r2
-popr r1 ; pop -> r1
-cmpr r1, r2 ; compare r1 with r2
-pushr r1 ; push r1
-popr r2 ; pop -> r2
-incr r4 ; r4++
-movi r1, #0 ; r1 <- 0
-addr r1, r3 ; r1 <- r1 + r3
-addi r2, #-1 ; r2 <- r2 + -1
-cmpi r2, #0 ; compare r2 with 0
-jgti #-27 ; if greater, jump -27 bytes
-cmpi r4, #0 ; compare r4 with 0
-jei #90 ; if equal, jump 90 bytes
-pushr r1 ; push r1
-; ---- Negation via subtracting from register ----
-popr r1 ; pop -> r1
-pushi #0 ; push 0
-pushr r1 ; push r1
-; ---- SUBTRACTION: r1 - r2 ----
-popr r2 ; pop -> r2
-popr r1 ; pop -> r1
-cmpr r1, r2 ; compare r1 with r2
-pushr r1 ; push r1
-popr r1 ; pop -> r1
-pushr r1 ; push r1
-; ------------------------ END MULTIPLICATION -------------------- 
-; ---- PUSHING VALUE ONTO STACK BY ALLOCATING INTO REGISTER AND PUSHING ---- 
-movi r1, #10 ; r1 <- 10
-pushr r1 ; push r1
-; ---- Negation via subtracting from register ----
-popr r1 ; pop -> r1
-pushi #0 ; push 0
-pushr r1 ; push r1
-; ---- SUBTRACTION: r1 - r2 ----
-popr r2 ; pop -> r2
-popr r1 ; pop -> r1
-cmpr r1, r2 ; compare r1 with r2
-pushr r1 ; push r1
-; ------------------------ MULTIPLICATION ------------------------ 
-; R1 acts as the accumulator, R2 is the LHS and decrements,
-; R3 is RHS, and R4 acts as a negation flag if RHS is negative.
-; ---------------------------------------------------------------- 
-movi r4, #0 ; r4 <- 0
-popr r3 ; pop -> r3
-popr r2 ; pop -> r2
-cmpr r2, r4 ; compare r2 with r4
-jgti #99 ; if greater, jump 99 bytes
-pushr r2 ; push r2
-; ---- Negation via subtracting from register ----
-popr r1 ; pop -> r1
-pushi #0 ; push 0
-pushr r1 ; push r1
-; ---- SUBTRACTION: r1 - r2 ----
-popr r2 ; pop -> r2
-popr r1 ; pop -> r1
-cmpr r1, r2 ; compare r1 with r2
-pushr r1 ; push r1
-popr r2 ; pop -> r2
-incr r4 ; r4++
-movi r1, #0 ; r1 <- 0
-addr r1, r3 ; r1 <- r1 + r3
-addi r2, #-1 ; r2 <- r2 + -1
-cmpi r2, #0 ; compare r2 with 0
-jgti #-27 ; if greater, jump -27 bytes
-cmpi r4, #0 ; compare r4 with 0
-jei #90 ; if equal, jump 90 bytes
-pushr r1 ; push r1
-; ---- Negation via subtracting from register ----
-popr r1 ; pop -> r1
-pushi #0 ; push 0
-pushr r1 ; push r1
-; ---- SUBTRACTION: r1 - r2 ----
-popr r2 ; pop -> r2
-popr r1 ; pop -> r1
-cmpr r1, r2 ; compare r1 with r2
-pushr r1 ; push r1
-popr r1 ; pop -> r1
-pushr r1 ; push r1
-; ------------------------ END MULTIPLICATION -------------------- 
-; ---- PUSHING VALUE ONTO STACK BY ALLOCATING INTO REGISTER AND PUSHING ---- 
-movi r1, #10 ; r1 <- 10
-pushr r1 ; push r1
-; ---- PUSHING VALUE ONTO STACK BY ALLOCATING INTO REGISTER AND PUSHING ---- 
-movi r1, #2 ; r1 <- 2
-pushr r1 ; push r1
-; ---- PUSHING VALUE ONTO STACK BY ALLOCATING INTO REGISTER AND PUSHING ---- 
-movi r1, #3 ; r1 <- 3
-pushr r1 ; push r1
-; ---- POPPING THE TOP TWO VALUES FROM THE STACK INTO R1 AND R2 TO ADD ---- 
-popr r1 ; pop -> r1
-popr r2 ; pop -> r2
-addr r1, r2 ; r1 <- r1 + r2
-pushr r1 ; push r1
-; --------------------------- DIVISION --------------------------- 
-popr r2 ; pop -> r2
-popr r1 ; pop -> r1
-movi r3, #0 ; r3 <- 0
-movi r4, #0 ; r4 <- 0
-movi r5, #0 ; r5 <- 0
-cmpr r2, r4 ; compare r2 with r4
-jgti #117 ; if greater, jump 117 bytes
-pushr r1 ; push r1
-pushr r2 ; push r2
-; ---- Negation via subtracting from register ----
-popr r1 ; pop -> r1
-pushi #0 ; push 0
-pushr r1 ; push r1
-; ---- SUBTRACTION: r1 - r2 ----
-popr r2 ; pop -> r2
-popr r1 ; pop -> r1
-cmpr r1, r2 ; compare r1 with r2
-pushr r1 ; push r1
-popr r2 ; pop -> r2
-popr r1 ; pop -> r1
-incr r4 ; r4++
-cmpr r1, r5 ; compare r1 with r5
-jgti #117 ; if greater, jump 117 bytes
-pushr r2 ; push r2
-pushr r1 ; push r1
-; ---- Negation via subtracting from register ----
-popr r1 ; pop -> r1
-pushi #0 ; push 0
-pushr r1 ; push r1
-; ---- SUBTRACTION: r1 - r2 ----
-popr r2 ; pop -> r2
-popr r1 ; pop -> r1
-cmpr r1, r2 ; compare r1 with r2
-pushr r1 ; push r1
-popr r1 ; pop -> r1
-popr r2 ; pop -> r2
-incr r5 ; r5++
-pushr r1 ; push r1
-pushr r2 ; push r2
-; ---- SUBTRACTION: r1 - r2 ----
-popr r2 ; pop -> r2
-popr r1 ; pop -> r1
-cmpr r1, r2 ; compare r1 with r2
-pushr r1 ; push r1
-popr r1 ; pop -> r1
-incr r3 ; r3++
-cmpi r1, #0 ; compare r1 with 0
-jgti #-81 ; if greater, jump -81 bytes
-pushr r3 ; push r3
-movr r3, r1 ; r3 <- r1
-addr r3, r2 ; r3 <- r3 + r2
-jei #54 ; if equal, jump 54 bytes
-pushi #1 ; push 1
-; ---- SUBTRACTION: r1 - r2 ----
-popr r2 ; pop -> r2
-popr r1 ; pop -> r1
-cmpr r1, r2 ; compare r1 with r2
-pushr r1 ; push r1
-cmpr r4, r5 ; compare r4 with r5
-jei #72 ; if equal, jump 72 bytes
-; ---- Negation via subtracting from register ----
-popr r1 ; pop -> r1
-pushi #0 ; push 0
-pushr r1 ; push r1
-; ---- SUBTRACTION: r1 - r2 ----
-popr r2 ; pop -> r2
-popr r1 ; pop -> r1
-cmpr r1, r2 ; compare r1 with r2
-pushr r1 ; push r1
-; ------------------------- END DIVISION ------------------------- 
-; ---- SUBTRACTION: r1 - r2 ----
-popr r2 ; pop -> r2
-popr r1 ; pop -> r1
-cmpr r1, r2 ; compare r1 with r2
-pushr r1 ; push r1
-; ---- PUSHING VALUE ONTO STACK BY ALLOCATING INTO REGISTER AND PUSHING ---- 
-movi r1, #10 ; r1 <- 10
-pushr r1 ; push r1
-popr r7 ; pop -> r7
-popr r6 ; pop -> r6
-pushr r6 ; push r6
-pushr r7 ; push r7
-; --------------------------- DIVISION --------------------------- 
-popr r2 ; pop -> r2
-popr r1 ; pop -> r1
-movi r3, #0 ; r3 <- 0
-movi r4, #0 ; r4 <- 0
-movi r5, #0 ; r5 <- 0
-cmpr r2, r4 ; compare r2 with r4
-jgti #117 ; if greater, jump 117 bytes
-pushr r1 ; push r1
-pushr r2 ; push r2
-; ---- Negation via subtracting from register ----
-popr r1 ; pop -> r1
-pushi #0 ; push 0
-pushr r1 ; push r1
-; ---- SUBTRACTION: r1 - r2 ----
-popr r2 ; pop -> r2
-popr r1 ; pop -> r1
-cmpr r1, r2 ; compare r1 with r2
-pushr r1 ; push r1
-popr r2 ; pop -> r2
-popr r1 ; pop -> r1
-incr r4 ; r4++
-cmpr r1, r5 ; compare r1 with r5
-jgti #117 ; if greater, jump 117 bytes
-pushr r2 ; push r2
-pushr r1 ; push r1
-; ---- Negation via subtracting from register ----
-popr r1 ; pop -> r1
-pushi #0 ; push 0
-pushr r1 ; push r1
-; ---- SUBTRACTION: r1 - r2 ----
-popr r2 ; pop -> r2
-popr r1 ; pop -> r1
-cmpr r1, r2 ; compare r1 with r2
-pushr r1 ; push r1
-popr r1 ; pop -> r1
-popr r2 ; pop -> r2
-incr r5 ; r5++
-pushr r1 ; push r1
-pushr r2 ; push r2
-; ---- SUBTRACTION: r1 - r2 ----
-popr r2 ; pop -> r2
-popr r1 ; pop -> r1
-cmpr r1, r2 ; compare r1 with r2
-pushr r1 ; push r1
-popr r1 ; pop -> r1
-incr r3 ; r3++
-cmpi r1, #0 ; compare r1 with 0
-jgti #-81 ; if greater, jump -81 bytes
-pushr r3 ; push r3
-movr r3, r1 ; r3 <- r1
-addr r3, r2 ; r3 <- r3 + r2
-jei #54 ; if equal, jump 54 bytes
-pushi #1 ; push 1
-; ---- SUBTRACTION: r1 - r2 ----
-popr r2 ; pop -> r2
-popr r1 ; pop -> r1
-cmpr r1, r2 ; compare r1 with r2
-pushr r1 ; push r1
-cmpr r4, r5 ; compare r4 with r5
-jei #72 ; if equal, jump 72 bytes
-; ---- Negation via subtracting from register ----
-popr r1 ; pop -> r1
-pushi #0 ; push 0
-pushr r1 ; push r1
-; ---- SUBTRACTION: r1 - r2 ----
-popr r2 ; pop -> r2
-popr r1 ; pop -> r1
-cmpr r1, r2 ; compare r1 with r2
-pushr r1 ; push r1
-; ------------------------- END DIVISION ------------------------- 
-cmpi r5, #0 ; compare r5 with 0
-pushr r3 ; push r3
-jei #72 ; if equal, jump 72 bytes
-; ---- Negation via subtracting from register ----
-popr r1 ; pop -> r1
-pushi #0 ; push 0
-pushr r1 ; push r1
-; ---- SUBTRACTION: r1 - r2 ----
-popr r2 ; pop -> r2
-popr r1 ; pop -> r1
-cmpr r1, r2 ; compare r1 with r2
-pushr r1 ; push r1
-popr r1 ; pop -> r1
+movi r1, #2
+pushr r1
+movi r1, #3
+pushr r1
+popr r1
+pushr r10
+cmpr r10, r10
+cmpr r10, r1
+movr r1, r10
+popr r10
+pushr r1
+movi r1, #5
+pushr r1
+popr r2
+popr r1
+addr r1, r2
+pushr r1
+popr r1
+pushr r10
+cmpr r10, r10
+cmpr r10, r1
+movr r1, r10
+popr r10
+pushr r1
+popr r2
+popr r1
+movi r9, #0
+movi r10, #0
+cmpr r2, r9
+jgti #63
+pushr r10
+cmpr r10, r10
+cmpr r10, r2
+movr r2, r10
+popr r10
+incr r10
+jmpi #27
+addr r9, r1
+addi r2, #-1
+pushr r2
+cmpi r2, #0
+popr r2
+jgti #-45
+cmpi r10, #0
+jei #54
+pushr r10
+cmpr r10, r10
+cmpr r10, r9
+movr r9, r10
+popr r10
+movr r1, r9
+pushr r1
+movi r1, #10
+pushr r1
+popr r1
+pushr r10
+cmpr r10, r10
+cmpr r10, r1
+movr r1, r10
+popr r10
+pushr r1
+popr r2
+popr r1
+movi r9, #0
+movi r10, #0
+cmpr r2, r9
+jgti #63
+pushr r10
+cmpr r10, r10
+cmpr r10, r2
+movr r2, r10
+popr r10
+incr r10
+jmpi #27
+addr r9, r1
+addi r2, #-1
+pushr r2
+cmpi r2, #0
+popr r2
+jgti #-45
+cmpi r10, #0
+jei #54
+pushr r10
+cmpr r10, r10
+cmpr r10, r9
+movr r9, r10
+popr r10
+movr r1, r9
+pushr r1
+movi r1, #10
+pushr r1
+movi r1, #2
+pushr r1
+movi r1, #3
+pushr r1
+popr r2
+popr r1
+addr r1, r2
+pushr r1
+popr r2
+popr r1
+movi r8, #0
+movi r9, #0
+movi r10, #0
+cmpi r1, #0
+jgti #63
+pushr r10
+cmpr r10, r10
+cmpr r10, r1
+movr r1, r10
+popr r10
+incr r8
+cmpi r2, #0
+jgti #63
+pushr r10
+cmpr r10, r10
+cmpr r10, r2
+movr r2, r10
+popr r10
+incr r9
+cmpr r1, r2
+incr r10
+cmpi r1, #0
+jgti #-27
+cmpi r1, #0
+jei #27
+cmpi r10, #1
+addr r1, r2
+pushr r8
+cmpr r8, r9
+popr r8
+jei #54
+pushr r9
+cmpr r9, r9
+cmpr r9, r10
+movr r10, r9
+popr r9
+cmpi r8, #0
+jei #54
+pushr r10
+cmpr r10, r10
+cmpr r10, r1
+movr r1, r10
+popr r10
+movr r2, r1
+movr r1, r10
+pushr r1
+popr r2
+popr r1
+cmpr r1, r2
+pushr r1
+movi r1, #10
+pushr r1
+popr r2
+popr r1
+movi r8, #0
+movi r9, #0
+movi r10, #0
+cmpi r1, #0
+jgti #63
+pushr r10
+cmpr r10, r10
+cmpr r10, r1
+movr r1, r10
+popr r10
+incr r8
+cmpi r2, #0
+jgti #63
+pushr r10
+cmpr r10, r10
+cmpr r10, r2
+movr r2, r10
+popr r10
+incr r9
+cmpr r1, r2
+incr r10
+cmpi r1, #0
+jgti #-27
+cmpi r1, #0
+jei #27
+cmpi r10, #1
+addr r1, r2
+pushr r8
+cmpr r8, r9
+popr r8
+jei #54
+pushr r9
+cmpr r9, r9
+cmpr r9, r10
+movr r10, r9
+popr r9
+cmpi r8, #0
+jei #54
+pushr r10
+cmpr r10, r10
+cmpr r10, r1
+movr r1, r10
+popr r10
+movr r2, r1
+movr r1, r10
+pushr r2
+movi r1, #1
+pushr r1
+movi r1, #2
+pushr r1
+popr r2
+popr r1
+addr r1, r2
+pushr r1
+movi r1, #2
+pushr r1
+movi r1, #3
+pushr r1
+popr r2
+popr r1
+movi r9, #0
+movi r10, #0
+cmpr r2, r9
+jgti #63
+pushr r10
+cmpr r10, r10
+cmpr r10, r2
+movr r2, r10
+popr r10
+incr r10
+jmpi #27
+addr r9, r1
+addi r2, #-1
+pushr r2
+cmpi r2, #0
+popr r2
+jgti #-45
+cmpi r10, #0
+jei #54
+pushr r10
+cmpr r10, r10
+cmpr r10, r9
+movr r9, r10
+popr r10
+movr r1, r9
+pushr r1
+movi r1, #1
+pushr r1
+movi r1, #2
+pushr r1
+popr r2
+popr r1
+addr r1, r2
+pushr r1
