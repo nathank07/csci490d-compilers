@@ -434,8 +434,8 @@ inline Instruction unsafe_divr(Register r1, Register r2) {
     Register rhs_is_neg = Register::R9;
     Register quotient = Register::R10;
 
-    assert(r1 != lhs_is_neg && r1 != rhs_is_neg && r1 != quotient && r1 != quotient);
-    assert(r2 != lhs_is_neg && r2 != rhs_is_neg && r2 != quotient && r2 != quotient);
+    assert(r1 != lhs_is_neg && r1 != rhs_is_neg && r1 != quotient);
+    assert(r2 != lhs_is_neg && r2 != rhs_is_neg && r2 != quotient);
 
     return compose(
         movi(lhs_is_neg, 0),
