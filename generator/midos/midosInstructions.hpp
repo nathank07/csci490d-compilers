@@ -128,10 +128,12 @@ inline Instruction _exit() {
     return {"exit\n", 1};
 }
 
+// **Warning: Modifies flags. Alias for unsafe_cmpi(r1, v)**
 inline Instruction subi(Register r, uint32_t v) {
     return unsafe_cmpi(r, v);
 }
 
+// **Warning: Modifies flags. Alias for unsafe_cmpr(r1, r2)**
 inline Instruction subr(Register r1, Register r2) {
     return unsafe_cmpr(r1, r2);
 }
