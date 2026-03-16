@@ -59,11 +59,21 @@ public:
     }
 
     void div () {
-
+        emit(compose(
+            popr(Register::R2),
+            popr(Register::R1),
+            unsafe_div(Register::R1, Register::R2),
+            pushr(Register::R1)
+        ));
     }
 
     void mod() {
-       
+       emit(compose(
+           popr(Register::R2),
+           popr(Register::R1),
+           unsafe_div(Register::R1, Register::R2),
+           pushr(Register::R2)
+       ));
     }
 
     void neg() {

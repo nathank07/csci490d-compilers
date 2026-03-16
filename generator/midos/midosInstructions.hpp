@@ -246,35 +246,73 @@ inline Instruction safe_do_while(Register r, int32_t v, Conditional cond, Instru
     );
 }
 
-// R9  - Accumulator
-// R10 - Negation flag 
-// LHS - Seed (Also product, once finished)
-// RHS - Counter (will be cleared out)
-inline Instruction unsafe_multr(Register r1, Register r2_counter) {
-    assert(r1 != Register::R9 && r1 != Register::R10);
-    assert(r2_counter != Register::R9 && r2_counter != Register::R10);
+// **Uses R9 and R10.**
+inline Instruction unsafe_multr(Register r1, Register r2) {
+    Register seed = r1;
+    Register counter = r2;
+    Register accumulator = Register::R9;
+    Register rhs_is_neg = Register::R10;
+
+    assert(r1 != accumulator && r1 != rhs_is_neg);
+    assert(r2 != accumulator && r2 != rhs_is_neg);
 
     return compose(
-        movi(Register::R9,  0),
-        movi(Register::R10, 0),
+        movi(accumulator,  0),
+        movi(rhs_is_neg, 0),
         // unsafe skip_if OK here because it's comparing against 0.
         // If R9 is checked, then we negate it again afterwards. 
         // We do this because the counter subtracts when accumulating 
         // so it prevents an infinite loop
-        unsafe_skip_if(r2_counter, Register::R9, Conditional::GT, compose(
-            negr(r2_counter),
-            incr(Register::R10)
+        unsafe_skip_if(counter, accumulator, Conditional::GT, compose(
+            negr(counter),
+            incr(rhs_is_neg)
         )),
-        // OK to use unsafe_do_while here because it's comparing vs 0
-        unsafe_do_while(r2_counter, 0, Conditional::GT, compose(
-            addr(Register::R9, r1),
-            addi(r2_counter, -1)
+        unsafe_do_while(counter, 0, Conditional::GT, compose(
+            addr(accumulator, seed),
+            addi(counter, -1)
         )),
-        // unsafe ok here because comparing vs 0
-        unsafe_skip_if(Register::R10, 0, Conditional::EQ, compose(
-            negr(Register::R9)
+        unsafe_skip_if(rhs_is_neg, 0, Conditional::EQ, compose(
+            negr(accumulator)
         )),
-        movr(r1, Register::R9)
+        movr(r1, accumulator)
+    );
+}
+
+// **Uses R8, R9, and R10.**
+inline Instruction unsafe_div(Register r1, Register r2) {
+    Register accumulator = r1;
+    Register seed = r2;
+    Register lhs_is_neg = Register::R8;
+    Register rhs_is_neg = Register::R9;
+    Register quotient = Register::R10;
+
+    assert(r1 != lhs_is_neg && r1 != rhs_is_neg && r1 != quotient);
+    assert(r2 != lhs_is_neg && r2 != rhs_is_neg && r2 != quotient);
+
+    return compose(
+        movi(lhs_is_neg, 0),
+        movi(rhs_is_neg, 0),
+        movi(quotient, 0),
+        unsafe_skip_if(accumulator, 0, Conditional::GT, compose(
+            negr(accumulator),
+            incr(lhs_is_neg)
+        )),
+        unsafe_skip_if(seed, 0, Conditional::GT, compose(
+            negr(seed),
+            incr(rhs_is_neg)
+        )),
+        unsafe_do_while(accumulator, 0, Conditional::GT, compose(
+            subr(accumulator, seed),
+            incr(quotient)
+        )),
+        unsafe_skip_if(accumulator, 0, Conditional::EQ, compose(
+            subi(quotient, 1),
+            addr(accumulator, seed)
+        )),
+        safe_skip_if(lhs_is_neg, rhs_is_neg, Conditional::EQ, negr(quotient)),
+        unsafe_skip_if(lhs_is_neg, 0, Conditional::EQ, negr(accumulator)),
+        movr(r2, accumulator),
+        movr(r1, quotient)
     );
 }
 
@@ -287,5 +325,17 @@ inline Instruction safe_multr(Register r1, Register r2) {
         popr(Register::R10),
         popr(Register::R9),
         popr(r2)
+    );
+}
+
+inline Instruction safe_div(Register r1, Register r2) {
+    return compose(
+        pushr(Register::R8),
+        pushr(Register::R9),
+        pushr(Register::R10),
+        unsafe_div(r1, r2),
+        popr(Register::R10),
+        popr(Register::R9),
+        popr(Register::R8)
     );
 }
