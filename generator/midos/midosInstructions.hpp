@@ -156,17 +156,25 @@ inline Instruction cmpi(Register r1, int32_t i) {
 }
 
 inline Instruction negr(Register r) {
-    Register util_reg = static_cast<int>(r) == 10 ?
+    // It's important to note that you can't use this pattern to make the
+    // conditional unsafe constructs safe. This is because negr isn't executing
+    // any code inside of it, so restoring the util reg doesn't silently
+    // overwrite code inside of it. This is safe explicitly because the
+    // only thing being done with the scratch reg is using it as a temporary
+    // immediate value.
+    Register scratch = static_cast<int>(r) == 10 ?
         Register::R9 : Register::R10;
+    
     return compose(
-        pushr(util_reg),
-        subr(util_reg, util_reg),
-        subr(util_reg, r),
-        movr(r, util_reg),
-        popr(util_reg)
+        pushr(scratch),
+        subr(scratch, scratch),
+        subr(scratch, r),
+        movr(r, scratch),
+        popr(scratch)
     );
 }
 
+// **Warning: Can clobber r1 if not used with 0. Uses unsafe_cmpr(r1, r2)**
 inline Instruction unsafe_skip_if(Register r1, Register r2, Conditional cond, Instruction do_this) {
     
     auto jump_instr = ([&]() {
@@ -187,7 +195,6 @@ inline Instruction unsafe_skip_if(Register r1, Register r2, Conditional cond, In
 }
 
 inline Instruction unsafe_skip_if(Register r, int32_t v, Conditional cond, Instruction do_this) {
-    
     auto jump_instr = ([&]() {
         int32_t addr = static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE);
         switch (cond) {
@@ -206,22 +213,49 @@ inline Instruction unsafe_skip_if(Register r, int32_t v, Conditional cond, Instr
 }
 
 inline Instruction skip_if(Register r1, Register r2, Conditional cond, Instruction do_this) {
+
+    auto jump_instr = ([&]() {
+        int32_t addr = static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE);
+        switch (cond) {
+            case Conditional::GT: return jgti(addr);
+            case Conditional::LT: return jlti(addr);
+            case Conditional::EQ: return jei(addr);
+        }
+        __builtin_unreachable();
+    })();
+
     return compose(
-        pushr(r1),
-        unsafe_skip_if(r1, r2, cond, do_this),
-        popr(r1)
+        cmpr(r1, r2),
+        jump_instr,
+        do_this
     );
 }
 
 inline Instruction skip_if(Register r, int32_t v, Conditional cond, Instruction do_this) {
+    
+    // Check cond here because cmpi is a composite instruction. You cannot
+    // rely on INSTRUCTION_SIZE because cmpi is not a real instruction.
+    auto check_cond = cmpi(r, v); 
+
+    auto jump_instr = ([&]() {
+        int32_t addr = static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE);
+        switch (cond) {
+            case Conditional::GT: return jgti(addr);
+            case Conditional::LT: return jlti(addr);
+            case Conditional::EQ: return jei(addr);
+        }
+        __builtin_unreachable();
+    })();
+
     return compose(
-        pushr(r),
-        unsafe_skip_if(r, v, cond, do_this),
-        popr(r)
+        check_cond,
+        jump_instr,
+        do_this
     );
 }
 
 // Unsafe because it uses unsafe_cmpi(r, v) for comparison, which subs v from r.
+// This means that if v != 0, you probably don't want to use this.
 inline Instruction unsafe_do_while(Register r, int32_t v, Conditional cond, Instruction do_this) {
     auto jump_instr = ([&]() {
         int32_t addr = -static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE);
@@ -241,10 +275,109 @@ inline Instruction unsafe_do_while(Register r, int32_t v, Conditional cond, Inst
 }
 
 inline Instruction do_while(Register r, int32_t v, Conditional cond, Instruction do_this) {
+    
+    auto check_cond = cmpi(r, v);
+    
+    auto jump_instr = ([&]() {
+        int32_t addr = -static_cast<int32_t>(do_this.size() + check_cond.size());
+        switch (cond) {
+            case Conditional::GT: return jgti(addr);
+            case Conditional::LT: return jlti(addr);
+            case Conditional::EQ: return jei(addr);
+        }
+        __builtin_unreachable();
+    })();
+
     return compose(
-        pushr(r),
-        unsafe_do_while(r, v, cond, do_this),
-        popr(r)
+        do_this,
+        check_cond,
+        jump_instr
+    );
+}
+
+inline Instruction unsafe_while(Register r1, Register r2, Conditional cond, Instruction do_this) {
+    
+    auto jump_back = ([&]() {
+        int32_t addr = -static_cast<int32_t>(do_this.size());
+        switch (cond) {
+            case Conditional::GT: return jgti(addr);
+            case Conditional::LT: return jlti(addr);
+            case Conditional::EQ: return jei(addr);
+        }
+        __builtin_unreachable();
+    })();
+
+    return compose(
+        // skips the initial pass, in the event that it doesn't satisfy
+        // the cond (other wise this would be a do while loop)
+        jmpi(static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE)),
+        do_this,
+        unsafe_cmpr(r1, r2),
+        jump_back
+    );
+}
+
+// Uses R10/R9 as scratch for the immediate depending on what register you put in.
+// Also clobbers R1, as it uses cmpr. 
+inline Instruction unsafe_while(Register r, int32_t v, Conditional cond, Instruction do_this) {
+    Register util_reg = static_cast<int>(r) == 10 ?
+        Register::R9 : Register::R10;
+
+    return compose(
+        movi(util_reg, v),
+        unsafe_while(r, util_reg, cond, do_this)
+    );
+}
+
+inline Instruction _while(Register r1, Register r2, Conditional cond, Instruction do_this) {
+    
+    // Check cond here because cmpr is a composite instruction. You cannot
+    // rely on INSTRUCTION_SIZE because cmpr is not a real instruction.
+    auto check_cond = cmpr(r1, r2); 
+
+    auto jump_back = ([&]() {
+        int32_t addr = -static_cast<int32_t>(do_this.size() + check_cond.size());
+        switch (cond) {
+            case Conditional::GT: return jgti(addr);
+            case Conditional::LT: return jlti(addr);
+            case Conditional::EQ: return jei(addr);
+        }
+        __builtin_unreachable();
+    })();
+
+    return compose(
+        // skips the initial pass, in the event that it doesn't satisfy
+        // the cond (otherwise this would be a do while loop)
+        jmpi(static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE)),
+        do_this,
+        check_cond,
+        jump_back
+    );
+}
+
+inline Instruction _while(Register r, int32_t v, Conditional cond, Instruction do_this) {
+
+    // Check cond here because cmpi is a composite instruction. You cannot
+    // rely on INSTRUCTION_SIZE because cmpr is not a real instruction.
+    auto check_cond = cmpi(r, v);
+
+    auto jump_back = ([&]() {
+        int32_t addr = -static_cast<int32_t>(do_this.size() + check_cond.size());
+        switch (cond) {
+            case Conditional::GT: return jgti(addr);
+            case Conditional::LT: return jlti(addr);
+            case Conditional::EQ: return jei(addr);
+        }
+        __builtin_unreachable();
+    })();
+
+    return compose(
+        // skips the initial pass, in the event that it doesn't satisfy
+        // the cond (otherwise this would be a do while loop)
+        jmpi(static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE)),
+        do_this,
+        check_cond,
+        jump_back
     );
 }
 
@@ -269,7 +402,7 @@ inline Instruction unsafe_multr(Register r1, Register r2) {
             negr(counter),
             incr(rhs_is_neg)
         )),
-        unsafe_do_while(counter, 0, Conditional::GT, compose(
+        _while(counter, 0, Conditional::GT, compose(
             addr(accumulator, seed),
             addi(counter, -1)
         )),
@@ -306,7 +439,8 @@ inline Instruction unsafe_divr(Register r1, Register r2) {
             negr(seed),
             incr(rhs_is_neg)
         )),
-        // Subtract until finding value
+        // Subtract until finding value. Do while instead of while is actually
+        // preferable here, because when it overshoots, we get the mod value.
         unsafe_do_while(accumulator, 0, Conditional::GT, compose(
             subr(accumulator, seed),
             incr(quotient)
@@ -336,18 +470,13 @@ inline Instruction unsafe_expr(Register r1, Register r2) {
     return compose(
         movr(base, accumulator),
         movi(accumulator, 1),
-        unsafe_do_while(exp_counter, 0, Conditional::GT,
-            // Because it's in a do while loop, we want to explicitly break out
-            // when there's nothing in the exp_counter. The easiest way to do this
-            // without manually defining jumps is to just add this in the construct
-            unsafe_skip_if(exp_counter, 0, Conditional::EQ, compose(
-                // unsafe_multr clobbers R2, so pushing and popping is necessary here.
-                pushr(base),
-                unsafe_multr(accumulator, base),
-                popr(base),
-                subi(exp_counter, 1)
-            ))
-        )
+        _while(exp_counter, 0, Conditional::GT, compose(
+            // unsafe_multr clobbers R2, so pushing and popping is necessary here.
+            pushr(base),
+            unsafe_multr(accumulator, base),
+            popr(base),
+            subi(exp_counter, 1)
+        ))
     );
 }
 
