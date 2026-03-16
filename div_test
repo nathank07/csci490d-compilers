@@ -1,0 +1,86 @@
+; ---- PUSHING VALUE ONTO STACK BY ALLOCATING INTO REGISTER AND PUSHING ---- 
+movi r1, #100 ; r1 <- 100
+pushr r1 ; push r1
+; ---- PUSHING VALUE ONTO STACK BY ALLOCATING INTO REGISTER AND PUSHING ---- 
+movi r1, #23 ; r1 <- 23
+pushr r1 ; push r1
+; ---- Negation via subtracting from register ----
+popr r1 ; pop -> r1
+pushi #0 ; push 0
+pushr r1 ; push r1
+; ---- SUBTRACTION: r1 - r2 ----
+popr r2 ; pop -> r2
+popr r1 ; pop -> r1
+cmpr r1, r2 ; compare r1 with r2
+pushr r1 ; push r1
+; --------------------------- DIVISION --------------------------- 
+popr r2 ; pop -> r2
+popr r1 ; pop -> r1
+movi r3, #0 ; r3 <- 0
+movi r4, #0 ; r4 <- 0
+movi r5, #0 ; r5 <- 0
+cmpr r2, r4 ; compare r2 with r4
+jgti #117 ; if greater, jump 117 bytes
+pushr r1 ; push r1
+pushr r2 ; push r2
+; ---- Negation via subtracting from register ----
+popr r1 ; pop -> r1
+pushi #0 ; push 0
+pushr r1 ; push r1
+; ---- SUBTRACTION: r1 - r2 ----
+popr r2 ; pop -> r2
+popr r1 ; pop -> r1
+cmpr r1, r2 ; compare r1 with r2
+pushr r1 ; push r1
+popr r2 ; pop -> r2
+popr r1 ; pop -> r1
+incr r4 ; r4++
+cmpr r1, r5 ; compare r1 with r5
+jgti #117 ; if greater, jump 117 bytes
+pushr r2 ; push r2
+pushr r1 ; push r1
+; ---- Negation via subtracting from register ----
+popr r1 ; pop -> r1
+pushi #0 ; push 0
+pushr r1 ; push r1
+; ---- SUBTRACTION: r1 - r2 ----
+popr r2 ; pop -> r2
+popr r1 ; pop -> r1
+cmpr r1, r2 ; compare r1 with r2
+pushr r1 ; push r1
+popr r1 ; pop -> r1
+popr r2 ; pop -> r2
+incr r5 ; r5++
+pushr r1 ; push r1
+pushr r2 ; push r2
+; ---- SUBTRACTION: r1 - r2 ----
+popr r2 ; pop -> r2
+popr r1 ; pop -> r1
+cmpr r1, r2 ; compare r1 with r2
+pushr r1 ; push r1
+popr r1 ; pop -> r1
+incr r3 ; r3++
+cmpi r1, #0 ; compare r1 with 0
+jgti #-81 ; if greater, jump -81 bytes
+pushr r3 ; push r3
+movr r3, r1 ; r3 <- r1
+addr r3, r2 ; r3 <- r3 + r2
+jei #54 ; if equal, jump 54 bytes
+pushi #1 ; push 1
+; ---- SUBTRACTION: r1 - r2 ----
+popr r2 ; pop -> r2
+popr r1 ; pop -> r1
+cmpr r1, r2 ; compare r1 with r2
+pushr r1 ; push r1
+cmpr r4, r5 ; compare r4 with r5
+jei #72 ; if equal, jump 72 bytes
+; ---- Negation via subtracting from register ----
+popr r1 ; pop -> r1
+pushi #0 ; push 0
+pushr r1 ; push r1
+; ---- SUBTRACTION: r1 - r2 ----
+popr r2 ; pop -> r2
+popr r1 ; pop -> r1
+cmpr r1, r2 ; compare r1 with r2
+pushr r1 ; push r1
+; ------------------------- END DIVISION ------------------------- 

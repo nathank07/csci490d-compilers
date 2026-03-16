@@ -7,7 +7,6 @@
 class midosGenerator {
 
     static void eval(midOsProg& p, std::unique_ptr<Expression> expr) {
-        using Register = midOsProg::Register;
 
         const auto visitor = overloads {
             [&](Term& t) {
