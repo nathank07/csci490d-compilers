@@ -281,6 +281,7 @@ inline Instruction unsafe_multr(Register r1, Register r2) {
 }
 
 // **Uses R8, R9, and R10.**
+// Puts the quotient in r1, and the remainder in r2. Has C-style mod behavior.
 inline Instruction unsafe_divr(Register r1, Register r2) {
     Register accumulator = r1;
     Register seed = r2;
@@ -295,22 +296,28 @@ inline Instruction unsafe_divr(Register r1, Register r2) {
         movi(lhs_is_neg, 0),
         movi(rhs_is_neg, 0),
         movi(quotient, 0),
+        // Normalize LHS
         unsafe_skip_if(accumulator, 0, Conditional::GT, compose(
             negr(accumulator),
             incr(lhs_is_neg)
         )),
+        // Normalize RHS
         unsafe_skip_if(seed, 0, Conditional::GT, compose(
             negr(seed),
             incr(rhs_is_neg)
         )),
+        // Subtract until finding value
         unsafe_do_while(accumulator, 0, Conditional::GT, compose(
             subr(accumulator, seed),
             incr(quotient)
         )),
+        // Check if we overshot. if so, go backwards. Also by adding the seed
+        // to the accumulator, we get the mod, which is a nice touch.
         unsafe_skip_if(accumulator, 0, Conditional::EQ, compose(
             subi(quotient, 1),
             addr(accumulator, seed)
         )),
+        // Negate values as needed, since they were normalized earlier.
         skip_if(lhs_is_neg, rhs_is_neg, Conditional::EQ, negr(quotient)),
         unsafe_skip_if(lhs_is_neg, 0, Conditional::EQ, negr(accumulator)),
         movr(r2, accumulator),
