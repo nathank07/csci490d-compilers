@@ -295,10 +295,11 @@ inline Instruction do_while(Register r, int32_t v, Conditional cond, Instruction
     );
 }
 
+// Uses unsafe_cmpr(r1, r2) - which subtracts r2 from r1
 inline Instruction unsafe_while(Register r1, Register r2, Conditional cond, Instruction do_this) {
     
     auto jump_back = ([&]() {
-        int32_t addr = -static_cast<int32_t>(do_this.size());
+        int32_t addr = -static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE);
         switch (cond) {
             case Conditional::GT: return jgti(addr);
             case Conditional::LT: return jlti(addr);
@@ -317,15 +318,26 @@ inline Instruction unsafe_while(Register r1, Register r2, Conditional cond, Inst
     );
 }
 
-// Uses R10/R9 as scratch for the immediate depending on what register you put in.
-// Also clobbers R1, as it uses cmpr. 
+// Uses unsafe_cmpr(r1, v) - which subtracts v from r
 inline Instruction unsafe_while(Register r, int32_t v, Conditional cond, Instruction do_this) {
-    Register util_reg = static_cast<int>(r) == 10 ?
-        Register::R9 : Register::R10;
+        
+    auto jump_back = ([&]() {
+        int32_t addr = -static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE);
+        switch (cond) {
+            case Conditional::GT: return jgti(addr);
+            case Conditional::LT: return jlti(addr);
+            case Conditional::EQ: return jei(addr);
+        }
+        __builtin_unreachable();
+    })();
 
     return compose(
-        movi(util_reg, v),
-        unsafe_while(r, util_reg, cond, do_this)
+        // skips the initial pass, in the event that it doesn't satisfy
+        // the cond (other wise this would be a do while loop)
+        jmpi(static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE)),
+        do_this,
+        unsafe_cmpi(r, v),
+        jump_back
     );
 }
 
