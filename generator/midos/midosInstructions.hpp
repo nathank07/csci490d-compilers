@@ -248,7 +248,7 @@ inline Instruction do_while(Register r, int32_t v, Conditional cond, Instruction
     );
 }
 
-// **Uses R9 and R10.**
+// **Uses R2, R9 and R10.**
 inline Instruction unsafe_multr(Register r1, Register r2) {
     Register seed = r1;
     Register counter = r2;
@@ -289,8 +289,8 @@ inline Instruction unsafe_divr(Register r1, Register r2) {
     Register rhs_is_neg = Register::R9;
     Register quotient = Register::R10;
 
-    assert(r1 != lhs_is_neg && r1 != rhs_is_neg && r1 != quotient);
-    assert(r2 != lhs_is_neg && r2 != rhs_is_neg && r2 != quotient);
+    assert(r1 != lhs_is_neg && r1 != rhs_is_neg && r1 != quotient && r1 != quotient);
+    assert(r2 != lhs_is_neg && r2 != rhs_is_neg && r2 != quotient && r2 != quotient);
 
     return compose(
         movi(lhs_is_neg, 0),
@@ -325,14 +325,59 @@ inline Instruction unsafe_divr(Register r1, Register r2) {
     );
 }
 
+// ** Uses R2, R7, R8, R9, and R10 **
+inline Instruction unsafe_expr(Register r1, Register r2) {
+    Register accumulator = r1;
+    Register exp_counter = r2;
+    Register base = Register::R7;
+
+    assert(r1 != base && r2 != base);
+
+    return compose(
+        movr(base, accumulator),
+        movi(accumulator, 1),
+        unsafe_do_while(exp_counter, 0, Conditional::GT,
+            // Because it's in a do while loop, we want to explicitly break out
+            // when there's nothing in the exp_counter. The easiest way to do this
+            // without manually defining jumps is to just add this in the construct
+            unsafe_skip_if(exp_counter, 0, Conditional::EQ, compose(
+                // unsafe_multr clobbers R2, so pushing and popping is necessary here.
+                pushr(base),
+                unsafe_multr(accumulator, base),
+                popr(base),
+                subi(exp_counter, 1)
+            ))
+        )
+    );
+}
+
+inline Instruction expr(Register r1, Register r2) {
+    return compose(
+        pushr(r2),
+        pushr(Register::R7),
+        pushr(Register::R8),
+        pushr(Register::R9),
+        pushr(Register::R10),
+        unsafe_expr(r1, r2),
+        popr(Register::R10),
+        popr(Register::R9),
+        popr(Register::R8),
+        popr(Register::R7),
+        popr(r2)
+    );
+}
+
+
 inline Instruction multr(Register r1, Register r2) {
     return compose(
         pushr(r2),
+        pushr(Register::R8),
         pushr(Register::R9),
         pushr(Register::R10),
         unsafe_multr(r1, r2),
         popr(Register::R10),
         popr(Register::R9),
+        popr(Register::R8),
         popr(r2)
     );
 }

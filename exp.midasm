@@ -1,0 +1,38 @@
+movi r1, #2
+pushr r1
+movi r1, #5
+pushr r1
+popr r2
+popr r1
+movr r7, r1
+movi r1, #1
+cmpi r2, #0
+jei #234
+pushr r7
+movi r9, #0
+movi r10, #0
+cmpr r7, r9
+jgti #63
+pushr r10
+cmpr r10, r10
+cmpr r10, r7
+movr r7, r10
+popr r10
+incr r10
+addr r9, r1
+addi r7, #-1
+cmpi r7, #0
+jgti #-27
+cmpi r10, #0
+jei #54
+pushr r10
+cmpr r10, r10
+cmpr r10, r9
+movr r9, r10
+popr r10
+movr r1, r9
+popr r7
+cmpi r2, #1
+cmpi r2, #0
+jgti #-252
+pushr r1

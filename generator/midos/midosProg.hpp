@@ -31,6 +31,14 @@ public:
         ));
     }
 
+    void neg() {
+        emit(compose(
+            popr(Register::R1),
+            negr(Register::R1),
+            pushr(Register::R1)
+        ));
+    }
+
     void add() {
         emit(compose(
             popr(Register::R2),
@@ -76,10 +84,11 @@ public:
        ));
     }
 
-    void neg() {
+    void exp() {
         emit(compose(
+            popr(Register::R2),
             popr(Register::R1),
-            negr(Register::R1),
+            unsafe_expr(Register::R1, Register::R2),
             pushr(Register::R1)
         ));
     }

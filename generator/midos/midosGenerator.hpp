@@ -40,7 +40,7 @@ class midosGenerator {
             [&](Exp& e) {
                 eval(p, std::move(e.base));
                 eval(p, std::move(e.exponent));
-                // TODO: exp not yet in midOsProg
+                p.exp();
             },
             [&](Negated& e) {
                 eval(p, std::move(e.expression));
