@@ -6,8 +6,7 @@ popr r2
 popr r1
 movr r7, r1
 movi r1, #1
-cmpi r2, #0
-jei #234
+jmpi #261
 pushr r7
 movi r9, #0
 movi r10, #0
@@ -19,10 +18,13 @@ cmpr r10, r7
 movr r7, r10
 popr r10
 incr r10
+jmpi #27
 addr r9, r1
 addi r7, #-1
+pushr r7
 cmpi r7, #0
-jgti #-27
+popr r7
+jgti #-45
 cmpi r10, #0
 jei #54
 pushr r10
@@ -33,6 +35,8 @@ popr r10
 movr r1, r9
 popr r7
 cmpi r2, #1
+pushr r2
 cmpi r2, #0
-jgti #-252
+popr r2
+jgti #-279
 pushr r1

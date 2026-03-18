@@ -128,6 +128,15 @@ inline Instruction _exit() {
     return {"exit\n", 1};
 }
 
+inline Instruction jmp_with_flag(int32_t rel_addr, Conditional on_cond) {
+    switch (on_cond) {
+        case Conditional::GT: return jgti(rel_addr);
+        case Conditional::LT: return jlti(rel_addr);
+        case Conditional::EQ: return jei(rel_addr);
+    }
+    __builtin_unreachable();
+}
+
 // **Warning: Modifies flags. Alias for unsafe_cmpi(r1, v)**
 inline Instruction subi(Register r, uint32_t v) {
     return unsafe_cmpi(r, v);
@@ -177,56 +186,32 @@ inline Instruction negr(Register r) {
 // **Warning: Can clobber r1 if not used with 0. Uses unsafe_cmpr(r1, r2)**
 inline Instruction unsafe_skip_if(Register r1, Register r2, Conditional cond, Instruction do_this) {
     
-    auto jump_instr = ([&]() {
-        int32_t addr = static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE);
-        switch (cond) {
-            case Conditional::GT: return jgti(addr);
-            case Conditional::LT: return jlti(addr);
-            case Conditional::EQ: return jei(addr);
-        }
-        __builtin_unreachable();
-    })();
+    int32_t addr = static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE);
 
     return compose(
         unsafe_cmpr(r1, r2),
-        jump_instr,
+        jmp_with_flag(addr, cond),
         do_this
     );
 }
 
 inline Instruction unsafe_skip_if(Register r, int32_t v, Conditional cond, Instruction do_this) {
-    auto jump_instr = ([&]() {
-        int32_t addr = static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE);
-        switch (cond) {
-            case Conditional::GT: return jgti(addr);
-            case Conditional::LT: return jlti(addr);
-            case Conditional::EQ: return jei(addr);
-        }
-        __builtin_unreachable();
-    })();
+    int32_t addr = static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE);
 
     return compose(
         unsafe_cmpi(r, v),
-        jump_instr,
+        jmp_with_flag(addr, cond),
         do_this
     );
 }
 
 inline Instruction skip_if(Register r1, Register r2, Conditional cond, Instruction do_this) {
 
-    auto jump_instr = ([&]() {
-        int32_t addr = static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE);
-        switch (cond) {
-            case Conditional::GT: return jgti(addr);
-            case Conditional::LT: return jlti(addr);
-            case Conditional::EQ: return jei(addr);
-        }
-        __builtin_unreachable();
-    })();
+    int32_t addr = static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE);
 
     return compose(
         cmpr(r1, r2),
-        jump_instr,
+        jmp_with_flag(addr, cond),
         do_this
     );
 }
@@ -237,19 +222,11 @@ inline Instruction skip_if(Register r, int32_t v, Conditional cond, Instruction 
     // rely on INSTRUCTION_SIZE because cmpi is not a real instruction.
     auto check_cond = cmpi(r, v); 
 
-    auto jump_instr = ([&]() {
-        int32_t addr = static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE);
-        switch (cond) {
-            case Conditional::GT: return jgti(addr);
-            case Conditional::LT: return jlti(addr);
-            case Conditional::EQ: return jei(addr);
-        }
-        __builtin_unreachable();
-    })();
+    int32_t addr = static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE);
 
     return compose(
         check_cond,
-        jump_instr,
+        jmp_with_flag(addr, cond),
         do_this
     );
 }
@@ -257,20 +234,12 @@ inline Instruction skip_if(Register r, int32_t v, Conditional cond, Instruction 
 // Unsafe because it uses unsafe_cmpi(r, v) for comparison, which subs v from r.
 // This means that if v != 0, you probably don't want to use this.
 inline Instruction unsafe_do_while(Register r, int32_t v, Conditional cond, Instruction do_this) {
-    auto jump_instr = ([&]() {
-        int32_t addr = -static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE);
-        switch (cond) {
-            case Conditional::GT: return jgti(addr);
-            case Conditional::LT: return jlti(addr);
-            case Conditional::EQ: return jei(addr);
-        }
-        __builtin_unreachable();
-    })();
+    int32_t addr = -static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE);
 
     return compose(
         do_this,
         unsafe_cmpi(r, v),
-        jump_instr
+        jmp_with_flag(addr, cond)
     );
 }
 
@@ -278,35 +247,19 @@ inline Instruction do_while(Register r, int32_t v, Conditional cond, Instruction
     
     auto check_cond = cmpi(r, v);
     
-    auto jump_instr = ([&]() {
-        int32_t addr = -static_cast<int32_t>(do_this.size() + check_cond.size());
-        switch (cond) {
-            case Conditional::GT: return jgti(addr);
-            case Conditional::LT: return jlti(addr);
-            case Conditional::EQ: return jei(addr);
-        }
-        __builtin_unreachable();
-    })();
+    int32_t addr = -static_cast<int32_t>(do_this.size() + check_cond.size());
 
     return compose(
         do_this,
         check_cond,
-        jump_instr
+        jmp_with_flag(addr, cond)
     );
 }
 
 // Uses unsafe_cmpr(r1, r2) - which subtracts r2 from r1
 inline Instruction unsafe_while(Register r1, Register r2, Conditional cond, Instruction do_this) {
     
-    auto jump_back = ([&]() {
-        int32_t addr = -static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE);
-        switch (cond) {
-            case Conditional::GT: return jgti(addr);
-            case Conditional::LT: return jlti(addr);
-            case Conditional::EQ: return jei(addr);
-        }
-        __builtin_unreachable();
-    })();
+    int32_t addr = -static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE);
 
     return compose(
         // skips the initial pass, in the event that it doesn't satisfy
@@ -314,22 +267,14 @@ inline Instruction unsafe_while(Register r1, Register r2, Conditional cond, Inst
         jmpi(static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE)),
         do_this,
         unsafe_cmpr(r1, r2),
-        jump_back
+        jmp_with_flag(addr, cond)
     );
 }
 
 // Uses unsafe_cmpr(r1, v) - which subtracts v from r
 inline Instruction unsafe_while(Register r, int32_t v, Conditional cond, Instruction do_this) {
         
-    auto jump_back = ([&]() {
-        int32_t addr = -static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE);
-        switch (cond) {
-            case Conditional::GT: return jgti(addr);
-            case Conditional::LT: return jlti(addr);
-            case Conditional::EQ: return jei(addr);
-        }
-        __builtin_unreachable();
-    })();
+    int32_t addr = -static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE);
 
     return compose(
         // skips the initial pass, in the event that it doesn't satisfy
@@ -337,7 +282,7 @@ inline Instruction unsafe_while(Register r, int32_t v, Conditional cond, Instruc
         jmpi(static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE)),
         do_this,
         unsafe_cmpi(r, v),
-        jump_back
+        jmp_with_flag(addr, cond)
     );
 }
 
@@ -347,15 +292,7 @@ inline Instruction _while(Register r1, Register r2, Conditional cond, Instructio
     // rely on INSTRUCTION_SIZE because cmpr is not a real instruction.
     auto check_cond = cmpr(r1, r2); 
 
-    auto jump_back = ([&]() {
-        int32_t addr = -static_cast<int32_t>(do_this.size() + check_cond.size());
-        switch (cond) {
-            case Conditional::GT: return jgti(addr);
-            case Conditional::LT: return jlti(addr);
-            case Conditional::EQ: return jei(addr);
-        }
-        __builtin_unreachable();
-    })();
+    int32_t addr = -static_cast<int32_t>(do_this.size() + check_cond.size());
 
     return compose(
         // skips the initial pass, in the event that it doesn't satisfy
@@ -363,7 +300,7 @@ inline Instruction _while(Register r1, Register r2, Conditional cond, Instructio
         jmpi(static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE)),
         do_this,
         check_cond,
-        jump_back
+        jmp_with_flag(addr, cond)
     );
 }
 
@@ -373,15 +310,7 @@ inline Instruction _while(Register r, int32_t v, Conditional cond, Instruction d
     // rely on INSTRUCTION_SIZE because cmpr is not a real instruction.
     auto check_cond = cmpi(r, v);
 
-    auto jump_back = ([&]() {
-        int32_t addr = -static_cast<int32_t>(do_this.size() + check_cond.size());
-        switch (cond) {
-            case Conditional::GT: return jgti(addr);
-            case Conditional::LT: return jlti(addr);
-            case Conditional::EQ: return jei(addr);
-        }
-        __builtin_unreachable();
-    })();
+    int32_t addr = -static_cast<int32_t>(do_this.size() + check_cond.size());
 
     return compose(
         // skips the initial pass, in the event that it doesn't satisfy
@@ -389,7 +318,7 @@ inline Instruction _while(Register r, int32_t v, Conditional cond, Instruction d
         jmpi(static_cast<int32_t>(do_this.size() + INSTRUCTION_SIZE)),
         do_this,
         check_cond,
-        jump_back
+        jmp_with_flag(addr, cond)
     );
 }
 
