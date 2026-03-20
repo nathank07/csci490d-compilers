@@ -16,7 +16,7 @@ public:
 
     midOsProg(std::ostream& out) : emitter(out) {}
 
-    void emit(const Instruction& block) {
+    void emit(const MidOs::Instruction& block) {
         block(emitter);
     }
 
@@ -25,71 +25,71 @@ public:
     // it back into the stack.
 
     void push_value(Register r, uint32_t v) {
-        emit(compose(
-            movi(r, v),
-            pushr(r)
+        emit(MidOs::compose(
+            MidOs::movi(r, v),
+            MidOs::pushr(r)
         ));
     }
 
     void neg() {
-        emit(compose(
-            popr(Register::R1),
-            negr(Register::R1),
-            pushr(Register::R1)
+        emit(MidOs::compose(
+            MidOs::popr(Register::R1),
+            MidOs::negr(Register::R1),
+            MidOs::pushr(Register::R1)
         ));
     }
 
     void add() {
-        emit(compose(
-            popr(Register::R2),
-            popr(Register::R1),
-            addr(Register::R1, Register::R2),
-            pushr(Register::R1)
+        emit(MidOs::compose(
+            MidOs::popr(Register::R2),
+            MidOs::popr(Register::R1),
+            MidOs::addr(Register::R1, Register::R2),
+            MidOs::pushr(Register::R1)
         ));
     }
 
     void sub() {
-        emit(compose(
-            popr(Register::R2),
-            popr(Register::R1),
-            subr(Register::R1, Register::R2),
-            pushr(Register::R1)
+        emit(MidOs::compose(
+            MidOs::popr(Register::R2),
+            MidOs::popr(Register::R1),
+            MidOs::subr(Register::R1, Register::R2),
+            MidOs::pushr(Register::R1)
         ));
     }
 
     void mult() {
-        emit(compose(
-            popr(Register::R2),
-            popr(Register::R1),
-            unsafe_multr(Register::R1, Register::R2),
-            pushr(Register::R1)
+        emit(MidOs::compose(
+            MidOs::popr(Register::R2),
+            MidOs::popr(Register::R1),
+            MidOs::unsafe_multr(Register::R1, Register::R2),
+            MidOs::pushr(Register::R1)
         ));
     }
 
     void div () {
-        emit(compose(
-            popr(Register::R2),
-            popr(Register::R1),
-            unsafe_divr(Register::R1, Register::R2),
-            pushr(Register::R1)
+        emit(MidOs::compose(
+            MidOs::popr(Register::R2),
+            MidOs::popr(Register::R1),
+            MidOs::unsafe_divr(Register::R1, Register::R2),
+            MidOs::pushr(Register::R1)
         ));
     }
 
     void mod() {
-       emit(compose(
-           popr(Register::R2),
-           popr(Register::R1),
-           unsafe_divr(Register::R1, Register::R2),
-           pushr(Register::R2)
+       emit(MidOs::compose(
+           MidOs::popr(Register::R2),
+           MidOs::popr(Register::R1),
+           MidOs::unsafe_divr(Register::R1, Register::R2),
+           MidOs::pushr(Register::R2)
        ));
     }
 
     void exp() {
-        emit(compose(
-            popr(Register::R2),
-            popr(Register::R1),
-            unsafe_expr(Register::R1, Register::R2),
-            pushr(Register::R1)
+        emit(MidOs::compose(
+            MidOs::popr(Register::R2),
+            MidOs::popr(Register::R1),
+            MidOs::unsafe_expr(Register::R1, Register::R2),
+            MidOs::pushr(Register::R1)
         ));
     }
 
