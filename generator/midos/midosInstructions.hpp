@@ -7,16 +7,16 @@
 #include <functional>
 #include "../baseInstruction.hpp"
 
-enum class Register {
-    R1 = 1, R2, R3, R4, R5,
-    R6, R7, R8, R9, R10
-};
-
-enum class Conditional {
-    GT, LT, EQ,
-};
-
 struct MidOs : InstructionControl<MidOs> {
+
+    enum class Register {
+        R1 = 1, R2, R3, R4, R5,
+        R6, R7, R8, R9, R10
+    };
+
+    enum class Conditional {
+        GT, LT, EQ
+    };
 
     static constexpr size_t INSTRUCTION_SIZE = 9;
 

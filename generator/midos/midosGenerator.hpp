@@ -10,7 +10,7 @@ class midosGenerator {
 
         const auto visitor = overloads {
             [&](Term& t) {
-                p.push_value(Register::R1, static_cast<uint32_t>(std::get<long long>(t.v)));
+                p.push_value(MidOs::Register::R1, static_cast<uint32_t>(std::get<long long>(t.v)));
             },
             [&](Add& e) {
                 eval(p, std::move(e.left));
