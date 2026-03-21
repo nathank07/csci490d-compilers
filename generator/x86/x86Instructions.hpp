@@ -307,7 +307,7 @@ public:
             push(base),
             mov(base, accumulator),
             _xor(accumulator, accumulator),
-            x86::skip_if(exponent, exponent, Conditional::LT, compose(
+            x86::skip_if(exponent, 0, Conditional::LT, compose(
                 inc(accumulator),
                 x86::_while(exponent, 0, Conditional::NEQ, compose(
                     x86::skip_if(test(exponent, 1), Conditional::EQ, imul(accumulator, base)),
