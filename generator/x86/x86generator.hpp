@@ -11,7 +11,7 @@ class x86Generator {
 
         const auto visitor = overloads {
             [&](Term& t) {
-                p.push_value(x86::Register::EAX, static_cast<uint32_t>(std::get<long long>(t.v)));
+                p.push_value(static_cast<uint32_t>(std::get<long long>(t.v)));
             },
             [&](Add& e) {
                 eval(p, std::move(e.left));

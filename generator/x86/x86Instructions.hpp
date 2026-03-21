@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <functional>
 #include <limits>
+#include <string>
 #include <utility>
 
 struct x86 : InstructionControl<x86> {
@@ -25,7 +26,7 @@ struct x86 : InstructionControl<x86> {
 
     struct Instruction : BaseInstruction {
         std::function<void(unsigned char*, int&)> write_bytes = 
-            [](auto* prog, auto& ptr) {};
+            [](auto*, auto&) {};
     };
 
 
@@ -122,13 +123,13 @@ private:
     template <typename... Args>
     static Instruction create_instr(std::string emit, Args&&... args) {
         return {emit, sizeof...(args), [=](auto* prog, auto& ptr) {
-            ((prog[ptr++] = args), ...);
+            ((prog[ptr++] = static_cast<unsigned char>(args)), ...);
         }};
     }
 
     static Instruction write_rex_prefix(Register rm, Register r, bool is_64) {
-        uint8_t is_w = static_cast<uint8_t>(is_64) << 3;
-        uint8_t is_r = static_cast<uint8_t>(r  >= Register::R8) << 2;
+        uint8_t is_w = static_cast<uint8_t>(static_cast<uint8_t>(is_64) << 3);
+        uint8_t is_r = static_cast<uint8_t>(static_cast<uint8_t>(r  >= Register::R8) << 2);
         uint8_t is_b = static_cast<uint8_t>(rm >= Register::R8);
         
         return create_instr("", 0x40 | is_r | is_b | is_w);
@@ -211,6 +212,8 @@ private:
     }
 
     static Instruction rm_i(std::string opcode, Register r, OpcodeExtension ext, uint8_t short_op_hex, uint8_t long_op_hex, uint32_t v, bool is_64 = false) {
+        opcode = opcode + " [, " + std::to_string(v) + "]";
+        
         if (std::in_range<int8_t>(v)) {
             return compose(
                 rm(opcode, r, ext, short_op_hex, is_64),

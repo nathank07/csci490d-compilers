@@ -15,7 +15,7 @@ struct x86Prog {
     // by popping the top 2 recent values, calculating, then putting
     // it back into the stack.
 
-    void push_value(x86::Register r, uint32_t v) {
+    void push_value(uint32_t v) {
         prog_fn = x86::compose(
             std::move(prog_fn),
             x86::push(v)
