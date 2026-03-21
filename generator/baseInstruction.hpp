@@ -17,10 +17,7 @@ struct BaseInstruction {
 template <typename Derived>
 struct InstructionControl {
 
-    static auto _while(auto v1, auto v2, auto cond, auto do_this) {
-
-        auto check_cond = Derived::compare(v1, v2);
-
+    static auto _while(auto check_cond, auto cond, auto do_this) {
         int32_t addr = -static_cast<int32_t>
             (do_this.byte_size + check_cond.byte_size);
 
@@ -32,9 +29,13 @@ struct InstructionControl {
         );
     }
 
-    static auto do_while(auto v1, auto v2, auto cond, auto do_this) {
-
+    static auto _while(auto v1, auto v2, auto cond, auto do_this) {
         auto check_cond = Derived::compare(v1, v2);
+        
+        return _while(check_cond, cond, do_this);
+    }
+
+    static auto do_while(auto check_cond, auto cond, auto do_this) {
 
         int32_t addr = -static_cast<int32_t>(do_this.byte_size + check_cond.byte_size);
 
@@ -45,17 +46,27 @@ struct InstructionControl {
         );
     }
 
-    static auto skip_if(auto v1, auto v2, auto cond, auto do_this) {
+    static auto do_while(auto v1, auto v2, auto cond, auto do_this) {
+        auto check_cond = Derived::compare(v1, v2);
+
+        return do_while(check_cond, cond, do_this);
+    }
+
+    static auto skip_if(auto check_cond, auto cond, auto do_this) {
         return Derived::compose(
-            Derived::compare(v1, v2),
+            check_cond,
             Derived::jump_rel_when(static_cast<int32_t>(do_this.byte_size), cond),
             do_this
         );
     }
 
-    static auto _if(auto v1, auto v2, auto cond, auto do_this) {
+    static auto skip_if(auto v1, auto v2, auto cond, auto do_this) {
+        auto check_cond = Derived::compare(v1, v2);
 
-        auto compare = Derived::compare(v1, v2);
+        return skip_if(check_cond, cond, do_this);
+    }
+
+    static auto _if(auto compare, auto cond, auto do_this) {
 
         // Create an if statement with no real location yet because
         // the jumps rely on measuring each other
@@ -65,9 +76,9 @@ struct InstructionControl {
         );
 
         // Because this algorithm skips the initial block, it needs to compare
-        // at the bottom of the block and go back to the top. This allows 
+        // at the bottom of the block and go back to the top. This allows
         // architectures with limited conditionals like in midos (GT, LT, EQ)
-        // to have if statements instead of skip_if statements 
+        // to have if statements instead of skip_if statements
         auto jump_back = Derived::compose(
             compare,
             Derived::jump_rel_when(-dummy_if_block.byte_size, cond)
@@ -87,7 +98,7 @@ struct InstructionControl {
                 Derived::jump_rel_when(-real_if_block.byte_size, cond)
             );
         }
-        
+
         return Derived::compose(
             Derived::jump_rel(real_if_block.byte_size),
             real_if_block,
@@ -95,12 +106,16 @@ struct InstructionControl {
         );
     }
 
-    static auto _if_else(auto v1, auto v2, auto cond, auto do_this, auto or_this) {
+    static auto _if(auto v1, auto v2, auto cond, auto do_this) {
+        auto compare = Derived::compare(v1, v2);
+
+        return _if(compare, cond, do_this);
+    }
+
+    static auto _if_else(auto compare, auto cond, auto do_this, auto or_this) {
 
         // See _if() comments for explanation. Functionally the same as _if(),
         // but measures for the else block to skip it if the statement is true.
-
-        auto compare = Derived::compare(v1, v2);
 
         auto dummy_if_block = Derived::compose(
             do_this,
@@ -124,12 +139,18 @@ struct InstructionControl {
                 Derived::jump_rel_when(-real_if_block.byte_size, cond)
             );
         }
-    
+
         return Derived::compose(
             Derived::jump_rel(real_if_block.byte_size),
             real_if_block,
             jump_back,
             or_this
         );
+    }
+
+    static auto _if_else(auto v1, auto v2, auto cond, auto do_this, auto or_this) {
+        auto compare = Derived::compare(v1, v2);
+
+        return _if_else(compare, cond, do_this, or_this);
     }
 };
