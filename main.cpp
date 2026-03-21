@@ -23,9 +23,12 @@ int main(int argc, char** argv) {
         if (!node.is_error()) {
             std::cout << "Code tree:\n";
             AbstractSyntaxTree::print_tree(std::cout, *node);
-            auto p = x86Prog::run_prog_bytes(x86Generator::generate(std::move(*node)));
-            std::cout << "Code size: " << p.second << " bytes.\n"
-                      << "Code execution:\n" << p.first << "\n\n"; 
+            auto prog = x86Generator::generate(std::move(*node));
+            auto res = x86Prog::run_prog_bytes(prog);
+            std::cout << "Code size: " << res.second << " bytes.\n"
+                      << "Code execution:\n" << res.first << "\n\n"
+                      << "Emitted instructions: \n";
+            x86Prog::emit_prog(prog, std::cout);
         } else {
             node.map_err([&](auto&& err) {
                 AstError::pretty_print(err, l->get_char_buff(), std::cout);

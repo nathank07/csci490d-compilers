@@ -1,6 +1,5 @@
 #pragma once
 #include "../baseInstruction.hpp"
-#include "x86operands.hpp"
 #include <cstdint>
 #include <functional>
 #include <limits>
@@ -30,7 +29,6 @@ struct x86 : InstructionControl<x86> {
     };
 
 
-private:
 
     // ** CRTP Instructions **
     static Instruction compose() { return {}; }
@@ -49,12 +47,16 @@ private:
         return first;
     }
 
-    // static Instruction compare(Register r1, Register r2) {
-    //     return cmpr(r1, r2);
-    // }
-    // static Instruction compare(Register r, int32_t v) {
-    //     return cmpi(r, v);
-    // }
+private:
+
+    static Instruction compare(Register r1, Register r2) {
+        return cmp(r1, r2);
+    }
+
+    static Instruction compare(Register r, int32_t v) {
+        return cmp(r, v);
+    }
+
     static Instruction jump_rel(int32_t addr) {
         if (addr > 0) 
             return jmp(addr);
@@ -64,6 +66,7 @@ private:
 
         return jmp(addr - 5);
     }
+
     static Instruction jump_rel_when(int32_t addr, Conditional cond) {
         if (addr > 0) 
             return jmp_with_flag(addr, cond);
@@ -144,6 +147,22 @@ private:
         );
     }
 
+    static Instruction i(std::string opcode, int32_t v, uint8_t short_op_hex, uint8_t long_op_hex) {
+        auto emit = opcode + " " + std::to_string(v) + "\n";
+
+        if (std::in_range<int8_t>(v)) {
+            return compose(
+                create_instr(emit, short_op_hex),
+                create_instr("", static_cast<int8_t>(v))
+            );
+        }
+
+        return compose(
+            create_instr(emit, long_op_hex),
+            write_32(static_cast<uint32_t>(v))
+        );
+    }
+
     static Instruction rm(std::string opcode, Register r, OpcodeExtension ext, uint8_t op_hex, bool is_64 = false) {
         auto emit = opcode + " " + get_register(r) + "\n";
         auto byte = get_rm_byte(r, ext);
@@ -192,6 +211,10 @@ private:
         );
     }
 
+    static Instruction r_plus_rm(std::string opcode, Register r, OpcodeExtension ext, uint8_t op_hex) {
+        return rm(opcode, r, ext, op_hex + static_cast<uint8_t>(r));
+    }
+
     // End utils
 
 public: 
@@ -228,4 +251,19 @@ public:
         }
         __builtin_unreachable();
     }
+
+    static Instruction ret() { return create_instr("RET\n", 0xc3); }
+
+    static Instruction push(int32_t v) { return i("PUSH", v, 0x6A, 0x68); }
+
+    static Instruction pop(Register r) { return rm("POP", r, OpcodeExtension::Zero, 0x8F); }
+    static Instruction push(Register r) { return rm("PUSH", r, OpcodeExtension::Six, 0xFF); }
+
+    static Instruction cmp(Register r, int32_t v) { 
+        return rm_i("CMP", r, OpcodeExtension::Seven, 0x83, 0x81, v); }
+    static Instruction add(Register r, int32_t v) { 
+        return rm_i("ADD", r, OpcodeExtension::Zero,  0x83, 0x81, v); }
+    
+    static Instruction cmp(Register r1, Register r2) { return rm_r("CMP", r1, r2, 0x39); }
+    static Instruction add(Register r1, Register r2) { return rm_r("ADD", r1, r2, 0x01); }
 };

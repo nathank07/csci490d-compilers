@@ -3,7 +3,7 @@ CXXFLAGS = -std=c++23 -Wall -Wextra -Wpedantic -Wconversion -MMD -MP -D_GLIBCXX_
 
 COMMON_SRC = input/input.cpp lexer/lexer.cpp lexer/error.cpp lexer/token.cpp ast/ast.cpp
 
-NCC_SRC = $(COMMON_SRC) generator/x86/x86generator.cpp main.cpp
+NCC_SRC = $(COMMON_SRC) main.cpp
 NCC_OBJ = $(NCC_SRC:.cpp=.o)
 
 MCC_SRC = $(COMMON_SRC) mcc.cpp
