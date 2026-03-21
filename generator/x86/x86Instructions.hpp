@@ -211,18 +211,22 @@ private:
         return instr;
     }
 
-    static Instruction rm_i(std::string opcode, Register r, OpcodeExtension ext, uint8_t short_op_hex, uint8_t long_op_hex, uint32_t v, bool is_64 = false) {
-        opcode = opcode + " [, " + std::to_string(v) + "]";
-        
+    static Instruction rm_i(std::string opcode, Register r, OpcodeExtension ext, uint8_t short_op_hex, uint8_t long_op_hex, uint32_t v, bool is_64 = false) {        
         if (std::in_range<int8_t>(v)) {
             return compose(
-                rm(opcode, r, ext, short_op_hex, is_64),
+                rm(opcode + " [, " + std::to_string(v) + "]", r, ext, short_op_hex, is_64),
                 create_instr("", static_cast<uint8_t>(v))
             );
         }
         
+        return rm_i32(opcode, r, ext, long_op_hex, v, is_64);
+    }
+
+    static Instruction rm_i32(std::string opcode, Register r, OpcodeExtension ext, uint8_t op_hex, uint32_t v, bool is_64 = false) {
+        opcode = opcode + " [, " + std::to_string(v) + "]";
+        
         return compose(
-            rm(opcode, r, ext, long_op_hex, is_64),
+            rm(opcode, r, ext, op_hex, is_64),
             write_32(v)
         );
     }
@@ -246,12 +250,7 @@ public:
 
     static Instruction ret() { return create_instr("RET\n", 0xc3); }
     static Instruction cdq() { return create_instr("CDQ\n", 0x99); }
-    static Instruction test(Register r, int32_t v) {
-        return compose(
-            rm("TEST [, " + std::to_string(v) + "]", r, OpcodeExtension::Zero, 0xF7),
-            write_32(v)
-        );
-    }
+        
     static Instruction imul(Register r1, Register r2) {
         return compose(
             create_instr("IMUL", 0x0F),
@@ -261,6 +260,7 @@ public:
 
     static Instruction push(int32_t v) { return i("PUSH", v, 0x6A, 0x68); }
     static Instruction jmp(int32_t addr) { return i("JMP", addr, 0xEB, 0xE9); }
+
 
     static Instruction inc(Register r) { return rm("INC", r, OpcodeExtension::Zero, 0xFF); }
     static Instruction neg(Register r) { return rm("NEG", r, OpcodeExtension::Three, 0xF7); }
@@ -277,9 +277,11 @@ public:
         return rm_i("ADD", r, OpcodeExtension::Zero,  0x83, 0x81, v); }
     static Instruction sub(Register r, int32_t v) { 
         return rm_i("SUB", r, OpcodeExtension::Five,  0x83, 0x81, v); }
-    static Instruction mov(Register r, int32_t v) {
-        return rm_i("MOV", r, OpcodeExtension::Zero,  0xC6, 0xC7, v); }
     
+    static Instruction mov(Register r, int32_t v) {
+        return rm_i32("MOV", r, OpcodeExtension::Zero,  0xC7, v); }
+    static Instruction test(Register r, int32_t v) {
+        return rm_i32("TEST", r, OpcodeExtension::Zero, 0xF7, v); }
     
     static Instruction cmp(Register r1, Register r2) { return rm_r("CMP", r1, r2, 0x39); }
     static Instruction add(Register r1, Register r2) { return rm_r("ADD", r1, r2, 0x01); }
