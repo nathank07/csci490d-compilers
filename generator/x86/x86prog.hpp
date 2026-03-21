@@ -25,7 +25,7 @@ struct x86Prog {
     void neg() {
         prog_fn = x86::compose(
             std::move(prog_fn),
-            x86::pop(x86::Register::ECX),
+            x86::pop(x86::Register::EAX),
             x86::neg(x86::Register::EAX),
             x86::push(x86::Register::EAX)
         );
