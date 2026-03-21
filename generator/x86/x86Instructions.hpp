@@ -8,6 +8,18 @@
 
 struct x86 : InstructionControl<x86> {
 
+    enum class Register {
+        EAX = 0, 
+        ECX, EDX, EBX, ESP, EBP, 
+        ESI, EDI, R8,  R9,  R10, 
+        R11, R12, R13, R14, R15
+    };
+
+    enum class OpcodeExtension {
+        Zero = 0, One, Two, Three, 
+        Four, Five, Six, Seven
+    };
+
     enum class Conditional {
         GT, GTE, LT, LTE, EQ, NEQ 
     };
@@ -65,11 +77,49 @@ private:
 
     // Utils
 
+    static std::string get_register(Register r) {
+        return [r]() -> std::string {
+            switch(r) {
+                case Register::EAX: return "EAX";
+                case Register::ECX: return "ECX";
+                case Register::EDX: return "EDX";
+                case Register::EBX: return "EBX";
+                case Register::ESP: return "ESP";
+                case Register::EBP: return "EBP";
+                case Register::ESI: return "ESI";
+                case Register::EDI: return "EDI";
+                default: return "r" + std::to_string(static_cast<uint8_t>(r));
+            }
+        }();
+    }
+
+    static uint8_t get_rm_byte(Register r, OpcodeExtension ext) {
+        return static_cast<uint8_t>(0xC0 | 
+             ((static_cast<uint8_t>(r) & 0x7) | 
+               static_cast<uint8_t>(ext) << 3));
+    }
+
+    static uint8_t get_rm_byte(Register rm, Register r) {
+        return get_rm_byte(rm, static_cast<OpcodeExtension>(r));
+    }
+
     template <typename... Args>
     static Instruction create_instr(std::string emit, Args&&... args) {
         return {emit, sizeof...(args), [=](auto* prog, auto& ptr) {
             ((prog[ptr++] = args), ...);
         }};
+    }
+
+    static Instruction write_rex_prefix(Register rm, Register r, bool is_64) {
+        uint8_t is_w = static_cast<uint8_t>(is_64) << 3;
+        uint8_t is_r = static_cast<uint8_t>(r  >= Register::R8) << 2;
+        uint8_t is_b = static_cast<uint8_t>(rm >= Register::R8);
+        
+        return create_instr("", 0x40 | is_r | is_b | is_w);
+    }
+
+    static Instruction write_rex_prefix(Register rm, OpcodeExtension ext, bool is_64) {
+        return write_rex_prefix(rm, static_cast<Register>(ext), is_64);
     }
 
     static Instruction write_32(uint32_t addr) {
@@ -94,8 +144,56 @@ private:
         );
     }
 
+    static Instruction rm(std::string opcode, Register r, OpcodeExtension ext, uint8_t op_hex, bool is_64 = false) {
+        auto emit = opcode + " " + get_register(r) + "\n";
+        auto byte = get_rm_byte(r, ext);
+
+        if (r < Register::R8 && !is_64) {
+            return create_instr(emit, op_hex, byte);
+        }
+
+        return compose(
+            write_rex_prefix(r, ext, is_64),
+            create_instr(emit, op_hex, byte)
+        );
+    }
+
+    static Instruction rm_r(std::string opcode, Register rm, Register r, uint8_t op_hex, bool is_64 = false) {
+        auto emit = opcode + " " + get_register(rm) + ", " + get_register(r) + "\n";
+        auto byte = get_rm_byte(rm, r);
+
+        if (r < Register::R8 && rm < Register::R8 && !is_64) {
+            return create_instr(emit, op_hex, byte);
+        }
+
+        return compose(
+            write_rex_prefix(rm, r, is_64),
+            create_instr(emit, op_hex, byte)
+        );
+    }
+
+    static Instruction r_rm(std::string opcode, Register r, Register rm, uint8_t op_hex, bool is_64 = false) {
+        auto instr = rm_r(opcode, rm, r, op_hex, is_64);
+        instr.emitted_content = opcode + " " + get_register(r) + ", " + get_register(rm) + "\n";
+        return instr;
+    }
+
+    static Instruction rm_i(std::string opcode, Register r, OpcodeExtension ext, uint8_t short_op_hex, uint8_t long_op_hex, uint32_t v, bool is_64 = false) {
+        if (std::in_range<int8_t>(v)) {
+            return compose(
+                rm(opcode, r, ext, short_op_hex, is_64),
+                create_instr("", static_cast<uint8_t>(v))
+            );
+        }
+        
+        return compose(
+            rm(opcode, r, ext, long_op_hex, is_64),
+            write_32(v)
+        );
+    }
+
     // End utils
-    
+
 public: 
 
     static Instruction jmp(int32_t addr) {
