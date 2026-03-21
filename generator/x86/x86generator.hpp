@@ -4,7 +4,6 @@
 #include "../../utils.hpp"
 #include "x86prog.hpp"
 #include "x86Instructions.hpp"
-#include <functional>
 
 class x86Generator {
 

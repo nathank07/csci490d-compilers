@@ -47,8 +47,6 @@ struct x86 : InstructionControl<x86> {
         return first;
     }
 
-private:
-
     static Instruction compare(Register r1, Register r2) {
         return cmp(r1, r2);
     }
@@ -76,6 +74,21 @@ private:
 
         return jmp_with_flag(addr - 5, cond);
     }
+
+private:
+
+    static Instruction jmp_with_flag(int32_t rel_addr, Conditional on_cond) {
+        switch (on_cond) {
+            case Conditional::GT:  return jg(rel_addr);
+            case Conditional::LT:  return jl(rel_addr);
+            case Conditional::EQ:  return je(rel_addr);
+            case Conditional::GTE: return jge(rel_addr);
+            case Conditional::LTE: return jle(rel_addr);
+            case Conditional::NEQ: return jne(rel_addr);
+        }
+        __builtin_unreachable();
+    }
+
     // ** End CRTP Instructions **
 
     // Utils
@@ -219,19 +232,7 @@ private:
 
 public: 
 
-    static Instruction jmp(int32_t addr) {
-
-        auto emit = "JMP " + std::to_string(addr) + "\n";
-
-        if (std::in_range<int8_t>(addr)) {
-            return create_instr(emit, 0xEB, static_cast<uint8_t>(addr));
-        }
-
-        return compose(
-            create_instr(emit, 0xE9),
-            write_32(addr)
-        );
-    };
+    // x86 instructions
 
     static Instruction je  (int32_t addr) { return jcc("JE",  addr, 0x74); }
     static Instruction jne (int32_t addr) { return jcc("JNE", addr, 0x75); }
@@ -240,30 +241,80 @@ public:
     static Instruction jl  (int32_t addr) { return jcc("JL",  addr, 0x7C); }
     static Instruction jle (int32_t addr) { return jcc("JLE", addr, 0x7E); }
 
-    static Instruction jmp_with_flag(int32_t rel_addr, Conditional on_cond) {
-        switch (on_cond) {
-            case Conditional::GT:  return jg(rel_addr);
-            case Conditional::LT:  return jl(rel_addr);
-            case Conditional::EQ:  return je(rel_addr);
-            case Conditional::GTE: return jge(rel_addr);
-            case Conditional::LTE: return jle(rel_addr);
-            case Conditional::NEQ: return jne(rel_addr);
-        }
-        __builtin_unreachable();
+    static Instruction ret() { return create_instr("RET\n", 0xc3); }
+    static Instruction cdq() { return create_instr("CDQ\n", 0x99); }
+    static Instruction test(Register r, int32_t v) {
+        return compose(
+            rm("TEST [, " + std::to_string(v) + "]", r, OpcodeExtension::Zero, 0xF7),
+            write_32(v)
+        );
+    }
+    static Instruction imul(Register r1, Register r2) {
+        return compose(
+            create_instr("IMUL", 0x0F),
+            r_rm("", r1, r2, 0xAF)
+        );
     }
 
-    static Instruction ret() { return create_instr("RET\n", 0xc3); }
-
     static Instruction push(int32_t v) { return i("PUSH", v, 0x6A, 0x68); }
+    static Instruction jmp(int32_t addr) { return i("JMP", addr, 0xEB, 0xE9); }
 
+    static Instruction inc(Register r) { return rm("INC", r, OpcodeExtension::Zero, 0xFF); }
+    static Instruction neg(Register r) { return rm("NEG", r, OpcodeExtension::Three, 0xF7); }
     static Instruction pop(Register r) { return rm("POP", r, OpcodeExtension::Zero, 0x8F); }
     static Instruction push(Register r) { return rm("PUSH", r, OpcodeExtension::Six, 0xFF); }
+    static Instruction imul(Register r) { return rm("IMUL", r, OpcodeExtension::Five, 0xF7); }
+    static Instruction idiv(Register r) { return rm("IDIV", r, OpcodeExtension::Seven, 0xF7); }
+    static Instruction sar1(Register r) { return rm("SAR [, 1]", r, OpcodeExtension::Seven, 0xD1); }
+
 
     static Instruction cmp(Register r, int32_t v) { 
         return rm_i("CMP", r, OpcodeExtension::Seven, 0x83, 0x81, v); }
     static Instruction add(Register r, int32_t v) { 
         return rm_i("ADD", r, OpcodeExtension::Zero,  0x83, 0x81, v); }
+    static Instruction sub(Register r, int32_t v) { 
+        return rm_i("SUB", r, OpcodeExtension::Five,  0x83, 0x81, v); }
+    static Instruction mov(Register r, int32_t v) {
+        return rm_i("MOV", r, OpcodeExtension::Zero,  0xC6, 0xC7, v); }
+    
     
     static Instruction cmp(Register r1, Register r2) { return rm_r("CMP", r1, r2, 0x39); }
     static Instruction add(Register r1, Register r2) { return rm_r("ADD", r1, r2, 0x01); }
+    static Instruction sub(Register r1, Register r2) { return rm_r("SUB", r1, r2, 0x29); }
+    static Instruction mov(Register r1, Register r2) { return rm_r("MOV", r1, r2, 0x89); }
+    static Instruction test(Register r1, Register r2) { return rm_r("TEST", r1, r2, 0x85); }
+    static Instruction _xor(Register r1, Register r2) { return rm_r("XOR", r1, r2, 0x31); }
+
+    // End x86 instructions
+
+    // Psuedo instructions
+
+    static Instruction exp(Register r1, Register r2) {
+
+        Register accumulator = r1;
+        Register exponent = r2;
+        Register base = Register::EDI;
+
+        while (base >= Register::EAX) {
+            if (base != accumulator && base != exponent) break;
+            base = static_cast<Register>(static_cast<uint8_t>(base) - 1);
+        }
+
+        return compose(
+            push(base),
+            mov(base, accumulator),
+            _xor(accumulator, accumulator),
+            x86::skip_if(exponent, exponent, Conditional::LT, compose(
+                inc(accumulator),
+                x86::_while(exponent, 0, Conditional::NEQ, compose(
+                    x86::skip_if(test(exponent, 1), Conditional::EQ, imul(accumulator, base)),
+                    imul(base, base),
+                    sar1(exponent)
+                ))
+            )),
+            pop(base)
+        );
+    };
+
+    // End psuedo instructions
 };

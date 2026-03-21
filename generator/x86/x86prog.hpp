@@ -23,11 +23,12 @@ struct x86Prog {
     }
 
     void neg() {
-        // emit(x86::compose(
-        //     // x86::popr(x86::Register::R1),
-        //     // x86::negr(x86::Register::R1),
-        //     // x86::pushr(x86::Register::R1)
-        // ));
+        prog_fn = x86::compose(
+            std::move(prog_fn),
+            x86::pop(x86::Register::ECX),
+            x86::neg(x86::Register::EAX),
+            x86::push(x86::Register::EAX)
+        );
     }
 
     void add() {
@@ -41,48 +42,55 @@ struct x86Prog {
     }
 
     void sub() {
-        // emit(x86::compose(
-        //     // x86::popr(x86::Register::R2),
-        //     // x86::popr(x86::Register::R1),
-        //     // x86::subr(x86::Register::R1, x86::Register::R2),
-        //     // x86::pushr(x86::Register::R1)
-        // ));
+        prog_fn = x86::compose(
+            std::move(prog_fn),
+            x86::pop(x86::Register::ECX),
+            x86::pop(x86::Register::EAX),
+            x86::sub(x86::Register::EAX, x86::Register::ECX),
+            x86::push(x86::Register::EAX)
+        );
     }
 
     void mult() {
-        // emit(x86::compose(
-        //     // x86::popr(x86::Register::R2),
-        //     // x86::popr(x86::Register::R1),
-        //     // x86::unsafe_multr(x86::Register::R1, x86::Register::R2),
-        //     // x86::pushr(x86::Register::R1)
-        // ));
+        prog_fn = x86::compose(
+            std::move(prog_fn),
+            x86::pop(x86::Register::ECX),
+            x86::pop(x86::Register::EAX),
+            x86::imul(x86::Register::EAX),
+            x86::push(x86::Register::EAX)
+        );
     }
 
-    void div () {
-        // emit(x86::compose(
-        //     // x86::popr(x86::Register::R2),
-        //     // x86::popr(x86::Register::R1),
-        //     // x86::unsafe_divr(x86::Register::R1, x86::Register::R2),
-        //     // x86::pushr(x86::Register::R1)
-        // ));
+    void div() {
+        prog_fn = x86::compose(
+            std::move(prog_fn),
+            x86::pop(x86::Register::ECX),
+            x86::pop(x86::Register::EAX),
+            x86::cdq(),
+            x86::idiv(x86::Register::ECX),
+            x86::push(x86::Register::EAX)
+        );
     }
 
     void mod() {
-    //    emit(x86::compose(
-    //     //    x86::popr(x86::Register::R2),
-    //     //    x86::popr(x86::Register::R1),
-    //     //    x86::unsafe_divr(x86::Register::R1, x86::Register::R2),
-    //     //    x86::pushr(x86::Register::R2)
-    //    ));
+        prog_fn = x86::compose(
+            std::move(prog_fn),
+            x86::pop(x86::Register::ECX),
+            x86::pop(x86::Register::EAX),
+            x86::cdq(),
+            x86::idiv(x86::Register::ECX),
+            x86::push(x86::Register::EDX)
+        );
     }
 
     void exp() {
-        // emit(x86::compose(
-        //     // x86::popr(x86::Register::R2),
-        //     // x86::popr(x86::Register::R1),
-        //     // x86::unsafe_expr(x86::Register::R1, x86::Register::R2),
-        //     // x86::pushr(x86::Register::R1)
-        // ));
+        prog_fn = x86::compose(
+            std::move(prog_fn),
+            x86::pop(x86::Register::ECX),
+            x86::pop(x86::Register::EAX),
+            x86::exp(x86::Register::EAX, x86::Register::ECX),
+            x86::push(x86::Register::EAX)
+        );
     }
     
     static long long run_prog(const x86Prog& p, int max_size = 50000) {

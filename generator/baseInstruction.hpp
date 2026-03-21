@@ -81,7 +81,7 @@ struct InstructionControl {
         // to have if statements instead of skip_if statements
         auto jump_back = Derived::compose(
             compare,
-            Derived::jump_rel_when(-dummy_if_block.byte_size, cond)
+            Derived::jump_rel_when(-static_cast<int32_t>(dummy_if_block.byte_size + compare.byte_size), cond)
         );
 
         // Fill it in once getting the real size
@@ -95,7 +95,7 @@ struct InstructionControl {
         if (real_if_block.byte_size != dummy_if_block.byte_size) {
             jump_back = Derived::compose(
                 compare,
-                Derived::jump_rel_when(-real_if_block.byte_size, cond)
+                Derived::jump_rel_when(-static_cast<int32_t>(real_if_block.byte_size + compare.byte_size), cond)
             );
         }
 
@@ -124,7 +124,7 @@ struct InstructionControl {
 
         auto jump_back = Derived::compose(
             compare,
-            Derived::jump_rel_when(-dummy_if_block.byte_size, cond)
+            Derived::jump_rel_when(-static_cast<int32_t>(dummy_if_block.byte_size + compare.byte_size), cond)
         );
 
         // Aforementioned skipping if true (or_this.byte_size)
@@ -136,7 +136,7 @@ struct InstructionControl {
         if (real_if_block.byte_size != dummy_if_block.byte_size) {
             jump_back = Derived::compose(
                 compare,
-                Derived::jump_rel_when(-real_if_block.byte_size, cond)
+                Derived::jump_rel_when(-static_cast<int32_t>(real_if_block.byte_size + compare.byte_size), cond)
             );
         }
 
