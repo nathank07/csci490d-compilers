@@ -202,7 +202,8 @@ std::expected<void, LexerError> Lexer::consume_string() {
                 if (err) {
                     return std::unexpected(*err);
                 }
-                
+
+                char_buff.back();
                 return {};
             }
             case '\n': v += '\n'; break;
