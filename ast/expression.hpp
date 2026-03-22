@@ -1,4 +1,5 @@
 #pragma once
+#include <list>
 #include <memory>
 #include <variant>
 #include <span>
@@ -56,6 +57,11 @@ struct Term {
     TermValue v;
 };
 
+struct FunctionCall {
+    std::unique_ptr<Expression> ident;
+    std::vector<std::unique_ptr<Expression>> body;
+    uint8_t args;
+};
 
 struct Expression {
     std::variant<
@@ -67,7 +73,8 @@ struct Expression {
         Div, 
         Mod, 
         Exp, 
-        Term
+        Term,
+        FunctionCall
     > expression;
 
     std::span<const Token> token_span;
@@ -81,6 +88,10 @@ inline std::span<const Token> span_covering(const Expression& left, const Expres
 
 inline NodeResult make_binary(const Token& t, NodeResult left, NodeResult right) {    
     auto span = span_covering(**left, **right);
+
+    if (t.type == TokenType::IDENTIFIER && std::get<TokenIdentifier>(t.data).value != "mod") {
+        return NodeResult::error(AstError::bad_symbol(t));
+    }
 
     switch (t.type) {
         case TokenType::ADD: return NodeResult::just(std::make_unique<Expression>(Add{std::move(*left), std::move(*right)}, span));
@@ -105,7 +116,7 @@ inline NodeResult make_term(Term term, std::span<const Token> tokens) {
 inline NodeResult make_term(const Token& t, std::span<const Token> tokens) {
     switch (t.type) {
         case TokenType::STRING:      return make_term(Term{TermValue{std::get<TokenString>(t.data).value}}, tokens);
-        case TokenType::IDENTIFIER:   return make_term(Term{TermValue{std::get<TokenIdentifier>(t.data).value}}, tokens);
+        case TokenType::IDENTIFIER:  return make_term(Term{TermValue{std::get<TokenIdentifier>(t.data).value}}, tokens);
         case TokenType::REAL_NUMBER: return make_term(Term{TermValue{std::get<TokenReal>(t.data).value}}, tokens);
         case TokenType::INTEGER:     return make_term(Term{TermValue{std::get<TokenInteger>(t.data).value}}, tokens);
         default: return NodeResult::nothing();
@@ -115,3 +126,19 @@ inline NodeResult make_term(const Token& t, std::span<const Token> tokens) {
 inline NodeResult make_term(std::unique_ptr<Expression> term, std::span<const Token> tokens) {
     return NodeResult::just(std::make_unique<Expression>(std::move(term->expression), tokens));
 }
+
+inline NodeResult make_func(
+    std::unique_ptr<Expression> func_name, 
+    std::vector<std::unique_ptr<Expression>> exprs
+) {
+    uint8_t args = static_cast<uint8_t>(exprs.size());
+    size_t width = 2; // ( and )
+    width += func_name->token_span.size();
+    if (args > 0) width += args - 1; // commas
+    for (auto& e : exprs) width += e->token_span.size();
+    
+    auto span = std::span<const Token>(func_name->token_span.data(), width);
+    return NodeResult::just(std::make_unique<Expression>(
+        FunctionCall{std::move(func_name), std::move(exprs), args}, span));
+}
+

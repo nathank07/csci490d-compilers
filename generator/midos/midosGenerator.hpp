@@ -46,6 +46,9 @@ class midosGenerator {
                 eval(p, std::move(e.expression));
                 p.neg();
             },
+            [&](FunctionCall& v) {
+                //<needs implementing>;
+            },
             [&](std::monostate) {}
         };
 

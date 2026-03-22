@@ -78,7 +78,7 @@ struct ParseResult {
     }
 
     template<typename F>
-    ParseResult map_err(F&& next) {
+    ParseResult on_fail(F&& next) {
         if (std::holds_alternative<Err>(value)) {
             return next(std::move(std::get<Err>(value).error));
         }

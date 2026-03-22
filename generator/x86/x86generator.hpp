@@ -47,6 +47,9 @@ class x86Generator {
                 eval(p, std::move(e.expression));
                 p.neg();
             },
+            [&](FunctionCall& v) {
+                //<needs implementing>;
+            },
             [&](std::monostate) {}
         };
 

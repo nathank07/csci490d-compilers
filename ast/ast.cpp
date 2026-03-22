@@ -3,6 +3,8 @@
 #include "expression.hpp"
 #include "../utils.hpp"
 #include <algorithm>
+#include <functional>
+#include <memory>
 #include <optional>
 #include <vector>
 #include <variant>
@@ -47,10 +49,9 @@ std::vector<std::unique_ptr<Expression>> AbstractSyntaxTree::unwrap_valid_nodes(
     std::vector<std::unique_ptr<Expression>> expressions;
 
     for (auto& node : node_v) {
-        node.and_then([&](auto&& expr) {
-            expressions.push_back(std::move(expr));
-            return NodeResult::just(std::move(expr));
-        });
+        if(!node.is_error())
+            expressions.push_back(std::move(*node));
+            
     }
 
     return expressions;
@@ -117,6 +118,13 @@ void AbstractSyntaxTree::print_tree(std::ostream& o, const std::unique_ptr<Expre
             o << "^ (pow)\n";
             print_tree(o, v.base, indent + 2);
             print_tree(o, v.exponent, indent + 2);
+        },
+        [&](const FunctionCall& v) {
+            auto id = std::get<TokenIdentifier>(v.ident->token_span.front().data);
+            o << "fn " << id.value << "/" << std::to_string(v.args) << "\n";
+            for (auto& expr : v.body) {
+                print_tree(o, expr, indent + 2);
+            }
         }
     };
 
@@ -130,12 +138,50 @@ NodeResult AbstractSyntaxTree::parse_expression(std::span<const Token> tokens) {
         });
 }
 
+NodeResult AbstractSyntaxTree::parse_function(std::span<const Token> tokens) {
+
+    std::vector<std::unique_ptr<Expression>> args;
+
+    std::function<NodeResult(std::span<const Token>)> parse_args = [&](auto rest) {
+        return parse_expression(rest)
+            .and_then_span([&](auto&& expr, auto&& expr_span) {
+                args.push_back(std::move(expr));
+                return expect_token(rest.subspan(expr_span.size()), TokenType::COMMA)
+                    .and_then([&](auto&&){
+                        return parse_args(rest.subspan(expr_span.size() + 1));
+                    })
+                    .on_fail([&](auto&&) {
+                        return expect_token(rest.subspan(expr_span.size()), TokenType::RIGHT_PAREN);
+                    });
+            })
+            .on_fail([&](auto&& err) {
+                if (!args.empty()) return NodeResult::error(std::move(err));
+                return expect_token(rest, TokenType::RIGHT_PAREN);
+            });
+    };
+
+    return expect_token(tokens.subspan(1), TokenType::LEFT_PAREN)
+        .and_then([&](auto&&) {
+            return parse_args(tokens.subspan(2));
+        })
+        .and_then([&](auto&&){
+            return make_term(tokens.front(), tokens.subspan(0, 1))
+                .and_then([&](auto&& func_name) {
+                    return make_func(std::move(func_name), std::move(args));
+                });
+        })
+        .on_fail([&](auto&&) {
+            return NodeResult::nothing();
+        });
+}
+
 NodeResult AbstractSyntaxTree::parse_unary(std::span<const Token> tokens) {
     auto op = tokens.front().type;
     auto has_op = op == TokenType::ADD || op == TokenType::SUB;
     auto next_span = !has_op ? tokens : tokens.subspan(1);
 
     return parse_paren(next_span)
+        .or_else([&]() { return parse_function(next_span); })
         .or_else([&]() { return parse_term(next_span); })
         .and_then_span([&](auto&& expr, auto&& expr_span) -> NodeResult {
             
@@ -168,7 +214,7 @@ NodeResult AbstractSyntaxTree::parse_paren(std::span<const Token> tokens) {
             expr->token_span = tokens.subspan(0, expr_span.size() + 2);
             return NodeResult::just(std::move(expr));
         })
-        .map_err([&](auto&& err) {
+        .on_fail([&](auto&& err) {
 
             // cascade empty parens error so it's only one error
             // instead of however many parens there was, this will cause
@@ -272,7 +318,13 @@ NodeResult AbstractSyntaxTree::parse_binary_rest(NodeResult base, std::span<cons
         });
 }
 
-
 NodeResult AbstractSyntaxTree::parse_term(std::span<const Token> tokens) {
     return make_term(tokens.front(), tokens.subspan(0, 1));
+}
+
+NodeResult AbstractSyntaxTree::expect_token(std::span<const Token> tokens, const TokenType expect_tok) {
+    if (tokens.front().type != expect_tok) {
+        return NodeResult::error(AstError::bad_symbol(tokens.front()));
+    }
+    return NodeResult::just(std::make_unique<Expression>(std::monostate{}, tokens.subspan(0, 1)));
 }
