@@ -198,63 +198,27 @@ struct MidOs : InstructionControl<MidOs> {
 
     // **Warning: Can clobber r1 if not used with 0. Uses unsafe_cmpr(r1, r2)**
     static Instruction unsafe_skip_if(Register r1, Register r2, Conditional cond, Instruction do_this) {
-        int32_t addr = static_cast<int32_t>(do_this.byte_size + INSTRUCTION_SIZE);
-
-        return compose(
-            unsafe_cmpr(r1, r2),
-            jmp_with_flag(addr, cond),
-            do_this
-        );
+        return skip_if(unsafe_cmpr(r1, r2), cond, do_this);
     }
 
     static Instruction unsafe_skip_if(Register r, int32_t v, Conditional cond, Instruction do_this) {
-        int32_t addr = static_cast<int32_t>(do_this.byte_size + INSTRUCTION_SIZE);
-
-        return compose(
-            unsafe_cmpi(r, v),
-            jmp_with_flag(addr, cond),
-            do_this
-        );
+        return skip_if(unsafe_cmpi(r, v), cond, do_this);
     }
 
     // Unsafe because it uses unsafe_cmpi(r, v) for comparison, which subs v from r.
     // This means that if v != 0, you probably don't want to use this.
     static Instruction unsafe_do_while(Register r, int32_t v, Conditional cond, Instruction do_this) {
-        int32_t addr = -static_cast<int32_t>(do_this.byte_size + INSTRUCTION_SIZE);
-
-        return compose(
-            do_this,
-            unsafe_cmpi(r, v),
-            jmp_with_flag(addr, cond)
-        );
+        return do_while(unsafe_cmpi(r, v), cond, do_this);
     }
 
     // Uses unsafe_cmpr(r1, r2) - which subtracts r2 from r1
     static Instruction unsafe_while(Register r1, Register r2, Conditional cond, Instruction do_this) {
-        int32_t addr = -static_cast<int32_t>(do_this.byte_size + INSTRUCTION_SIZE);
-
-        return compose(
-            // skips the initial pass, in the event that it doesn't satisfy
-            // the cond (other wise this would be a do while loop)
-            jmpi(static_cast<int32_t>(do_this.byte_size + INSTRUCTION_SIZE)),
-            do_this,
-            unsafe_cmpr(r1, r2),
-            jmp_with_flag(addr, cond)
-        );
+        return _while(unsafe_cmpr(r1, r2), cond, do_this);
     }
 
     // Uses unsafe_cmpr(r1, v) - which subtracts v from r
     static Instruction unsafe_while(Register r, int32_t v, Conditional cond, Instruction do_this) {
-        int32_t addr = -static_cast<int32_t>(do_this.byte_size + INSTRUCTION_SIZE);
-
-        return compose(
-            // skips the initial pass, in the event that it doesn't satisfy
-            // the cond (other wise this would be a do while loop)
-            jmpi(static_cast<int32_t>(do_this.byte_size + INSTRUCTION_SIZE)),
-            do_this,
-            unsafe_cmpi(r, v),
-            jmp_with_flag(addr, cond)
-        );
+        return _while(unsafe_cmpi(r, v), cond, do_this);
     }
 
     // **Uses R2, R9 and R10.**
