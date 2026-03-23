@@ -9,21 +9,9 @@
 class AbstractSyntaxTree {
 
     NodeResult parse_expression(std::span<const Token> tokens);
-    NodeResult parse_function(std::span<const Token> tokens);
-    NodeResult parse_declaration(std::span<const Token> tokens);
-    NodeResult expect_token(std::span<const Token> tokens, const TokenType expect_tok, std::size_t previously_traveled);
-    NodeResult want_ident(std::span<const Token> tokens);
-    NodeResult want_ident(std::span<const Token> tokens, std::string want_str);
-    NodeResult expect_ident(std::span<const Token> tokens, std::size_t previously_traveled);
-    NodeResult expect_ident(std::span<const Token> tokens, std::string expect_str, std::size_t previously_traveled);
-    NodeResult parse_unary(std::span<const Token> tokens);
-    NodeResult parse_paren(std::span<const Token> tokens);
-    NodeResult parse_md(std::span<const Token> tokens);
-    NodeResult parse_as(std::span<const Token> tokens);
-    NodeResult parse_exp(std::span<const Token> tokens);
-    NodeResult parse_binary_base(std::span<const Token> tokens, auto is_op_predicate, auto get_expr);
-    NodeResult parse_binary_rest(NodeResult base, std::span<const Token> tokens, auto is_op_predicate, auto get_expr);
-    NodeResult parse_term(std::span<const Token> tokens);
+    NodeResult parse_expression(NodeResult ctx);
+    NodeResult parse_paren(NodeResult ctx);
+    NodeResult parse_term(NodeResult ctx);
 
 public:
 

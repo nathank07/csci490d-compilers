@@ -37,23 +37,11 @@ struct AstError {
         };
     }
 
-    static AstError bad_symbol(Token bad_symbol, std::size_t previously_traveled) {
-        if (bad_symbol.type == TokenType::END_OF_FILE)
-            return unexpected_eof(bad_symbol, previously_traveled);
-
-        return AstError{
-            AstErrorType::FAILED_TO_PARSE_SYMBOL,
-            "Bad symbol " + bad_symbol.get_type_string(),
-            1 + previously_traveled,
-            bad_symbol
-        };
-    }
-
-    static AstError unexpected_eof(Token eof, std::size_t previously_traveled = 0) {
+    static AstError unexpected_eof(Token eof) {
         return AstError{
             AstErrorType::UNEXPECTED_EOF,
             "Unexpected EOF while parsing",
-            1 + previously_traveled,
+            1,
             eof
         };
     }

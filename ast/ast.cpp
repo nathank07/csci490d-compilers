@@ -18,7 +18,7 @@ std::vector<NodeResult> AbstractSyntaxTree::create(const Lexer& lexer_result) {
     while (!token_span.empty() && token_span.front().type != TokenType::END_OF_FILE) {
         auto exp = factory.parse_expression(token_span);
         if (exp) {
-            size_t consumed = *exp.get_expr_width();
+            size_t consumed = exp.size();
             v.push_back(std::move(exp));
             token_span = token_span.subspan(consumed);
         } else if (exp.is_error()) {
@@ -120,16 +120,16 @@ void AbstractSyntaxTree::print_tree(std::ostream& o, const std::unique_ptr<Expre
             print_tree(o, v.exponent, indent + 2);
         },
         [&](const FunctionCall& v) {
-            auto id = std::get<TokenIdentifier>(v.ident->token_span.front().data);
-            o << "fn " << id.value << "/" << std::to_string(v.args) << "\n";
-            for (auto& expr : v.body) {
-                print_tree(o, expr, indent + 2);
-            }
+            // auto id = std::get<TokenIdentifier>(v.ident->token_span.front().data);
+            // o << "fn " << id.value << "/" << std::to_string(v.args) << "\n";
+            // for (auto& expr : v.body) {
+                // print_tree(o, expr, indent + 2);
+            // }
         },
         [&](const Declaration& v) {
-            auto type = std::get<TokenIdentifier>(v.type_ident->token_span.front().data);
-            auto ident = std::get<TokenIdentifier>(v.declared_ident->token_span.front().data);
-            o << "<" << type.value << " " << ident.value << ">\n";
+            // auto type = std::get<TokenIdentifier>(v.type_ident->token_span.front().data);
+            // auto ident = std::get<TokenIdentifier>(v.declared_ident->token_span.front().data);
+            // o << "<" << type.value << " " << ident.value << ">\n";
         }
     };
 
@@ -137,248 +137,31 @@ void AbstractSyntaxTree::print_tree(std::ostream& o, const std::unique_ptr<Expre
 }
 
 NodeResult AbstractSyntaxTree::parse_expression(std::span<const Token> tokens) {
-    return parse_as(tokens)
-        .or_else([&]() { 
-            return NodeResult::error(AstError::bad_symbol(tokens.front())); 
-        });
+    return NodeResult::nothing(tokens)
+        .or_else([this](auto&& ctx) { return parse_paren(std::move(ctx)); })
+        .or_else([this](auto&& ctx) { return parse_term(std::move(ctx)); });
 }
 
-NodeResult AbstractSyntaxTree::parse_function(std::span<const Token> tokens) {
-
-    std::unique_ptr<Expression> func_ident;
-    std::vector<std::unique_ptr<Expression>> args;
-
-    std::function<NodeResult(std::span<const Token>, std::size_t)> parse_args = [&](auto rest, auto traveled) {
-        return parse_expression(rest)
-            .and_then_span([&](auto&& expr, auto&& expr_span) {
-                auto s = expr_span.size();
-                args.push_back(std::move(expr));
-                auto comma = expect_token(rest.subspan(s), TokenType::COMMA, traveled + s);
-                if (comma) {
-                    return parse_args(rest.subspan(s + 1), traveled + s + 1);
-                }
-                return expect_token(rest.subspan(s), TokenType::RIGHT_PAREN, traveled + s);
-            })
-            .on_fail([&](auto&& err) {
-                if (!args.empty()) return NodeResult::error(std::move(err));
-                return expect_token(rest, TokenType::RIGHT_PAREN, traveled);
-            });
-    };
-
-    return want_ident(tokens)
-        .and_then([&](auto&& expr){
-            func_ident = std::move(expr);
-            return expect_token(tokens.subspan(1), TokenType::LEFT_PAREN, 1);
-        })
-        .and_then([&](auto&&) {
-            return parse_args(tokens.subspan(2), 2);
-        })
-        .and_then([&](auto&&) {
-            return make_func(std::move(func_ident), std::move(args));
-        });
+NodeResult AbstractSyntaxTree::parse_expression(NodeResult ctx) {
+    return NodeResult::nothing(ctx.rest)
+        .or_else([this](auto&& c) { return parse_paren(std::move(c)); })
+        .or_else([this](auto&& c) { return parse_term(std::move(c)); });
 }
 
-NodeResult AbstractSyntaxTree::parse_declaration(std::span<const Token> tokens) {
-
-    std::unique_ptr<Expression> type;
-
-    return want_ident(tokens, "int4")
-        .and_then([&](auto&& expr){
-            type = std::move(expr);
-            return expect_ident(tokens.subspan(1), 1);
-        })
-        .and_then([&](auto&& ident){
-            return expect_token(tokens.subspan(2), TokenType::SEMICOLON, 2)
-
-        .and_then([&](auto&&) { 
-            return make_declaration(std::move(type), std::move(ident)); 
-        });});
+NodeResult AbstractSyntaxTree::parse_paren(NodeResult ctx) {
+    return ctx
+        .want_tok(TokenType::LEFT_PAREN)
+        .and_then([this](auto rest) { return parse_expression(std::move(rest)); })
+        .then_expect_tok(TokenType::RIGHT_PAREN);        
 }
 
-NodeResult AbstractSyntaxTree::parse_unary(std::span<const Token> tokens) {
-    auto op = tokens.front().type;
-    auto has_op = op == TokenType::ADD || op == TokenType::SUB;
-    auto next_span = !has_op ? tokens : tokens.subspan(1);
+NodeResult AbstractSyntaxTree::parse_term(NodeResult ctx) {
 
-    return parse_paren(next_span)
-        .or_else([&]() { return parse_declaration(next_span); })
-        .or_else([&]() { return parse_function(next_span); })
-        .or_else([&]() { return parse_term(next_span); })
-        .and_then_span([&](auto&& expr, auto&& expr_span) -> NodeResult {
-            
-            if (!has_op) {
-                return NodeResult::just(std::move(expr));
-            }
+    auto make = [&](auto t) { return make_term(t); };
 
-            return op == TokenType::SUB ?
-                make_negated(std::move(expr), tokens.subspan(0, expr_span.size() + 1)) :
-                make_term(std::move(expr), tokens.subspan(0, expr_span.size() + 1));
-        });
-}
-
-NodeResult AbstractSyntaxTree::parse_paren(std::span<const Token> tokens) {
-    
-    if (tokens.front().type != TokenType::LEFT_PAREN) {
-        return NodeResult::nothing();
-    }
-
-    return parse_expression(tokens.subspan(1))
-        .and_then_span([&](auto&& expr, auto&& expr_span) {
-            // this is safe, because even if it's the last character, it will be EOF
-            auto last_tok = tokens[expr_span.size() + 1];
-
-            if (last_tok.type != TokenType::RIGHT_PAREN) {
-                return NodeResult::error(AstError::mismatched_bracket(tokens.front(), expr_span.back()));
-            }
-            // trick the top level parser into thinking parens tokens
-            // are apart of the full expression so AST parses correctly
-            expr->token_span = tokens.subspan(0, expr_span.size() + 2);
-            return NodeResult::just(std::move(expr));
-        })
-        .on_fail([&](auto&& err) {
-
-            // cascade empty parens error so it's only one error
-            // instead of however many parens there was, this will cause
-            // ((((() to be matched as one empty_parens but it's not the
-            // end of the world because things like ((1() will get properly 
-            // flagged
-            if (err.type == AstErrorType::EMPTY_PARENS) {
-                return NodeResult::error(AstError::empty_parens(err));
-            }
-
-            if (err.type == AstErrorType::FAILED_TO_PARSE_SYMBOL) {
-
-                if (err.offending_token.type == TokenType::RIGHT_PAREN) {
-                    return NodeResult::error(AstError::empty_parens(tokens.front(), err.offending_token));
-                }
-
-                if (err.offending_token.type == TokenType::END_OF_FILE) {
-                    return NodeResult::error(AstError::mismatched_bracket(tokens.front(), err.offending_token));
-                }
-
-            }
-
-            return NodeResult::error(std::move(err));
-        });
-}
-
-
-NodeResult AbstractSyntaxTree::parse_exp(std::span<const Token> tokens) {
-    return parse_unary(tokens)
-        .and_then_span([&](auto&& l_expr, auto&& l_expr_span) {
-
-            auto rest = tokens.subspan(l_expr_span.size());
-            auto op = rest.front();
-
-            if (op.type != TokenType::EXPONENT) {
-                return NodeResult::just(std::move(l_expr));
-            }
-
-            return parse_exp(rest.subspan(1))
-                .and_then([&](auto&& r_expr) {
-                return make_binary(op, 
-                    NodeResult::just(std::move(l_expr)),
-                    NodeResult::just(std::move(r_expr)));
-                })
-                .or_else([&]() {
-                    // rhs failed to parse so just give the built lhs
-                    // and let the expression parser deal with stray op
-                    return NodeResult::just(std::move(l_expr));
-                });
-        });
-}
-
-NodeResult AbstractSyntaxTree::parse_md(std::span<const Token> tokens) {
-    return parse_binary_base(tokens, [](const Token& t) -> bool {
-        return t.type == TokenType::MULTIPLY || t.type == TokenType::DIVIDE
-           || (t.type == TokenType::IDENTIFIER && 
-               std::get<TokenIdentifier>(t.data).value == "mod");
-    }, [&](auto&& span) -> NodeResult {
-        return parse_exp(span);
-    });
-}
-
-NodeResult AbstractSyntaxTree::parse_as(std::span<const Token> tokens) {
-    return parse_binary_base(tokens, [](const Token& t) -> bool {
-        return t.type == TokenType::ADD || t.type == TokenType::SUB;
-    }, [&](auto&& span) -> NodeResult {
-        return parse_md(span);
-    });
-}
-
-NodeResult AbstractSyntaxTree::parse_binary_base(std::span<const Token> tokens, auto is_op_predicate, auto get_expr) {
-    return get_expr(tokens)
-        .and_then_span([&](auto&& l_expr, auto&& l_expr_span) {
-            return parse_binary_rest(
-                NodeResult::just(std::move(l_expr)),
-                tokens.subspan(l_expr_span.size()),
-                is_op_predicate, get_expr
-            );
-        });
-}
-
-NodeResult AbstractSyntaxTree::parse_binary_rest(NodeResult base, std::span<const Token> tokens, auto is_op_predicate, auto get_expr) {
-
-    auto op = tokens.front();
-
-    if (!is_op_predicate(op)) {
-        return base;
-    }
-
-    return get_expr(tokens.subspan(1))
-        .and_then_span([&](auto&& l_expr, auto&& l_expr_span) {
-            auto r_subspan = tokens.subspan(l_expr_span.size() + 1);
-            auto new_base = make_binary(op, std::move(base), 
-                            std::move(NodeResult::just(std::move(l_expr))));
-            return parse_binary_rest(std::move(new_base), r_subspan, is_op_predicate, get_expr);
-        })
-        .or_else([&]() {
-            // rhs failed to parse so just give the built lhs
-            // and let the expression parser deal with stray op
-            return std::move(base);
-        });
-}
-
-NodeResult AbstractSyntaxTree::parse_term(std::span<const Token> tokens) {
-    return make_term(tokens.front(), tokens.subspan(0, 1));
-}
-
-NodeResult AbstractSyntaxTree::expect_token(std::span<const Token> tokens, const TokenType expect_tok, std::size_t previously_traveled) {
-    if (tokens.front().type != expect_tok) {
-        return NodeResult::error(AstError::bad_symbol(tokens.front(), previously_traveled));
-    }
-    return NodeResult::just(std::make_unique<Expression>(std::monostate{}, tokens.subspan(0, 1)));
-}
-
-NodeResult AbstractSyntaxTree::want_ident(std::span<const Token> tokens) {
-    return make_term(tokens.front(), tokens.subspan(0, 1))
-        .and_then([&](auto&& expr){
-            if (!std::holds_alternative<Term>(expr->expression)
-             || !std::holds_alternative<std::string>(std::get<Term>(expr->expression).v))
-                return NodeResult::nothing();
-            return NodeResult::just(std::move(expr));
-        });
-}
-
-NodeResult AbstractSyntaxTree::want_ident(std::span<const Token> tokens, std::string want_str) {
-    return want_ident(tokens)
-        .and_then([&](auto&& expr) {
-            auto t = std::get_if<Term>(&expr->expression);
-            if (!t || t->v != TermValue{want_str}) return NodeResult::nothing();
-            return NodeResult::just(std::move(expr));
-        });
-}
-
-NodeResult AbstractSyntaxTree::expect_ident(std::span<const Token> tokens, std::size_t previously_traveled) {
-    return want_ident(tokens)
-        .or_else([&]() { 
-            return NodeResult::error(AstError::bad_symbol(tokens.front(), previously_traveled)); 
-        });
-}
-
-NodeResult AbstractSyntaxTree::expect_ident(std::span<const Token> tokens, std::string expect_str, std::size_t previously_traveled) {
-    return want_ident(tokens, expect_str)
-        .or_else([&]() { 
-            return NodeResult::error(AstError::bad_symbol(tokens.front(), previously_traveled)); 
-        });
+    return ctx
+        .want_tok(TokenType::IDENTIFIER, make)
+        .or_want_tok(TokenType::INTEGER, make)
+        .or_want_tok(TokenType::STRING, make)
+        .or_expect_tok(TokenType::REAL_NUMBER, make);
 }
