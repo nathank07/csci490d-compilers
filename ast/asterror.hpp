@@ -5,6 +5,7 @@ enum class AstErrorType {
     MISMATCH_PAREN,
     FAILED_TO_PARSE_SYMBOL,
     EMPTY_PARENS,
+    UNEXPECTED_EOF
 };
 
 struct AstError {
@@ -25,11 +26,23 @@ struct AstError {
     }
 
     static AstError bad_symbol(Token bad_symbol) {
+        if (bad_symbol.type == TokenType::END_OF_FILE)
+            return unexpected_eof(bad_symbol);
+
         return AstError{
             AstErrorType::FAILED_TO_PARSE_SYMBOL, 
             "Bad symbol " + bad_symbol.get_type_string(), 
             1, 
             bad_symbol
+        };
+    }
+
+    static AstError unexpected_eof(Token eof) {
+        return AstError{
+            AstErrorType::UNEXPECTED_EOF, 
+            "Unexpected EOF while parsing", 
+            1, 
+            eof
         };
     }
 
@@ -58,6 +71,7 @@ struct AstError {
         switch (err.type) {
             case AstErrorType::MISMATCH_PAREN: pretty_print_mismatch(err, i, o); return;
             case AstErrorType::FAILED_TO_PARSE_SYMBOL: pretty_print_bad_symbol(err, i, o); return;
+            case AstErrorType::UNEXPECTED_EOF: pretty_print_unexpected_eof(err, i, o); return;
             default: {
                 auto& ot = err.offending_token;
 
@@ -139,6 +153,16 @@ private:
         print_line(ot.line_number, in, o);
 
         pretty_print_arrow(ot.column_number, o);
+
+        o << "\n";
+    }
+
+    static void pretty_print_unexpected_eof(const AstError& err, const Input& in, std::ostream& o) {
+        auto& ot = err.offending_token;
+        o << "Unexpected EOF parsing " << ot.line_number << ":" << ot.column_number << "\n";
+
+        print_line(ot.line_number - 1, in, o);
+        print_line(ot.line_number, in, o);
 
         o << "\n";
     }

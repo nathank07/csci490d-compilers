@@ -1,5 +1,4 @@
 #pragma once
-#include <list>
 #include <memory>
 #include <variant>
 #include <span>
@@ -63,6 +62,11 @@ struct FunctionCall {
     uint8_t args;
 };
 
+struct Declaration {
+    std::unique_ptr<Expression> type_ident;
+    std::unique_ptr<Expression> declared_ident;
+};
+
 struct Expression {
     std::variant<
         std::monostate, 
@@ -74,7 +78,8 @@ struct Expression {
         Mod, 
         Exp, 
         Term,
-        FunctionCall
+        FunctionCall,
+        Declaration
     > expression;
 
     std::span<const Token> token_span;
@@ -142,3 +147,7 @@ inline NodeResult make_func(
         FunctionCall{std::move(func_name), std::move(exprs), args}, span));
 }
 
+inline NodeResult make_declaration(std::unique_ptr<Expression> type, std::unique_ptr<Expression> ident) {
+    auto span = std::span<const Token>(type->token_span.data(), 3);
+    return NodeResult::just(std::make_unique<Expression>(Declaration{std::move(type), std::move(ident)}, span));
+}
