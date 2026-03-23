@@ -10,7 +10,11 @@ class AbstractSyntaxTree {
 
     NodeResult parse_expression(std::span<const Token> tokens);
     NodeResult parse_expression(NodeResult ctx);
+    NodeResult parse_unary(NodeResult ctx);
     NodeResult parse_paren(NodeResult ctx);
+    NodeResult parse_as(NodeResult ctx);
+    NodeResult parse_md(NodeResult ctx);
+    NodeResult parse_exp(NodeResult ctx);
     NodeResult parse_term(NodeResult ctx);
 
 public:

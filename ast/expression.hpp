@@ -58,8 +58,7 @@ struct Term {
 
 struct FunctionCall {
     std::unique_ptr<Expression> ident;
-    std::vector<std::unique_ptr<Expression>> body;
-    uint8_t args;
+    std::unique_ptr<Expression> next_arg;
 };
 
 struct Declaration {
@@ -83,8 +82,8 @@ struct Expression {
     > expression;
 };
 
-inline NodeResult make_negated(std::unique_ptr<Expression> inner) {
-    return NodeResult::just(std::make_unique<Expression>(Negated{std::move(inner)}));
+inline NodeResult make_negated(NodeResult inner) {
+    return inner.create_expr(std::make_unique<Expression>(Negated{std::move(*inner)}));
 }
 
 inline std::unique_ptr<Expression> make_term(Term term) {
@@ -99,4 +98,28 @@ inline std::unique_ptr<Expression> make_term(const Token& t) {
         case TokenType::INTEGER:     return make_term(Term{TermValue{std::get<TokenInteger>(t.data).value}});
         default: __builtin_unreachable();
     }
+}
+
+inline NodeResult make_binary(const Token& t, NodeResult left, NodeResult right) {    
+
+    auto make = [&](auto expr) { 
+        return right.create_expr(std::make_unique<Expression>(std::move(expr))); };
+
+    switch (t.type) {
+        case TokenType::ADD:      return make(Add{std::move(*left), std::move(*right)});
+        case TokenType::SUB:      return make(Sub{std::move(*left), std::move(*right)});
+        case TokenType::MULTIPLY: return make(Mult{std::move(*left), std::move(*right)});
+        case TokenType::DIVIDE:   return make(Div{std::move(*left), std::move(*right)});
+        case TokenType::EXPONENT: return make(Exp{std::move(*left), std::move(*right)});
+        case TokenType::IDENTIFIER: {
+
+            if (std::get<TokenIdentifier>(t.data).value == "mod")
+                return make(Mod{std::move(*left), std::move(*right)});
+
+            return NodeResult::nothing(right.rest);
+        }
+
+        default: return NodeResult::nothing(right.rest);
+    }
+
 }
