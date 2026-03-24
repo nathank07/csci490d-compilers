@@ -165,7 +165,7 @@ inline NodeResult make_func(std::unique_ptr<Expression> ident, NodeResult args) 
 
 inline NodeResult make_decl(std::unique_ptr<Expression> type, NodeResult name) {
     return name.create_expr(std::make_unique<Expression>(
-        Declaration{std::move(type), make_term(name.consumed.back())}
+        Declaration{std::move(type), std::move(*name)}
     ));
 }
 

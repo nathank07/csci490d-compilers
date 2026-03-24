@@ -268,7 +268,7 @@ NodeResult AbstractSyntaxTree::parse_declaration(NodeResult ctx) {
     auto make = [](auto&& cont) { return make_term(std::move(cont)); };
 
     auto make_declaration = [](auto&& type, auto&& name) { 
-        return std::move(make_decl(std::move(type), std::move(name))); };
+        return make_decl(std::move(type), make_term(std::move(name))); };
 
     return ctx
         .want_tok(TokenType::IDENTIFIER, make)
