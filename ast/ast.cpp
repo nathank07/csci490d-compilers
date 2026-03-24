@@ -284,7 +284,7 @@ NodeResult AbstractSyntaxTree::parse_assigns(NodeResult ctx) {
     return ctx
         .want_tok(TokenType::IDENTIFIER, make)
         .then_want_tok(TokenType::ASSIGN)
-        .and_then([this](auto&& ident, auto&& rest) {
+        .then_do([this](auto&& ident, auto&& rest) {
             return make_assign(std::move(ident), parse_expression(std::move(rest)));
         })
         .then_expect_tok(TokenType::SEMICOLON);
