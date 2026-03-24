@@ -298,9 +298,137 @@ struct ParseResult {
 
     template <typename F>
     ParseResult or_expect_tok(const TokenType expected, F&& make_this) {
-        if(std::holds_alternative<Nothing>(value)) 
+        if(std::holds_alternative<Nothing>(value))
             return expect_tok(expected, make_this);
 
+        return std::move(*this);
+    }
+
+    // ident matching helpers — like *_tok but match IDENTIFIER tokens with a specific value
+
+    bool rest_is_ident(const std::string& name) const {
+        return !rest.empty()
+            && rest.front().type == TokenType::IDENTIFIER
+            && std::holds_alternative<TokenIdentifier>(rest.front().data)
+            && std::get<TokenIdentifier>(rest.front().data).value == name;
+    }
+
+    ParseResult want_ident(const std::string& name) {
+        if (std::holds_alternative<Err>(value)) return std::move(*this);
+        if (rest_is_ident(name)) {
+            auto new_consumed = merge_consumed(consumed, rest.subspan(0, 1));
+            return ParseResult{Just{T{}}, new_consumed, rest.subspan(1)};
+        }
+        return ParseResult{Nothing{}, {}, rest};
+    }
+
+    template <typename F>
+    ParseResult want_ident(const std::string& name, F&& make_this) {
+        if (std::holds_alternative<Err>(value)) return std::move(*this);
+        if (rest_is_ident(name)) {
+            auto new_consumed = merge_consumed(consumed, rest.subspan(0, 1));
+            auto continuation = ParseResult{Just{T{}}, new_consumed, rest.subspan(1)};
+            auto result = make_this(std::move(continuation));
+            return ParseResult(std::move(result.value), merge_consumed(new_consumed, result.consumed), result.rest);
+        }
+        return ParseResult{Nothing{}, {}, rest};
+    }
+
+    ParseResult or_want_ident(const std::string& name) {
+        if (std::holds_alternative<Nothing>(value))
+            return want_ident(name);
+        return std::move(*this);
+    }
+
+    template <typename F>
+    ParseResult or_want_ident(const std::string& name, F&& make_this) {
+        if (std::holds_alternative<Nothing>(value))
+            return want_ident(name, std::forward<F>(make_this));
+        return std::move(*this);
+    }
+
+    ParseResult then_want_ident(const std::string& name) {
+        if (std::holds_alternative<Just>(value)) {
+            if (rest_is_ident(name)) {
+                auto new_consumed = merge_consumed(consumed, rest.subspan(0, 1));
+                return ParseResult{Just{std::move(std::get<Just>(value).value)},
+                    new_consumed, rest.subspan(1)};
+            }
+            return ParseResult{Nothing{}, {}, undo_consumed()};
+        }
+        return std::move(*this);
+    }
+
+    template <typename F>
+    ParseResult then_want_ident(const std::string& name, F&& make_this) {
+        if (std::holds_alternative<Just>(value)) {
+            if (rest_is_ident(name)) {
+                auto new_consumed = merge_consumed(consumed, rest.subspan(0, 1));
+                auto continuation = ParseResult{Just{T{}}, new_consumed, rest.subspan(1)};
+                auto result = make_this(std::move(std::get<Just>(value).value), std::move(continuation));
+                return ParseResult(std::move(result.value), merge_consumed(new_consumed, result.consumed), result.rest);
+            }
+            return ParseResult{Nothing{}, {}, undo_consumed()};
+        }
+        return std::move(*this);
+    }
+
+    ParseResult expect_ident(const std::string& name) {
+        if (std::holds_alternative<Err>(value)) return std::move(*this);
+        if (rest_is_ident(name)) {
+            auto new_consumed = merge_consumed(consumed, rest.subspan(0, 1));
+            return ParseResult{Just{T{}}, new_consumed, rest.subspan(1)};
+        }
+        return std::move(ParseResult::error(AstError::bad_symbol(rest.front())));
+    }
+
+    template <typename F>
+    ParseResult expect_ident(const std::string& name, F&& make_this) {
+        if (std::holds_alternative<Err>(value)) return std::move(*this);
+        if (rest_is_ident(name)) {
+            auto new_consumed = merge_consumed(consumed, rest.subspan(0, 1));
+            auto continuation = ParseResult{Just{T{}}, new_consumed, rest.subspan(1)};
+            auto result = make_this(std::move(continuation));
+            return ParseResult(std::move(result.value), merge_consumed(new_consumed, result.consumed), result.rest);
+        }
+        return std::move(ParseResult::error(AstError::bad_symbol(rest.front())));
+    }
+
+    ParseResult then_expect_ident(const std::string& name) {
+        if (std::holds_alternative<Just>(value)) {
+            if (rest_is_ident(name)) {
+                auto new_consumed = merge_consumed(consumed, rest.subspan(0, 1));
+                return ParseResult{Just{std::move(std::get<Just>(value).value)},
+                    new_consumed, rest.subspan(1)};
+            }
+            return std::move(ParseResult::error(AstError::bad_symbol(rest.front())));
+        }
+        return std::move(*this);
+    }
+
+    template <typename F>
+    ParseResult then_expect_ident(const std::string& name, F&& make_this) {
+        if (std::holds_alternative<Just>(value)) {
+            if (rest_is_ident(name)) {
+                auto new_consumed = merge_consumed(consumed, rest.subspan(0, 1));
+                auto continuation = ParseResult{Just{T{}}, new_consumed, rest.subspan(1)};
+                auto result = make_this(std::move(std::get<Just>(value).value), std::move(continuation));
+                return ParseResult(std::move(result.value), merge_consumed(new_consumed, result.consumed), result.rest);
+            }
+            return std::move(ParseResult::error(AstError::bad_symbol(rest.front())));
+        }
+        return std::move(*this);
+    }
+
+    ParseResult or_expect_ident(const std::string& name) {
+        if (std::holds_alternative<Nothing>(value)) return expect_ident(name);
+        return std::move(*this);
+    }
+
+    template <typename F>
+    ParseResult or_expect_ident(const std::string& name, F&& make_this) {
+        if (std::holds_alternative<Nothing>(value))
+            return expect_ident(name, std::forward<F>(make_this));
         return std::move(*this);
     }
 

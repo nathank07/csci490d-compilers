@@ -116,7 +116,7 @@ inline NodeResult make_term(NodeResult cont) {
     return cont.create_expr(make_term(cont.consumed.back()));
 }
 
-inline NodeResult make_binary(const Token& t, NodeResult& left, NodeResult right) {
+inline NodeResult make_binary(const Token& t, NodeResult left, NodeResult right) {
 
     auto make = [&](auto expr) { 
         return right.create_expr(std::make_unique<Expression>(std::move(expr))); };

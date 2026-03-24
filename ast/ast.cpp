@@ -199,7 +199,7 @@ NodeResult AbstractSyntaxTree::parse_as(NodeResult ctx) {
             },
             [this](auto&& lhs, auto&& rhs) {
                 auto& op_tok = rhs.consumed.front();
-                return make_binary(op_tok, lhs, std::move(rhs));
+                return make_binary(op_tok, std::move(lhs), std::move(rhs));
             }
         );
 }
@@ -213,11 +213,11 @@ NodeResult AbstractSyntaxTree::parse_md(NodeResult ctx) {
                 return rest
                     .want_tok(TokenType::MULTIPLY)
                     .or_want_tok(TokenType::DIVIDE)
-                    .or_want_tok(TokenType::IDENTIFIER); // make_binary checks for ident mod
+                    .or_want_ident("mod");
             },
             [this](auto&& lhs, auto&& rhs) {
                 auto& op_tok = rhs.consumed.front();
-                return make_binary(op_tok, lhs, std::move(rhs));
+                return make_binary(op_tok, std::move(lhs), std::move(rhs));
             }
         );
 }
@@ -230,7 +230,7 @@ NodeResult AbstractSyntaxTree::parse_exp(NodeResult ctx) {
             [](auto&& rest) { return rest.want_tok(TokenType::EXPONENT); },
             [this](auto&& lhs, auto&& rhs) {
                 auto& op_tok = rhs.consumed.front();
-                return make_binary(op_tok, lhs, std::move(rhs));
+                return make_binary(op_tok, std::move(lhs), std::move(rhs));
             });
 }
 
