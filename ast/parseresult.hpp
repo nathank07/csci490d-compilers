@@ -123,7 +123,6 @@ struct ParseResult {
             auto result = want_right_sep(std::forward<P>(parse_next), std::forward<S>(sep), std::forward<F>(combine));
             if (std::holds_alternative<Just>(result.value))
                 return ParseResult(std::move(result.value), merge_consumed(prev_consumed, result.consumed), result.rest);
-            // Nothing found — fall back to pre-call state
             return ParseResult(Just{T{}}, prev_consumed, prev_rest);
         }
         return std::move(*this);
