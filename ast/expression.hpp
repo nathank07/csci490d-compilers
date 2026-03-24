@@ -98,22 +98,18 @@ inline NodeResult make_negated(NodeResult inner) {
     return inner.create_expr(std::make_unique<Expression>(Negated{std::move(*inner)}));
 }
 
-inline std::unique_ptr<Expression> make_term(Term term) {
-    return std::make_unique<Expression>(std::move(term));
-}
-
-inline std::unique_ptr<Expression> make_term(const Token& t) {
+inline std::unique_ptr<Expression> make_term_expr(const Token& t) {
     switch (t.type) {
-        case TokenType::STRING:      return make_term(Term{TermValue{std::get<TokenString>(t.data).value}});
-        case TokenType::IDENTIFIER:  return make_term(Term{TermValue{std::get<TokenIdentifier>(t.data).value}});
-        case TokenType::REAL_NUMBER: return make_term(Term{TermValue{std::get<TokenReal>(t.data).value}});
-        case TokenType::INTEGER:     return make_term(Term{TermValue{std::get<TokenInteger>(t.data).value}});
+        case TokenType::STRING:      return std::make_unique<Expression>(Term{TermValue{std::get<TokenString>(t.data).value}});
+        case TokenType::IDENTIFIER:  return std::make_unique<Expression>(Term{TermValue{std::get<TokenIdentifier>(t.data).value}});
+        case TokenType::REAL_NUMBER: return std::make_unique<Expression>(Term{TermValue{std::get<TokenReal>(t.data).value}});
+        case TokenType::INTEGER:     return std::make_unique<Expression>(Term{TermValue{std::get<TokenInteger>(t.data).value}});
         default: __builtin_unreachable();
     }
 }
 
 inline NodeResult make_term(NodeResult cont) {
-    return cont.create_expr(make_term(cont.consumed.back()));
+    return cont.create_expr(make_term_expr(cont.consumed.back()));
 }
 
 inline NodeResult make_binary(const Token& t, NodeResult left, NodeResult right) {
@@ -163,7 +159,7 @@ inline NodeResult make_func(std::unique_ptr<Expression> ident, NodeResult args) 
         FunctionCall{std::move(ident), std::move(arg_list)}));
 }
 
-inline NodeResult make_decl(std::unique_ptr<Expression> type, NodeResult name) {
+inline NodeResult make_declaration(std::unique_ptr<Expression> type, NodeResult name) {
     return name.create_expr(std::make_unique<Expression>(
         Declaration{std::move(type), std::move(*name)}
     ));
