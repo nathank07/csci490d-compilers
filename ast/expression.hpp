@@ -171,6 +171,6 @@ inline NodeResult make_decl(std::unique_ptr<Expression> type, NodeResult name) {
 
 inline NodeResult make_assign(std::unique_ptr<Expression> name, NodeResult value) {
     return value.create_expr(std::make_unique<Expression>(
-        Assign{std::move(name), make_term(value.consumed.back())}
+        Assign{std::move(name), std::move(*value)}
     ));
 }
