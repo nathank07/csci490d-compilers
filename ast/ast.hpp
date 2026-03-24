@@ -8,17 +8,18 @@
 
 class AbstractSyntaxTree {
 
-    NodeResult parse_expression(std::span<const Token> tokens);
-    NodeResult parse_expression(NodeResult ctx);
-    NodeResult parse_unary(NodeResult ctx);
-    NodeResult parse_paren(NodeResult ctx);
-    NodeResult parse_as(NodeResult ctx);
-    NodeResult parse_md(NodeResult ctx);
-    NodeResult parse_exp(NodeResult ctx);
-    NodeResult parse_term(NodeResult ctx);
-    NodeResult parse_function(NodeResult ctx);
-    NodeResult parse_declaration(NodeResult ctx);
-    NodeResult parse_assigns(NodeResult ctx);
+    static NodeResult parse_expression(std::span<const Token> tokens);
+    static NodeResult parse_statement(NodeResult ctx);
+    static NodeResult parse_expression(NodeResult ctx);
+    static NodeResult parse_unary(NodeResult ctx);
+    static NodeResult parse_paren(NodeResult ctx);
+    static NodeResult parse_as(NodeResult ctx);
+    static NodeResult parse_md(NodeResult ctx);
+    static NodeResult parse_exp(NodeResult ctx);
+    static NodeResult parse_term(NodeResult ctx);
+    static NodeResult parse_function(NodeResult ctx);
+    static NodeResult parse_declaration(NodeResult ctx);
+    static NodeResult parse_assigns(NodeResult ctx);
 
 public:
 

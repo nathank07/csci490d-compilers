@@ -11,13 +11,13 @@
 #include <variant>
 
 std::vector<NodeResult> AbstractSyntaxTree::create(const Lexer& lexer_result) {
-    AbstractSyntaxTree factory;
     const auto& tokens = lexer_result.get_tokens();
     std::span<const Token> token_span(tokens.data(), tokens.size());
     std::vector<NodeResult> v;
 
     while (!token_span.empty() && token_span.front().type != TokenType::END_OF_FILE) {
-        auto exp = factory.parse_expression(token_span);
+        auto exp = parse_expression(NodeResult::nothing(token_span));
+        
         if (exp) {
             size_t consumed = exp.size();
             v.push_back(std::move(exp));
@@ -147,36 +147,36 @@ void AbstractSyntaxTree::print_tree(std::ostream& o, const std::unique_ptr<Expre
 
 NodeResult AbstractSyntaxTree::parse_expression(std::span<const Token> tokens) {
     return NodeResult::nothing(tokens)
-        .or_else([this](auto&& ctx) { return parse_declaration(std::move(ctx)); })
-        .or_else([this](auto&& ctx) { return parse_assigns(std::move(ctx)); })
-        .or_else([this](auto&& ctx) { return parse_as(std::move(ctx)); });
+        .or_else([](auto&& ctx) { return parse_declaration(std::move(ctx)); })
+        .or_else([](auto&& ctx) { return parse_assigns(std::move(ctx)); })
+        .or_else([](auto&& ctx) { return parse_as(std::move(ctx)); });
 }
 
 NodeResult AbstractSyntaxTree::parse_expression(NodeResult ctx) {
     return NodeResult::nothing(ctx.rest)
-        .or_else([this](auto&& ctx) { return parse_declaration(std::move(ctx)); })
-        .or_else([this](auto&& ctx) { return parse_assigns(std::move(ctx)); })
-        .or_else([this](auto&& ctx) { return parse_as(std::move(ctx)); });
+        .or_else([](auto&& ctx) { return parse_declaration(std::move(ctx)); })
+        .or_else([](auto&& ctx) { return parse_assigns(std::move(ctx)); })
+        .or_else([](auto&& ctx) { return parse_as(std::move(ctx)); });
 }
 
 NodeResult AbstractSyntaxTree::parse_paren(NodeResult ctx) {
     return ctx
         .want_tok(TokenType::LEFT_PAREN)
-        .and_then([this](auto rest) { return parse_expression(std::move(rest)); })
+        .and_then([](auto rest) { return parse_expression(std::move(rest)); })
         .then_expect_tok(TokenType::RIGHT_PAREN);        
 }
 
 NodeResult AbstractSyntaxTree::parse_unary(NodeResult ctx) {
 
-    auto parse_expr = [this](auto&& rest) {
+    auto parse_expr = [](auto&& rest) {
         return parse_function(std::move(rest))
-            .or_else([this](auto&& c) { return parse_paren(std::move(c)); })
-            .or_else([this](auto&& c) { return parse_term(std::move(c)); });
+            .or_else([](auto&& c) { return parse_paren(std::move(c)); })
+            .or_else([](auto&& c) { return parse_term(std::move(c)); });
     };
     
     return ctx
         .want_tok(TokenType::SUB)
-        .and_then([this](auto&& rest) {
+        .and_then([](auto&& rest) {
             return make_negated(parse_expression(std::move(rest)));
         })
         .or_else([&](auto&& c) {
@@ -191,13 +191,13 @@ NodeResult AbstractSyntaxTree::parse_as(NodeResult ctx) {
 
     return ctx
         .want_left_sep(
-            [this](auto&& ctx) { return parse_md(std::move(ctx)); },
+            [](auto&& ctx) { return parse_md(std::move(ctx)); },
             [](auto&& rest) {
                 return rest
                     .want_tok(TokenType::ADD)
                     .or_want_tok(TokenType::SUB);
             },
-            [this](auto&& lhs, auto&& rhs) {
+            [](auto&& lhs, auto&& rhs) {
                 auto& op_tok = rhs.consumed.front();
                 return make_binary(op_tok, std::move(lhs), std::move(rhs));
             }
@@ -208,14 +208,14 @@ NodeResult AbstractSyntaxTree::parse_md(NodeResult ctx) {
 
     return ctx
         .want_left_sep(
-            [this](auto&& ctx) { return parse_exp(std::move(ctx)); },
+            [](auto&& ctx) { return parse_exp(std::move(ctx)); },
             [](auto&& rest) {
                 return rest
                     .want_tok(TokenType::MULTIPLY)
                     .or_want_tok(TokenType::DIVIDE)
                     .or_want_ident("mod");
             },
-            [this](auto&& lhs, auto&& rhs) {
+            [](auto&& lhs, auto&& rhs) {
                 auto& op_tok = rhs.consumed.front();
                 return make_binary(op_tok, std::move(lhs), std::move(rhs));
             }
@@ -226,9 +226,9 @@ NodeResult AbstractSyntaxTree::parse_exp(NodeResult ctx) {
 
     return ctx
         .want_right_sep(
-            [this](auto&& ctx) { return parse_unary(std::move(ctx)); },
+            [](auto&& ctx) { return parse_unary(std::move(ctx)); },
             [](auto&& rest) { return rest.want_tok(TokenType::EXPONENT); },
-            [this](auto&& lhs, auto&& rhs) {
+            [](auto&& lhs, auto&& rhs) {
                 auto& op_tok = rhs.consumed.front();
                 return make_binary(op_tok, std::move(lhs), std::move(rhs));
             });
@@ -248,7 +248,7 @@ NodeResult AbstractSyntaxTree::parse_term(NodeResult ctx) {
 NodeResult AbstractSyntaxTree::parse_function(NodeResult ctx) {
 
     auto make = [](auto&& cont) { return make_term(std::move(cont)); };
-    auto parse = [this](auto&& ctx) { return parse_expression(std::move(ctx)); };
+    auto parse = [](auto&& ctx) { return parse_expression(std::move(ctx)); };
     auto sep = [](auto&& rest) { return rest.want_tok(TokenType::COMMA); };
     auto make_args = [](auto&& lhs, auto&& rhs) {
         return make_func_args(std::move(lhs), std::move(rhs));
@@ -284,7 +284,7 @@ NodeResult AbstractSyntaxTree::parse_assigns(NodeResult ctx) {
     return ctx
         .want_tok(TokenType::IDENTIFIER, make)
         .then_want_tok(TokenType::ASSIGN)
-        .then_do([this](auto&& ident, auto&& rest) {
+        .then_do([](auto&& ident, auto&& rest) {
             return make_assign(std::move(ident), parse_expression(std::move(rest)));
         })
         .then_expect_tok(TokenType::SEMICOLON);
