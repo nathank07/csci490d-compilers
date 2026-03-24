@@ -305,10 +305,22 @@ struct ParseResult {
     }
 
     template <typename F>
-    ParseResult and_then(F&& next) {
+    ParseResult and_then(F&& next) requires std::is_invocable_v<F, ParseResult&&> {
         if (std::holds_alternative<Just>(value)) {
             auto prev_consumed = consumed;
             auto result = next(std::move(*this));
+            auto merged = merge_consumed(prev_consumed, result.consumed);
+            return ParseResult(std::move(result.value), merged, result.rest);
+        }
+        return std::move(*this);
+    }
+
+    template <typename F>
+    ParseResult and_then(F&& next) requires std::is_invocable_v<F, T&&, ParseResult&&> {
+        if (std::holds_alternative<Just>(value)) {
+            auto prev_consumed = consumed;
+            auto continuation = ParseResult{Just{T{}}, consumed, rest};
+            auto result = next(std::move(std::get<Just>(value).value), std::move(continuation));
             auto merged = merge_consumed(prev_consumed, result.consumed);
             return ParseResult(std::move(result.value), merged, result.rest);
         }

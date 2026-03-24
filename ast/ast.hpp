@@ -18,6 +18,7 @@ class AbstractSyntaxTree {
     NodeResult parse_term(NodeResult ctx);
     NodeResult parse_function(NodeResult ctx);
     NodeResult parse_declaration(NodeResult ctx);
+    NodeResult parse_assigns(NodeResult ctx);
 
 public:
 

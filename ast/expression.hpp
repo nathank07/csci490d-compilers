@@ -71,6 +71,11 @@ struct Declaration {
     std::unique_ptr<Expression> declared_ident;
 };
 
+struct Assign {
+    std::unique_ptr<Expression> ident;
+    std::unique_ptr<Expression> value;
+};
+
 struct Expression {
     std::variant<
         std::monostate, 
@@ -84,7 +89,8 @@ struct Expression {
         Term,
         FunctionCall,
         FunctionCallArgList,
-        Declaration
+        Declaration,
+        Assign
     > expression;
 };
 
@@ -160,5 +166,11 @@ inline NodeResult make_func(std::unique_ptr<Expression> ident, NodeResult args) 
 inline NodeResult make_decl(std::unique_ptr<Expression> type, NodeResult name) {
     return name.create_expr(std::make_unique<Expression>(
         Declaration{std::move(type), make_term(name.consumed.back())}
+    ));
+}
+
+inline NodeResult make_assign(std::unique_ptr<Expression> name, NodeResult value) {
+    return value.create_expr(std::make_unique<Expression>(
+        Assign{std::move(name), make_term(value.consumed.back())}
     ));
 }

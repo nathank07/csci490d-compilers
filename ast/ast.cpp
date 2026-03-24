@@ -134,6 +134,11 @@ void AbstractSyntaxTree::print_tree(std::ostream& o, const std::unique_ptr<Expre
             o << "decl\n";
             print_tree(o, v.type_ident, indent + 2);
             print_tree(o, v.declared_ident, indent + 2);
+        },
+        [&](const Assign& v) {
+            o << "assigns\n";
+            print_tree(o, v.ident, indent + 2);
+            print_tree(o, v.value, indent + 2);
         }
     };
 
@@ -143,12 +148,14 @@ void AbstractSyntaxTree::print_tree(std::ostream& o, const std::unique_ptr<Expre
 NodeResult AbstractSyntaxTree::parse_expression(std::span<const Token> tokens) {
     return NodeResult::nothing(tokens)
         .or_else([this](auto&& ctx) { return parse_declaration(std::move(ctx)); })
+        .or_else([this](auto&& ctx) { return parse_assigns(std::move(ctx)); })
         .or_else([this](auto&& ctx) { return parse_as(std::move(ctx)); });
 }
 
 NodeResult AbstractSyntaxTree::parse_expression(NodeResult ctx) {
     return NodeResult::nothing(ctx.rest)
         .or_else([this](auto&& ctx) { return parse_declaration(std::move(ctx)); })
+        .or_else([this](auto&& ctx) { return parse_assigns(std::move(ctx)); })
         .or_else([this](auto&& ctx) { return parse_as(std::move(ctx)); });
 }
 
@@ -266,5 +273,19 @@ NodeResult AbstractSyntaxTree::parse_declaration(NodeResult ctx) {
     return ctx
         .want_tok(TokenType::IDENTIFIER, make)
         .then_want_tok(TokenType::IDENTIFIER, make_declaration)
+        .then_expect_tok(TokenType::SEMICOLON);
+}
+
+NodeResult AbstractSyntaxTree::parse_assigns(NodeResult ctx) {
+
+    auto make = [](auto&& cont) { return make_term(std::move(cont)); };
+
+
+    return ctx
+        .want_tok(TokenType::IDENTIFIER, make)
+        .then_want_tok(TokenType::ASSIGN)
+        .and_then([this](auto&& ident, auto&& rest) {
+            return make_assign(std::move(ident), parse_expression(std::move(rest)));
+        })
         .then_expect_tok(TokenType::SEMICOLON);
 }
