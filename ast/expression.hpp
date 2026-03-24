@@ -58,7 +58,12 @@ struct Term {
 
 struct FunctionCall {
     std::unique_ptr<Expression> ident;
-    std::unique_ptr<Expression> next_arg;
+    std::unique_ptr<Expression> args;
+};
+
+struct FunctionCallArgList {
+    std::unique_ptr<Expression> value;
+    std::unique_ptr<Expression> next;
 };
 
 struct Declaration {
@@ -78,6 +83,7 @@ struct Expression {
         Exp, 
         Term,
         FunctionCall,
+        FunctionCallArgList,
         Declaration
     > expression;
 };
@@ -100,7 +106,11 @@ inline std::unique_ptr<Expression> make_term(const Token& t) {
     }
 }
 
-inline NodeResult make_binary(const Token& t, NodeResult left, NodeResult right) {    
+inline NodeResult make_term(NodeResult cont) {
+    return cont.create_expr(make_term(cont.consumed.back()));
+}
+
+inline NodeResult make_binary(const Token& t, NodeResult& left, NodeResult right) {
 
     auto make = [&](auto expr) { 
         return right.create_expr(std::make_unique<Expression>(std::move(expr))); };
@@ -122,4 +132,33 @@ inline NodeResult make_binary(const Token& t, NodeResult left, NodeResult right)
         default: return NodeResult::nothing(right.rest);
     }
 
+}
+
+inline NodeResult make_func_args(NodeResult left, NodeResult right) {
+    auto next = std::move(*right);
+    if (!std::holds_alternative<FunctionCallArgList>(next->expression)) {
+        next = std::make_unique<Expression>(
+            FunctionCallArgList{std::move(next), nullptr});
+    }
+    return right.create_expr(std::make_unique<Expression>(
+        FunctionCallArgList{std::move(*left), std::move(next)}));
+}
+
+inline NodeResult make_func(std::unique_ptr<Expression> ident, NodeResult args) {
+    auto val = std::move(*args);
+    std::unique_ptr<Expression> arg_list;
+    if (val && std::holds_alternative<FunctionCallArgList>(val->expression)) {
+        arg_list = std::move(val);
+    } else if (val) {
+        arg_list = std::make_unique<Expression>(
+            FunctionCallArgList{std::move(val), nullptr});
+    }
+    return args.create_expr(std::make_unique<Expression>(
+        FunctionCall{std::move(ident), std::move(arg_list)}));
+}
+
+inline NodeResult make_decl(std::unique_ptr<Expression> type, NodeResult name) {
+    return name.create_expr(std::make_unique<Expression>(
+        Declaration{std::move(type), make_term(name.consumed.back())}
+    ));
 }
