@@ -53,7 +53,7 @@ std::string Token::get_type_string() const {
     }
 }
 
-std::string Token::get_token_literal() const {
+std::string Token::get_token_literal(TokenType type) {
     switch (type) {
         case TokenType::ADD: return "+";
         case TokenType::SUB: return "-";
@@ -82,25 +82,10 @@ std::string Token::get_token_literal() const {
         case TokenType::SEMICOLON: return ";";
         case TokenType::COMMA: return ",";
         case TokenType::END_OF_FILE: return "EOF";
-        case TokenType::STRING: {
-            const auto &str = std::get<TokenString>(data);
-            return "\"" + std::string(str.value.begin(), str.value.end()) + "\"";
-        }
-        case TokenType::IDENTIFIER: {
-            const auto &str = std::get<TokenIdentifier>(data);
-            return str.value;
-        }
-        case TokenType::INTEGER: {
-            const auto &i = std::get<TokenInteger>(data);
-            return std::to_string(i.value);
-        }
-        case TokenType::REAL_NUMBER: {
-            const auto &f = std::get<TokenReal>(data);
-            std::stringstream ss;
-            ss << f.value;
-            return ss.str();
-        }
-        default: return "TOKEN_UNKNOWN"; // should never return
+        case TokenType::STRING: return "string";
+        case TokenType::IDENTIFIER: return "identifer";
+        case TokenType::INTEGER: return "integer";
+        case TokenType::REAL_NUMBER: return "floating point number";
     }
 }
 
