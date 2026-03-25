@@ -53,6 +53,57 @@ std::string Token::get_type_string() const {
     }
 }
 
+std::string Token::get_token_literal() const {
+    switch (type) {
+        case TokenType::ADD: return "+";
+        case TokenType::SUB: return "-";
+        case TokenType::MULTIPLY: return "*";
+        case TokenType::DIVIDE: return "/";
+        case TokenType::EXPONENT: return "^";
+        case TokenType::LESS_THAN: return "<";
+        case TokenType::LESS_THAN_EQ: return "<=";
+        case TokenType::GREATER_THAN: return ">";
+        case TokenType::GREATER_THAN_EQ: return ">=";
+        case TokenType::EQUALS: return "=";
+        case TokenType::NOT_EQUALS: return "~=";
+        case TokenType::NOT: return "~";
+        case TokenType::ASSIGN: return ":=";
+        case TokenType::LEFT_PAREN: return "(";
+        case TokenType::RIGHT_PAREN: return ")";
+        case TokenType::LEFT_BRACE: return "{";
+        case TokenType::RIGHT_BRACE: return "}";
+        case TokenType::LEFT_SQ_BRACKET: return "[";
+        case TokenType::RIGHT_SQ_BRACKET: return "]";
+        case TokenType::AND: return "&";
+        case TokenType::OR: return "|";
+        case TokenType::DOT: return ".";
+        case TokenType::AT: return "@";
+        case TokenType::COLON: return ":";
+        case TokenType::SEMICOLON: return ";";
+        case TokenType::COMMA: return ",";
+        case TokenType::END_OF_FILE: return "EOF";
+        case TokenType::STRING: {
+            const auto &str = std::get<TokenString>(data);
+            return "\"" + std::string(str.value.begin(), str.value.end()) + "\"";
+        }
+        case TokenType::IDENTIFIER: {
+            const auto &str = std::get<TokenIdentifier>(data);
+            return str.value;
+        }
+        case TokenType::INTEGER: {
+            const auto &i = std::get<TokenInteger>(data);
+            return std::to_string(i.value);
+        }
+        case TokenType::REAL_NUMBER: {
+            const auto &f = std::get<TokenReal>(data);
+            std::stringstream ss;
+            ss << f.value;
+            return ss.str();
+        }
+        default: return "TOKEN_UNKNOWN"; // should never return
+    }
+}
+
 std::size_t Token::get_token_width() const {
     switch (type) {
         case TokenType::ADD: return 1;
