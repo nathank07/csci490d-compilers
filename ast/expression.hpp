@@ -76,6 +76,15 @@ struct Assign {
     std::unique_ptr<Expression> value;
 };
 
+struct StatementBlock {
+    std::unique_ptr<Expression> statements;
+};
+
+struct Statements {
+    std::unique_ptr<Expression> value;
+    std::unique_ptr<Expression> next;
+};
+
 struct Expression {
     std::variant<
         std::monostate, 
@@ -90,7 +99,9 @@ struct Expression {
         FunctionCall,
         FunctionCallArgList,
         Declaration,
-        Assign
+        Assign,
+        StatementBlock,
+        Statements
     > expression;
 };
 
@@ -136,32 +147,19 @@ inline NodeResult make_binary(const Token& t, NodeResult left, NodeResult right)
 
 }
 
-inline NodeResult make_func_args(NodeResult left, NodeResult right) {
-    auto next = std::move(*right);
-    if (!std::holds_alternative<FunctionCallArgList>(next->expression)) {
-        next = std::make_unique<Expression>(
-            FunctionCallArgList{std::move(next), nullptr});
-    }
-    return right.create_expr(std::make_unique<Expression>(
-        FunctionCallArgList{std::move(*left), std::move(next)}));
+inline NodeResult make_func(std::unique_ptr<Expression> ident, NodeResult args) {
+    return args.create_expr(std::make_unique<Expression>(
+        FunctionCall{std::move(ident), std::move(*args)}));
 }
 
-inline NodeResult make_func(std::unique_ptr<Expression> ident, NodeResult args) {
-    auto val = std::move(*args);
-    std::unique_ptr<Expression> arg_list;
-    if (val && std::holds_alternative<FunctionCallArgList>(val->expression)) {
-        arg_list = std::move(val);
-    } else if (val) {
-        arg_list = std::make_unique<Expression>(
-            FunctionCallArgList{std::move(val), nullptr});
-    }
-    return args.create_expr(std::make_unique<Expression>(
-        FunctionCall{std::move(ident), std::move(arg_list)}));
+inline NodeResult make_func_args(NodeResult left, NodeResult right) {
+    return right.create_expr(std::make_unique<Expression>(
+        FunctionCallArgList{std::move(*left), std::move(*right)}));
 }
 
 inline NodeResult make_declaration(std::unique_ptr<Expression> type, NodeResult name) {
     return name.create_expr(std::make_unique<Expression>(
-        Declaration{std::move(type), std::move(*name)}
+        Declaration{std::move(type), *make_term(std::move(name))}
     ));
 }
 
@@ -169,4 +167,19 @@ inline NodeResult make_assign(std::unique_ptr<Expression> name, NodeResult value
     return value.create_expr(std::make_unique<Expression>(
         Assign{std::move(name), std::move(*value)}
     ));
+}
+
+inline NodeResult make_statement_block(NodeResult statements) {
+    return statements.create_expr(
+        std::make_unique<Expression>(StatementBlock{*std::move(statements)})
+    );
+}
+
+inline NodeResult make_statements(NodeResult left, NodeResult right) {
+    if (!right)
+        return left.create_expr(std::make_unique<Expression>(
+            Statements{std::move(*left), nullptr}));
+
+    return right.create_expr(std::make_unique<Expression>(
+            Statements{std::move(*left), std::move(*right)}));
 }

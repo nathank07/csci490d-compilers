@@ -1,87 +1,38 @@
 #pragma once
 #include "../lexer/token.hpp"
+#include <span>
+#include <variant>
 
 enum class AstErrorType {
-    MISMATCH_PAREN,
-    FAILED_TO_PARSE_SYMBOL,
-    EMPTY_PARENS,
-    UNEXPECTED_EOF
+    EXPECTED_STATEMENT,
+    EXPECTED_EXPRESSION,
+    EXPECTED_TOK,
+    EXPECTED_IDENT
 };
 
 struct AstError {
     AstErrorType type;
-    std::string message;
-    std::size_t skip_x_tok;
-    Token offending_token;
-    std::optional<Token> begin_tok = std::nullopt;
-
-    static AstError mismatched_bracket(Token begin_tok, Token end_of_expr) {
-        return AstError{
-            AstErrorType::MISMATCH_PAREN, 
-            "Mismatched parenthesis", 
-            1, 
-            end_of_expr,
-            begin_tok
-        };
+    std::span<const Token> error_toks;
+    std::variant<std::monostate, TokenType, std::string> expected = std::monostate{};
+    
+    static AstError create_error(AstErrorType err, std::span<const Token> toks) {
+        return { err, toks };
     }
 
-    static AstError bad_symbol(Token bad_symbol) {
-        if (bad_symbol.type == TokenType::END_OF_FILE)
-            return unexpected_eof(bad_symbol);
-
-        return AstError{
-            AstErrorType::FAILED_TO_PARSE_SYMBOL, 
-            "Bad symbol " + bad_symbol.get_type_string(), 
-            1, 
-            bad_symbol
-        };
-    }
-
-    static AstError unexpected_eof(Token eof) {
-        return AstError{
-            AstErrorType::UNEXPECTED_EOF,
-            "Unexpected EOF while parsing",
-            1,
-            eof
-        };
-    }
-
-    static AstError empty_parens(Token empty_left, Token r_paren) {
-        return AstError{
-            AstErrorType::EMPTY_PARENS, 
-            "Empty parens", 
-            2,
-            empty_left,
-            r_paren
-        };
-    }
-
-    static AstError empty_parens(const AstError& empty_parens_err) {
-        return AstError{
-            AstErrorType::EMPTY_PARENS, 
-            "Empty parens", 
-            empty_parens_err.skip_x_tok + 1,
-            empty_parens_err.offending_token,
-            empty_parens_err.begin_tok
-        };
+    static AstError create_error(AstErrorType err, std::span<const Token> toks, std::variant<std::monostate, TokenType, std::string> expected) {
+        return { err, toks, expected };
     }
 
     static void pretty_print(const AstError& err, const Input& i, std::ostream& o) {
         o << "\n";
         switch (err.type) {
-            case AstErrorType::MISMATCH_PAREN: pretty_print_mismatch(err, i, o); return;
-            case AstErrorType::FAILED_TO_PARSE_SYMBOL: pretty_print_bad_symbol(err, i, o); return;
-            case AstErrorType::UNEXPECTED_EOF: pretty_print_unexpected_eof(err, i, o); return;
-            default: {
-                auto& ot = err.offending_token;
-
-                o << "Error: " << err.message << " at " 
-                  << ot.line_number << ":"
-                  << ot.column_number << std::endl;
-
-                print_line(ot.line_number, i, o);
-                pretty_print_arrow(ot.column_number, o);
-            }
+            // case AstErrorType::MISMATCH_PAREN: pretty_print_mismatch(err, i, o); return;
+            // case AstErrorType::FAILED_TO_PARSE_SYMBOL: pretty_print_bad_symbol(err, i, o); return;
+            // case AstErrorType::UNEXPECTED_EOF: pretty_print_unexpected_eof(err, i, o); return;
+            case AstErrorType::EXPECTED_EXPRESSION: err.pretty_print_bad_expr(i, o); return;
+            case AstErrorType::EXPECTED_TOK: err.pretty_print_bad_tok(i, o); return;
+            case AstErrorType::EXPECTED_STATEMENT: err.pretty_print_bad_stmt(i, o); return;
+            default: o << static_cast<int>(err.type); return;
         }
         o << std::endl;
     }
@@ -132,46 +83,99 @@ private:
         }
     }
 
-    static void pretty_print_mismatch(const AstError& err, const Input& in, std::ostream& o) {
-        auto& expr_end = err.offending_token;
-        auto& bt = *err.begin_tok;
-        auto col = expr_end.get_token_width() + expr_end.column_number;
-        
-        o << "Expected ')' at " << expr_end.line_number << ":" << col << "\n";
+    void print_span_context(const Input& in, std::ostream& o) const {
 
-        print_line(expr_end.line_number, in, o);
+        auto first = error_toks.front();
+        auto last = error_toks.back();
 
-        pretty_print_arrow(bt.column_number, col, o);
+        for (std::size_t i = first.line_number; i < last.line_number; i++) {
 
-        o << "\n";
-    }
+            auto try_line = in.get_line(i);
 
-    static void pretty_print_bad_symbol(const AstError& err, const Input& in, std::ostream& o) {
-        auto& ot = err.offending_token;
+            if (!try_line) {
+                o << "<error printing line>\n";
+                continue;
+            }
 
-        if (err.skip_x_tok == 1) {
-            o << "Unexpected symbol at ";
-        } else {
-            o << "Unexpected token/symbol while parsing statement at ";
+            auto line = *try_line;
+            auto len = line.length();
+            if (!line.empty() && line.back() == '\n') len--;
+
+            o << line;
+            if (line.empty() || line.back() != '\n') o << "\n";
+            o << std::string(len, '~') << "\n";
         }
-
-        o << ot.line_number << ":" << ot.column_number << "\n";
-
-        print_line(ot.line_number, in, o);
-
-        pretty_print_arrow(ot.column_number, o);
-
-        o << "\n";
     }
 
-    static void pretty_print_unexpected_eof(const AstError& err, const Input& in, std::ostream& o) {
-        auto& ot = err.offending_token;
-        o << "Unexpected EOF parsing " << ot.line_number << ":" << ot.column_number << "\n";
-
-        print_line(ot.line_number - 1, in, o);
-        print_line(ot.line_number, in, o);
-
-        o << "\n";
+    void pretty_print_bad_expr(const Input& in, std::ostream& o) const {
+        print_span_context(in, o);
     }
+
+    void pretty_print_bad_stmt(const Input& in, std::ostream& o) const {
+        auto expr_end = error_toks.back();
+        auto col = expr_end.get_token_width() + expr_end.column_number;
+
+        o << "Expected statement"
+          << " at " << expr_end.line_number << ":" << col << "\n\n";
+        
+        print_span_context(in, o);
+        print_line(expr_end.line_number, in, o);
+    }
+
+    void pretty_print_bad_tok(const Input& in, std::ostream& o) const {
+
+        auto expr_end = error_toks.back();
+        auto col = expr_end.get_token_width() + expr_end.column_number;
+
+
+        o << "Expected \'" << Token::get_token_literal(std::get<TokenType>(expected)) << "\'"
+          << " at " << expr_end.line_number << ":" << col << "\n\n";
+
+        print_span_context(in, o);
+        print_line(expr_end.line_number, in, o);
+        pretty_print_arrow(col, o);
+    }
+
+    // static void pretty_print_mismatch(const AstError& err, const Input& in, std::ostream& o) {
+    //     auto& expr_end = err.offending_token;
+    //     auto& bt = *err.begin_tok;
+    //     auto col = expr_end.get_token_width() + expr_end.column_number;
+        
+    //     o << "Expected ')' at " << expr_end.line_number << ":" << col << "\n";
+
+    //     print_line(expr_end.line_number, in, o);
+
+    //     pretty_print_arrow(bt.column_number, col, o);
+
+    //     o << "\n";
+    // }
+
+    // static void pretty_print_bad_symbol(const AstError& err, const Input& in, std::ostream& o) {
+    //     auto& ot = err.offending_token;
+
+    //     if (err.skip_x_tok == 1) {
+    //         o << "Unexpected symbol at ";
+    //     } else {
+    //         o << "Unexpected token/symbol while parsing statement at ";
+    //     }
+
+    //     o << ot.line_number << ":" << ot.column_number << "\n";
+
+    //     print_line(ot.line_number, in, o);
+
+    //     pretty_print_arrow(ot.column_number, o);
+
+    //     o << "\n";
+    // }
+
+    // static void pretty_print_unexpected_eof(const AstError& err, const Input& in, std::ostream& o) {
+    //     auto& ot = err;
+    //     o << "Unexpected EOF parsing " << ot.line_number << ":" << ot.column_number << "\n";
+
+    //     print_line(ot.line_number - 1, in, o);
+    //     print_line(ot.line_number, in, o);
+
+    //     o << "\n";
+    // }
 
 };

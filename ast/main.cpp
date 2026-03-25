@@ -26,10 +26,8 @@ int main(int argc, char** argv) {
         if (!node.is_error()) {
             AbstractSyntaxTree::print_tree(std::cout, *node);
         } else {
-            node.on_fail([&](auto&& err) {
-                AstError::pretty_print(err, l->get_char_buff(), std::cout);
-                return NodeResult::Err(err);
-            });
+            auto err = node.error();
+            AstError::pretty_print(err, l->get_char_buff(), std::cout);
         }
     }
 }

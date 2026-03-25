@@ -7,17 +7,29 @@
 
 class AbstractSyntaxTree {
 
-    static NodeResult parse_expression(NodeResult ctx);
+    
+    static NodeResult parse_global(NodeResult ctx);
+    
     static NodeResult parse_statement(NodeResult ctx);
+    static NodeResult parse_function_call(NodeResult ctx);
+    static NodeResult parse_declaration(NodeResult ctx);
+    static NodeResult parse_assigns(NodeResult ctx);
+
+    static NodeResult parse_expression(NodeResult ctx);
     static NodeResult parse_unary(NodeResult ctx);
     static NodeResult parse_paren(NodeResult ctx);
     static NodeResult parse_as(NodeResult ctx);
     static NodeResult parse_md(NodeResult ctx);
     static NodeResult parse_exp(NodeResult ctx);
     static NodeResult parse_term(NodeResult ctx);
-    static NodeResult parse_function_call(NodeResult ctx);
-    static NodeResult parse_declaration(NodeResult ctx);
-    static NodeResult parse_assigns(NodeResult ctx);
+
+    static NodeResult expect_statement(NodeResult ctx);
+    static NodeResult expect_expression(NodeResult ctx);
+
+    static constexpr auto parse_binary = [](auto&& lhs, auto&& rhs) {
+        auto& op_tok = rhs.consumed.front();
+        return make_binary(op_tok, std::move(lhs), std::move(rhs));
+    };
 
 public:
 

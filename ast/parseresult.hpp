@@ -1,6 +1,5 @@
 #pragma once
 #include <variant>
-#include <optional>
 #include <span>
 #include "../lexer/token.hpp"
 #include "asterror.hpp"
@@ -70,8 +69,8 @@ struct ParseResult {
         return std::span<const Token>(consumed.data(), consumed.size() + rest.size());
     }
 
-    template <typename F1, typename F2, typename F3>
-    ParseResult want_left_sep(F1&& parse_next, F2&& sep, F3&& combine) {
+    template <typename P, typename S, typename F>
+    ParseResult want_left_sep(P&& parse_next, S&& sep, F&& combine) {
         return take_while_just_left(parse_next(std::move(*this)),
             [&](auto&& acc, auto&& rest) {
                 return sep(std::move(rest))
@@ -99,7 +98,7 @@ struct ParseResult {
     ParseResult want_right_sep(P&& parse_next, S&& sep, F&& combine) {
         return parse_next(std::move(*this))
             .and_then([&](auto&& lhs) {
-                return sep(ParseResult::nothing(lhs.rest))
+                return sep(ParseResult{Just{}, lhs.consumed, lhs.rest})
                     .and_then([&](auto&& after_sep) {
                         return after_sep.want_right_sep(
                             std::forward<P>(parse_next),
@@ -113,6 +112,21 @@ struct ParseResult {
                         return stopped.create_expr(std::move(*lhs));
                     });
             });
+    }
+
+    template <typename P, typename F>
+    ParseResult collect_until_tok(P&& parse_next, TokenType tok, F&& combine) {
+        return want_right_sep(
+            parse_next, 
+            [tok](auto&& rest) { 
+                return rest.and_then([&](auto&& c) {
+                    if (c.rest.front().type == tok) 
+                        return ParseResult::nothing();
+                    return std::move(c); }
+                );
+            }, 
+            combine
+        );
     }
 
     template <typename P, typename S, typename F>
@@ -142,7 +156,7 @@ struct ParseResult {
             you to store the result in Just.
 
           * If you need to access the functions, the previously aforementioned 
-            .then_*_tok/2 works - or you can always bind it with .and_then.
+            .then_*_tok/2 works - or you can always bind it with .then_do.
 
           * or_want_tok/1 and or_want_tok/2 are used to check if the result
             returned nothing. For instance you can check if the first token like so:
@@ -153,11 +167,6 @@ struct ParseResult {
                 
             This will return ParseResult advanced once for A and B, but won't for C.
 
-          * then_want_tok/1 returns nothing on mismatch - this is helpful because it
-            allows you to fail early without propagating an unnecessary err. This is 
-            consistent with other *want_tok/1 behavior - so if you need the value, you
-            need to use /2.
-
           * .then_want_tok is used after you use want_tok - this checks if *want_tok 
             found anything, then acts on it. Since then_want_tok/2 implies there's an
             expression, the lambda provides you with a the current value, and the
@@ -165,6 +174,10 @@ struct ParseResult {
             
           * .*_expect_tok does the same thing as *_want_tok, but if they don't match,
             it propagates an error.
+
+          * If any of the *_toks fail, it will undo all of it's progress, and return
+            nothing. This to keep the functions effectively pure - it's expected that
+            if you want your contexts to be larger that you will use .*_expect_tok.
     
        ======================================================================== */
 
@@ -222,21 +235,33 @@ struct ParseResult {
     }
     
     ParseResult or_want_tok(const TokenType wanted) {
-        if(std::holds_alternative<Nothing>(value)) 
-            return want_tok(wanted);
-            
+        if(std::holds_alternative<Nothing>(value)) {
+            if (rest.front().type == wanted) {
+                auto new_consumed = merge_consumed(consumed, rest.subspan(0, 1));
+                return ParseResult{Just{T{}}, new_consumed, rest.subspan(1)};
+            }
+            return ParseResult{Nothing{}, {}, undo_consumed()};
+        }
+
         return std::move(*this);
     }
 
     template <typename F>
     ParseResult or_want_tok(const TokenType expected, F&& make_this) {
-        if(std::holds_alternative<Nothing>(value)) 
-            return want_tok(expected, make_this);
+        if(std::holds_alternative<Nothing>(value)) {
+            if (rest.front().type == expected) {
+                auto new_consumed = merge_consumed(consumed, rest.subspan(0, 1));
+                auto continuation = ParseResult{Just{T{}}, new_consumed, rest.subspan(1)};
+                auto result = make_this(std::move(continuation));
+                return ParseResult(std::move(result.value), merge_consumed(new_consumed, result.consumed), result.rest);
+            }
+            return ParseResult{Nothing{}, {}, undo_consumed()};
+        }
 
         return std::move(*this);
     }
 
-    ParseResult expect_tok(const TokenType expected) {
+    ParseResult expect_tok(const TokenType expected, AstErrorType on_fail = AstErrorType::EXPECTED_TOK) {
         if (std::holds_alternative<Err>(value)) return std::move(*this);
         if (rest.front().type == expected) {
             auto new_consumed = merge_consumed(consumed, rest.subspan(0, 1));
@@ -245,11 +270,11 @@ struct ParseResult {
                 rest.subspan(1)};
         }
 
-        return std::move(ParseResult::error(AstError::bad_symbol(rest.front())));
+        return std::move(ParseResult::error(AstError::create_error(on_fail, consumed, expected)));
     }
 
     template <typename F>
-    ParseResult expect_tok(const TokenType expected, F&& make_this) {
+    ParseResult expect_tok(const TokenType expected, F&& make_this, AstErrorType on_fail = AstErrorType::EXPECTED_TOK) {
         if (std::holds_alternative<Err>(value)) return std::move(*this);
         if (rest.front().type == expected) {
             auto new_consumed = merge_consumed(consumed, rest.subspan(0, 1));
@@ -258,24 +283,24 @@ struct ParseResult {
             return ParseResult(std::move(result.value), merge_consumed(new_consumed, result.consumed), result.rest);
         }
 
-        return std::move(ParseResult::error(AstError::bad_symbol(rest.front())));
+        return std::move(ParseResult::error(AstError::create_error(on_fail, consumed, expected)));
     }
 
-    ParseResult then_expect_tok(const TokenType expected) {
+    ParseResult then_expect_tok(const TokenType expected, AstErrorType on_fail = AstErrorType::EXPECTED_TOK) {
         if(std::holds_alternative<Just>(value)) {
             if (rest.front().type == expected) {
                 auto new_consumed = merge_consumed(consumed, rest.subspan(0, 1));
                 return ParseResult{Just{std::move(std::get<Just>(value).value)},
                     new_consumed, rest.subspan(1)};
             }
-            return std::move(ParseResult::error(AstError::bad_symbol(rest.front())));
+            return std::move(ParseResult::error(AstError::create_error(on_fail, consumed, expected)));
         }
 
         return std::move(*this);
     }
 
     template <typename F>
-    ParseResult then_expect_tok(const TokenType expected, F&& make_this) {
+    ParseResult then_expect_tok(const TokenType expected, F&& make_this, AstErrorType on_fail = AstErrorType::EXPECTED_TOK) {
         if(std::holds_alternative<Just>(value)) {
             if (rest.front().type == expected) {
                 auto new_consumed = merge_consumed(consumed, rest.subspan(0, 1));
@@ -283,7 +308,7 @@ struct ParseResult {
                 auto result = make_this(std::move(std::get<Just>(value).value), std::move(continuation));
                 return ParseResult(std::move(result.value), merge_consumed(new_consumed, result.consumed), result.rest);
             }
-            return std::move(ParseResult::error(AstError::bad_symbol(rest.front())));
+            return std::move(ParseResult::error(AstError::create_error(on_fail, consumed, expected)));
         }
 
         return std::move(*this);
@@ -378,7 +403,7 @@ struct ParseResult {
             auto new_consumed = merge_consumed(consumed, rest.subspan(0, 1));
             return ParseResult{Just{T{}}, new_consumed, rest.subspan(1)};
         }
-        return std::move(ParseResult::error(AstError::bad_symbol(rest.front())));
+        return std::move(ParseResult::error(AstError::create_error(AstErrorType::EXPECTED_IDENT, consumed, name)));
     }
 
     template <typename F>
@@ -390,7 +415,7 @@ struct ParseResult {
             auto result = make_this(std::move(continuation));
             return ParseResult(std::move(result.value), merge_consumed(new_consumed, result.consumed), result.rest);
         }
-        return std::move(ParseResult::error(AstError::bad_symbol(rest.front())));
+        return std::move(ParseResult::error(AstError::create_error(AstErrorType::EXPECTED_IDENT, consumed, name)));
     }
 
     ParseResult then_expect_ident(const std::string& name) {
@@ -400,7 +425,7 @@ struct ParseResult {
                 return ParseResult{Just{std::move(std::get<Just>(value).value)},
                     new_consumed, rest.subspan(1)};
             }
-            return std::move(ParseResult::error(AstError::bad_symbol(rest.front())));
+            return std::move(ParseResult::error(AstError::create_error(AstErrorType::EXPECTED_IDENT, consumed, name)));
         }
         return std::move(*this);
     }
@@ -414,7 +439,7 @@ struct ParseResult {
                 auto result = make_this(std::move(std::get<Just>(value).value), std::move(continuation));
                 return ParseResult(std::move(result.value), merge_consumed(new_consumed, result.consumed), result.rest);
             }
-            return std::move(ParseResult::error(AstError::bad_symbol(rest.front())));
+            return std::move(ParseResult::error(AstError::create_error(AstErrorType::EXPECTED_IDENT, consumed, name)));
         }
         return std::move(*this);
     }
@@ -462,10 +487,19 @@ struct ParseResult {
         return std::move(*this);
     }
 
+    ParseResult if_nothing_fails(AstErrorType err_type) {
+        if (std::holds_alternative<Nothing>(value)) {
+            return ParseResult::error(AstError::create_error(err_type, rest.subspan(0, 1)));
+        }
+        return std::move(*this);
+    }
+
     template<typename F>
-    ParseResult on_fail(F&& next) {
-        if (std::holds_alternative<Err>(value)) {
-            return next(std::move(std::get<Err>(value).error));
+    ParseResult or_try(F&& next) {
+        if (std::holds_alternative<Nothing>(value)) {
+            auto res = next(std::move(*this));
+            if (res || res.is_error()) return res;
+            return ParseResult{Nothing{}, {}, undo_consumed()};
         }
         return std::move(*this);
     }
