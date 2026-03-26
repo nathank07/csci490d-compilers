@@ -38,9 +38,8 @@ struct ParseResult {
         return ParseResult{Err{AstError::create_error(type, consumed)}, consumed, {}};
     }
 
-    template <typename Err>
-    static ParseResult error(AstErrorType type, std::span<const Token> consumed, E&& expected) {
-        return ParseResult{Err{AstError::create_error(type, consumed, std::forward<Err>(expected))}, consumed, {}};
+    static ParseResult error(AstErrorType type, std::span<const Token> consumed, auto&& expected) {
+        return ParseResult{Err{AstError::create_error(type, consumed, expected)}, consumed, {}};
     }
 
     explicit operator bool() const {
