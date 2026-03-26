@@ -105,6 +105,11 @@ struct Expression {
     > expression;
 };
 
+inline std::unique_ptr<Expression> take_or_null(NodeResult&& r) {
+    if (r.is_just()) return std::move(*r);
+    return nullptr;
+}
+
 inline NodeResult make_negated(NodeResult inner) {
     if (inner.is_error()) return inner;
     return inner.create_expr(std::make_unique<Expression>(Negated{std::move(*inner)}));
@@ -155,7 +160,7 @@ inline NodeResult make_func(NodeResult ident, NodeResult args) {
     if (ident.is_error()) return ident;
     if (args.is_error()) return args;
     return args.create_expr(std::make_unique<Expression>(
-        FunctionCall{std::move(*ident), std::move(*args)}));
+        FunctionCall{std::move(*ident), take_or_null(std::move(args))}));
 }
 
 inline NodeResult make_func_args(NodeResult left, NodeResult right) {
@@ -190,11 +195,7 @@ inline NodeResult make_statement_block(NodeResult statements) {
 
 inline NodeResult make_statements(NodeResult left, NodeResult right) {
     if (left.is_error()) return left;
-
-    if (!right)
-        return left.create_expr(std::make_unique<Expression>(
-            Statements{std::move(*left), nullptr}));
-
+    if (right.is_error()) return right;
     return right.create_expr(std::make_unique<Expression>(
-            Statements{std::move(*left), std::move(*right)}));
+            Statements{std::move(*left), take_or_null(std::move(right))}));
 }

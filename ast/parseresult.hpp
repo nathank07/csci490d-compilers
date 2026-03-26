@@ -9,9 +9,13 @@ template<typename T, typename E>
 struct ParseResult {
     struct Just { T value; };
     struct Nothing {};
+    // Continue is functionally the same as Just{}, but it cannot be dereferenced.
+    // This is essential for being able to chain ParseResults that don't particularly
+    // have anything in them without implying that they do have something in them
+    struct Continue {};
     struct Err { E error; };
 
-    std::variant<Just, Nothing, Err> value;
+    std::variant<Just, Nothing, Continue, Err> value;
 
     const std::span<const Token> consumed;
     const std::span<const Token> rest;
@@ -25,7 +29,7 @@ struct ParseResult {
     ParseResult(Err e, std::span<const Token> c = {}, std::span<const Token> r = {})
         : value(std::move(e)), consumed(c), rest(r) {}
 
-    ParseResult(std::variant<Just, Nothing, Err> v, std::span<const Token> c, std::span<const Token> r)
+    ParseResult(std::variant<Just, Nothing, Continue, Err> v, std::span<const Token> c, std::span<const Token> r)
         : value(std::move(v)), consumed(c), rest(r) {}
 
     
@@ -43,7 +47,7 @@ struct ParseResult {
     }
 
     explicit operator bool() const {
-        return std::holds_alternative<Just>(value);
+        return is_just();
     }
 
     bool operator! () const {
@@ -60,6 +64,22 @@ struct ParseResult {
 
     E& error() & {
         return std::get<Err>(value).error;
+    }
+
+    bool is_just() const {
+        return std::holds_alternative<Just>(value);
+    }
+
+    bool is_continue() const {
+        return std::holds_alternative<Continue>(value);
+    }
+
+    bool is_nothing() const {
+        return std::holds_alternative<Nothing>(value);
+    }
+
+    bool is_error() const {
+        return std::holds_alternative<Err>(value);
     }
 
 
@@ -100,7 +120,7 @@ struct ParseResult {
     ParseResult want_right_sep(P&& parse_next, S&& sep, F&& combine, AstErrorType on_missing = AstErrorType::EXPECTED_EXPRESSION) {
         return parse_next(std::move(*this))
             .then_parse_rest([&](auto&& lhs) {
-                return sep(ParseResult{Just{}, {}, lhs.rest})
+                return sep(ParseResult{Continue{}, {}, lhs.rest})
                     .then_parse_rest([&](auto&& after_sep) {
                         return after_sep.want_right_sep(
                             std::forward<P>(parse_next),
@@ -134,8 +154,9 @@ struct ParseResult {
 
     template <typename P, typename S, typename F>
     ParseResult then_want_right_sep(P&& parse_next, S&& sep, F&& combine) {
-        if (!std::holds_alternative<Just>(value)) return std::move(*this);
-        
+        if (!std::holds_alternative<Just>(value)
+        &&  !std::holds_alternative<Continue>(value)) return std::move(*this);
+
         auto result = want_right_sep(std::forward<P>(parse_next), std::forward<S>(sep), std::forward<F>(combine));
 
         if (std::holds_alternative<Just>(result.value))
@@ -150,7 +171,7 @@ struct ParseResult {
             return result;
         }
 
-        return ParseResult(Just{T{}}, consumed, rest);
+        return ParseResult(Continue{}, consumed, rest);
     }
 
     static void enrich_error(ParseResult& result, std::span<const Token> context) {
@@ -219,7 +240,7 @@ private:
         if (std::holds_alternative<Err>(value)) return std::move(*this);
         if (!match()) return no_match;
 
-        return ParseResult{ Just{T{}}, advance_1(), rest.subspan(1) };
+        return ParseResult{ Continue{}, advance_1(), rest.subspan(1) };
     }
 
     // Used with want_tok/2 and or_want_tok/2 - On match, returns the new 
@@ -234,7 +255,7 @@ private:
         if (std::holds_alternative<Err>(value)) return std::move(*this);
         if (!match()) return no_match;
 
-        return make_this(ParseResult{ Just{T{}}, advance_1(), rest.subspan(1) });
+        return make_this(ParseResult{ Continue{}, advance_1(), rest.subspan(1) });
     }
 
     // Used with then_want_tok/1 - This continues giving the chain of what's
@@ -265,7 +286,9 @@ private:
     // The final result is you get a ParseResult with the expression desired.
     template <typename M>
     ParseResult continue_match(M&& match, ParseResult no_match) {
-        if (!std::holds_alternative<Just>(value)) return std::move(*this);
+        if (!std::holds_alternative<Just>(value)
+        &&  !std::holds_alternative<Continue>(value)) return std::move(*this);
+
         if (!match()) return no_match;
 
         return ParseResult{ std::move(value), advance_1(), rest.subspan(1) };
@@ -275,11 +298,13 @@ private:
     // to continue the Just chain
     template <typename M, typename F>
     ParseResult continue_match_do(M&& match, ParseResult no_match, F&& make_this) {
-        if (!std::holds_alternative<Just>(value)) return std::move(*this);
+        if (!std::holds_alternative<Just>(value)
+        &&  !std::holds_alternative<Continue>(value)) return std::move(*this);
+
         if (!match()) return no_match;
 
         auto prev_consumed = consumed;
-        auto rhs = ParseResult{Just{T{}}, advance_1(), rest.subspan(1)};
+        auto rhs = ParseResult{Continue{}, advance_1(), rest.subspan(1)};
         auto result = make_this(std::move(*this), std::move(rhs));
         enrich_error(result, prev_consumed);
         return result;
@@ -445,7 +470,8 @@ public:
 
     template <typename F>
     ParseResult then_parse_rest(F&& next) {
-        if (std::holds_alternative<Just>(value)) {
+        if (std::holds_alternative<Just>(value)
+        ||  std::holds_alternative<Continue>(value)) {
             auto result = next(std::move(*this));
             return ParseResult(
                 std::move(result.value), 
@@ -459,7 +485,7 @@ public:
     template <typename F>
     ParseResult then_parse_rest_with(F&& make_this) {
         if (std::holds_alternative<Just>(value)) {
-            auto rhs = ParseResult{Just{T{}}, consumed, rest};
+            auto rhs = ParseResult{Continue{}, consumed, rest};
             auto result = make_this(std::move(*this), std::move(rhs));
             return ParseResult(
                 std::move(result.value), 
@@ -502,10 +528,6 @@ public:
             return ParseResult{Nothing{}, {}, undo_consumed()};
         }
         return std::move(*this);
-    }
-
-    bool is_error() {
-        return std::holds_alternative<Err>(value);
     }
 
     std::size_t size() {
