@@ -106,6 +106,7 @@ struct Expression {
 };
 
 inline NodeResult make_negated(NodeResult inner) {
+    if (inner.is_error()) return inner;
     return inner.create_expr(std::make_unique<Expression>(Negated{std::move(*inner)}));
 }
 
@@ -120,10 +121,13 @@ inline std::unique_ptr<Expression> make_term_expr(const Token& t) {
 }
 
 inline NodeResult make_term(NodeResult cont) {
+    if (cont.is_error()) return cont;
     return cont.create_expr(make_term_expr(cont.consumed.back()));
 }
 
 inline NodeResult make_binary(const Token& t, NodeResult left, NodeResult right) {
+    if (left.is_error()) return left;
+    if (right.is_error()) return right;
 
     auto make = [&](auto expr) { 
         return right.create_expr(std::make_unique<Expression>(std::move(expr))); };
@@ -148,34 +152,45 @@ inline NodeResult make_binary(const Token& t, NodeResult left, NodeResult right)
 }
 
 inline NodeResult make_func(NodeResult ident, NodeResult args) {
+    if (ident.is_error()) return ident;
+    if (args.is_error()) return args;
     return args.create_expr(std::make_unique<Expression>(
         FunctionCall{std::move(*ident), std::move(*args)}));
 }
 
 inline NodeResult make_func_args(NodeResult left, NodeResult right) {
+    if (left.is_error()) return left;
+    if (right.is_error()) return right;
     return right.create_expr(std::make_unique<Expression>(
         FunctionCallArgList{std::move(*left), std::move(*right)}));
 }
 
 inline NodeResult make_declaration(NodeResult type, NodeResult name) {
+    if (type.is_error()) return type;
+    if (name.is_error()) return name;
     return name.create_expr(std::make_unique<Expression>(
         Declaration{std::move(*type), *make_term(std::move(name))}
     ));
 }
 
 inline NodeResult make_assign(NodeResult name, NodeResult value) {
+    if (name.is_error()) return name;
+    if (value.is_error()) return value;
     return value.create_expr(std::make_unique<Expression>(
         Assign{std::move(*name), std::move(*value)}
     ));
 }
 
 inline NodeResult make_statement_block(NodeResult statements) {
+    if (statements.is_error()) return statements;
     return statements.create_expr(
         std::make_unique<Expression>(StatementBlock{*std::move(statements)})
     );
 }
 
 inline NodeResult make_statements(NodeResult left, NodeResult right) {
+    if (left.is_error()) return left;
+
     if (!right)
         return left.create_expr(std::make_unique<Expression>(
             Statements{std::move(*left), nullptr}));

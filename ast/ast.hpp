@@ -27,6 +27,8 @@ class AbstractSyntaxTree {
     static NodeResult expect_statement(NodeResult ctx);
     static NodeResult expect_expression(NodeResult ctx);
 
+    static constexpr auto parse_semicoloned(auto&& f);
+
     static constexpr auto parse_binary = [](auto&& lhs, auto&& rhs) {
         auto& op_tok = rhs.consumed.front();
         return make_binary(op_tok, std::move(lhs), std::move(rhs));

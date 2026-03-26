@@ -16,8 +16,7 @@ std::vector<NodeResult> AbstractSyntaxTree::create(const Lexer& lexer_result) {
     while (!token_span.empty() && token_span.front().type != TokenType::END_OF_FILE) {
         auto exp = parse_global(NodeResult::nothing(token_span));
         if (exp.is_error()) {
-            auto& err = exp.error();
-            token_span = token_span.subspan(err.error_toks.size());
+            token_span = token_span.subspan(std::max(exp.size(), std::size_t{1}));
         } else { token_span = token_span.subspan(exp.size()); }
         v.push_back(std::move(exp));
     }
@@ -36,19 +35,24 @@ NodeResult AbstractSyntaxTree::parse_global(NodeResult ctx) {
         .then_parse_rest(make_statement_block);
 }
 
+auto constexpr AbstractSyntaxTree::parse_semicoloned(auto&& f) {
+    return [&](auto&& ctx) {
+        return f(std::move(ctx))
+            .then_expect_tok(TokenType::SEMICOLON);
+    };
+}
+
 NodeResult AbstractSyntaxTree::parse_statement(NodeResult ctx) {
     return NodeResult::nothing(ctx.rest)
         .or_try(parse_assigns)
         .or_try(parse_declaration)
-        .or_try([](auto&& c) { 
-            return parse_function_call(std::move(c))
-                .then_expect_tok(TokenType::SEMICOLON); 
-        });
+        .or_try(parse_semicoloned(parse_function_call))
+        .or_try(parse_semicoloned(parse_expression));
 }
 
 NodeResult AbstractSyntaxTree::expect_statement(NodeResult ctx) {
     return parse_statement(std::move(ctx))
-        .if_nothing_fails(AstErrorType::EXPECTED_STATEMENT);
+        .nothing_guard(AstErrorType::EXPECTED_STATEMENT);
 }
 
 NodeResult AbstractSyntaxTree::parse_expression(NodeResult ctx) {
@@ -57,9 +61,8 @@ NodeResult AbstractSyntaxTree::parse_expression(NodeResult ctx) {
 
 NodeResult AbstractSyntaxTree::expect_expression(NodeResult ctx) {
     return parse_as(NodeResult::nothing(ctx.rest))
-        .if_nothing_fails(AstErrorType::EXPECTED_EXPRESSION);
+        .nothing_guard(AstErrorType::EXPECTED_EXPRESSION);
 }
-
 
 NodeResult AbstractSyntaxTree::parse_paren(NodeResult ctx) {
     return ctx
@@ -78,8 +81,9 @@ NodeResult AbstractSyntaxTree::parse_unary(NodeResult ctx) {
     
     return ctx
         .want_tok(TokenType::SUB)
-        .then_parse_rest([](auto&& rest) {
-            return make_negated(parse_expression(std::move(rest)));
+        .then_parse_rest([parse_expr](auto&& rest) {
+            return make_negated(parse_expr(std::move(rest))
+                .nothing_guard(AstErrorType::NO_NESTED_UNARIES));
         })
         .or_try([&](auto&& c) {
             return c
@@ -135,7 +139,7 @@ NodeResult AbstractSyntaxTree::parse_term(NodeResult ctx) {
         .want_tok(TokenType::IDENTIFIER, make_term)
         .or_want_tok(TokenType::INTEGER, make_term)
         .or_want_tok(TokenType::STRING, make_term)
-        .or_expect_tok(TokenType::REAL_NUMBER, make_term);
+        .or_want_tok(TokenType::REAL_NUMBER, make_term);
 }
 
 NodeResult AbstractSyntaxTree::parse_function_call(NodeResult ctx) {
@@ -147,8 +151,8 @@ NodeResult AbstractSyntaxTree::parse_function_call(NodeResult ctx) {
         .then_want_tok(TokenType::LEFT_PAREN, [&](auto&& ident, auto&& rest) {
             auto args = rest
                 .then_want_right_sep(
-                    parse_expression, 
-                    sep, 
+                    expect_expression,
+                    sep,
                     make_func_args
                 );
             return make_func(std::move(ident), std::move(args));
