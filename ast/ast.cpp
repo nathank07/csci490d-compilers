@@ -46,7 +46,6 @@ NodeResult AbstractSyntaxTree::parse_statement(NodeResult ctx) {
     return NodeResult::nothing(ctx.rest)
         .or_try(parse_assigns)
         .or_try(parse_declaration)
-        .or_try(parse_semicoloned(parse_function_call))
         .or_try(parse_semicoloned(parse_expression));
 }
 
