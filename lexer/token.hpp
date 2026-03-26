@@ -71,6 +71,7 @@ struct Token {
 
     std::string get_type_string() const;    
     std::size_t get_token_width() const;
+    std::string get_token_literal() const;
     static std::string get_token_literal(TokenType type);
     static Token create_token(TokenType type, Input i);
     static Token create_token(TokenType type, Input i, TokenValue value);

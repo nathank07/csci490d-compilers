@@ -86,6 +86,32 @@ std::string Token::get_token_literal(TokenType type) {
         case TokenType::IDENTIFIER: return "identifer";
         case TokenType::INTEGER: return "integer";
         case TokenType::REAL_NUMBER: return "floating point number";
+        default: return "unknown";
+    }
+}
+
+std::string Token::get_token_literal() const {
+    switch (type) {
+        case TokenType::STRING: {
+            const auto &str = std::get<TokenString>(data);
+            std::string s(str.value.begin(), str.value.end());
+            return s;
+        }
+        case TokenType::IDENTIFIER: {
+            const auto &str = std::get<TokenIdentifier>(data);
+            return str.value;
+        }
+        case TokenType::INTEGER: {
+            const auto &i = std::get<TokenInteger>(data);
+            return std::to_string(i.value);
+        }
+        case TokenType::REAL_NUMBER: {
+            const auto &f = std::get<TokenReal>(data);
+            std::stringstream ss;
+            ss <<  f.value;
+            return ss.str();
+        }
+        default: return get_token_literal(type);
     }
 }
 
