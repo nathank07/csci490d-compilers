@@ -8,7 +8,8 @@ enum class AstErrorType {
     EXPECTED_EXPRESSION,
     EXPECTED_TOK,
     EXPECTED_IDENT,
-    NO_NESTED_UNARIES
+    NO_NESTED_UNARIES,
+    COMMA_OR_RPAREN
 };
 
 struct AstError {
@@ -35,6 +36,7 @@ struct AstError {
             case AstErrorType::EXPECTED_TOK: err.pretty_print_bad_tok(i, o); return;
             case AstErrorType::EXPECTED_STATEMENT: err.pretty_print_bad_stmt(i, o); return;
             case AstErrorType::NO_NESTED_UNARIES: err.pretty_print_unsupported_unary(i, o); return;
+            case AstErrorType::COMMA_OR_RPAREN: err.pretty_print_comma_or_rparen(i, o); return;
             default: o << static_cast<int>(err.type); return;
         }
         o << std::endl;
@@ -106,7 +108,7 @@ private:
 
         print_span_context(in, o, true);
         o << "\nExpected expression while reading statement, read '" 
-          << expr_end.get_token_literal(expr_end.type) << "' ("  
+          << expr_end.get_token_literal() << "' ("  
           << expr_end.line_number << ":" << col << ")\n\n";
     }
 
@@ -116,7 +118,7 @@ private:
 
         o << "Expected beginning of statement at "
           << expr_end.line_number << ":" << col << ", read '"
-          << expr_end.get_token_literal(expr_end.type) << "' instead\n\n";
+          << expr_end.get_token_literal() << "' instead\n\n";
         
         print_span_context(in, o, false);
         pretty_print_arrow(col, o);
@@ -138,6 +140,14 @@ private:
     void pretty_print_unsupported_unary(const Input& in, std::ostream& o) const {
         pretty_print_bad_expr(in, o);
         o << "\nHint: Did you try to use a nested unary? They are not supported in this language.\n\n";
+    }
+
+    void pretty_print_comma_or_rparen(const Input& in, std::ostream& o) const {
+        auto expr_end = error_toks.back();
+        auto col = expr_end.get_token_width() + expr_end.column_number;
+        o << "Expected ',' or ')' at " << expr_end.line_number << ":" << col << "\n\n";
+        print_span_context(in, o, false);
+        pretty_print_arrow(col, o);
     }
 
 };

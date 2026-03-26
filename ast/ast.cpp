@@ -122,7 +122,6 @@ NodeResult AbstractSyntaxTree::parse_md(NodeResult ctx) {
 }
 
 NodeResult AbstractSyntaxTree::parse_exp(NodeResult ctx) {
-
     return ctx
         .want_right_sep(
             parse_unary,
@@ -157,7 +156,7 @@ NodeResult AbstractSyntaxTree::parse_function_call(NodeResult ctx) {
                 );
             return make_func(std::move(ident), std::move(args));
         })
-        .then_expect_tok(TokenType::RIGHT_PAREN);
+        .then_expect_tok(TokenType::RIGHT_PAREN, AstErrorType::COMMA_OR_RPAREN);
 }
 
 NodeResult AbstractSyntaxTree::parse_declaration(NodeResult ctx) {

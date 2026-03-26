@@ -97,7 +97,7 @@ struct ParseResult {
     }
 
     template <typename P, typename S, typename F>
-    ParseResult want_right_sep(P&& parse_next, S&& sep, F&& combine) {
+    ParseResult want_right_sep(P&& parse_next, S&& sep, F&& combine, AstErrorType on_missing = AstErrorType::EXPECTED_EXPRESSION) {
         return parse_next(std::move(*this))
             .then_parse_rest([&](auto&& lhs) {
                 return sep(ParseResult{Just{}, {}, lhs.rest})
@@ -105,7 +105,8 @@ struct ParseResult {
                         return after_sep.want_right_sep(
                             std::forward<P>(parse_next),
                             std::forward<S>(sep),
-                            std::forward<F>(combine));
+                            std::forward<F>(combine), on_missing)
+                            .nothing_guard(on_missing);
                     })
                     .then_parse_rest([&](auto&& rhs) {
                         return combine(std::move(lhs), std::move(rhs));
