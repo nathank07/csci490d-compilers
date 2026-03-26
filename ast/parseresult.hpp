@@ -144,10 +144,19 @@ struct ParseResult {
                 result.rest
             );
 
-        if (std::holds_alternative<Err>(result.value) && !result.consumed.empty())
+        if (std::holds_alternative<Err>(result.value) && !result.consumed.empty()) {
+            enrich_error(result, consumed);
             return result;
+        }
 
         return ParseResult(Just{T{}}, consumed, rest);
+    }
+
+    static void enrich_error(ParseResult& result, std::span<const Token> context) {
+        if (std::holds_alternative<Err>(result.value) && !context.empty()) {
+            auto& err = std::get<Err>(result.value).error;
+            err.error_toks = merge_consumed(context, err.error_toks);
+        }
     }
 
     static std::span<const Token> merge_consumed(std::span<const Token> a, std::span<const Token> b) {
@@ -268,8 +277,11 @@ private:
         if (!std::holds_alternative<Just>(value)) return std::move(*this);
         if (!match()) return no_match;
 
+        auto prev_consumed = consumed;
         auto rhs = ParseResult{Just{T{}}, advance_1(), rest.subspan(1)};
-        return make_this(std::move(*this), std::move(rhs));
+        auto result = make_this(std::move(*this), std::move(rhs));
+        enrich_error(result, prev_consumed);
+        return result;
     }
 
     static constexpr auto match_tok = [](auto rest, TokenType wanted) { return [rest, wanted] { return rest.front().type == wanted; }; };
@@ -479,6 +491,7 @@ public:
         }
         return std::move(*this);
     }
+
 
     template<typename F>
     ParseResult or_try(F&& next) {

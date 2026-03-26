@@ -31,9 +31,6 @@ struct AstError {
         }
         o << "\n";
         switch (err.type) {
-            // case AstErrorType::MISMATCH_PAREN: pretty_print_mismatch(err, i, o); return;
-            // case AstErrorType::FAILED_TO_PARSE_SYMBOL: pretty_print_bad_symbol(err, i, o); return;
-            // case AstErrorType::UNEXPECTED_EOF: pretty_print_unexpected_eof(err, i, o); return;
             case AstErrorType::EXPECTED_EXPRESSION: err.pretty_print_bad_expr(i, o); return;
             case AstErrorType::EXPECTED_TOK: err.pretty_print_bad_tok(i, o); return;
             case AstErrorType::EXPECTED_STATEMENT: err.pretty_print_bad_stmt(i, o); return;
@@ -55,25 +52,6 @@ private:
         o << "^\n";
     }
 
-    static void pretty_print_arrow(std::size_t pos1, std::size_t pos2, std::ostream& o) {
-        for (std::size_t i = 0; i < pos2; i++) {
-            if (i == pos1 - 1 || i == pos2 - 1) { 
-                o << "^";
-            }
-            else { 
-                o << (i < pos1 - 1 ? "-" : " "); 
-            }
-        }
-        
-        o << "\n";
-
-        for (std::size_t i = 0; i < pos2 - 1; i++) {
-            o << "-";
-        }
-
-        o << "╯\n";
-    }
-
     static void print_line(std::size_t line, const Input& in, std::ostream& o) {
         auto l = in.get_line(line);
 
@@ -89,12 +67,12 @@ private:
         }
     }
 
-    void print_span_context(const Input& in, std::ostream& o) const {
+    void print_span_context(const Input& in, std::ostream& o, bool include_last_line) const {
 
         auto first = error_toks.front();
         auto last = error_toks.back();
 
-        for (std::size_t i = first.line_number; i < last.line_number; i++) {
+        for (std::size_t i = first.line_number; i <= last.line_number; i++) {
 
             auto try_line = in.get_line(i);
 
@@ -109,7 +87,16 @@ private:
 
             o << line;
             if (line.empty() || line.back() != '\n') o << "\n";
-            o << std::string(len, '~') << "\n";
+
+            if (i == last.line_number) {
+                if (!include_last_line) return;
+                auto start = (i == first.line_number) ? first.column_number - 1 : std::size_t{0};
+                auto end = last.column_number - 1 + last.get_token_width();
+                if (end > len) end = len;
+                o << std::string(start, ' ') << std::string(end - start, '~') << "\n";
+            } else {
+                o << std::string(len, '~') << "\n";
+            }
         }
     }
 
@@ -117,23 +104,21 @@ private:
         auto expr_end = error_toks.back();
         auto col = expr_end.column_number;
 
-        o << "Expected expression"
-          << " at " << expr_end.line_number << ":" << col << "\n\n";
-
-        print_span_context(in, o);
-        print_line(expr_end.line_number, in, o);
-        pretty_print_arrow(col, o);
+        print_span_context(in, o, true);
+        o << "\nExpected expression while reading statement, read '" 
+          << expr_end.get_token_literal(expr_end.type) << "' ("  
+          << expr_end.line_number << ":" << col << ")\n\n";
     }
 
     void pretty_print_bad_stmt(const Input& in, std::ostream& o) const {
         auto expr_end = error_toks.back();
         auto col = expr_end.column_number;
 
-        o << "Expected statement"
-          << " at " << expr_end.line_number << ":" << col << "\n\n";
+        o << "Expected beginning of statement at "
+          << expr_end.line_number << ":" << col << ", read '"
+          << expr_end.get_token_literal(expr_end.type) << "' instead\n\n";
         
-        print_span_context(in, o);
-        print_line(expr_end.line_number, in, o);
+        print_span_context(in, o, false);
         pretty_print_arrow(col, o);
     }
 
@@ -146,8 +131,7 @@ private:
         o << "Expected \'" << Token::get_token_literal(std::get<TokenType>(expected)) << "\'"
           << " at " << expr_end.line_number << ":" << col << "\n\n";
 
-        print_span_context(in, o);
-        print_line(expr_end.line_number, in, o);
+        print_span_context(in, o, false);
         pretty_print_arrow(col, o);
     }
 
