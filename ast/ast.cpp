@@ -33,14 +33,17 @@ NodeResult AbstractSyntaxTree::parse_global(NodeResult ctx) {
             TokenType::END_OF_FILE,
             make_statements
         )
-        .and_then(make_statement_block);
+        .then_parse_rest(make_statement_block);
 }
 
 NodeResult AbstractSyntaxTree::parse_statement(NodeResult ctx) {
     return NodeResult::nothing(ctx.rest)
         .or_try(parse_assigns)
         .or_try(parse_declaration)
-        .or_try([](auto&& c) { return parse_function_call(std::move(c)).then_expect_tok(TokenType::SEMICOLON); });
+        .or_try([](auto&& c) { 
+            return parse_function_call(std::move(c))
+                .then_expect_tok(TokenType::SEMICOLON); 
+        });
 }
 
 NodeResult AbstractSyntaxTree::expect_statement(NodeResult ctx) {
@@ -61,7 +64,7 @@ NodeResult AbstractSyntaxTree::expect_expression(NodeResult ctx) {
 NodeResult AbstractSyntaxTree::parse_paren(NodeResult ctx) {
     return ctx
         .want_tok(TokenType::LEFT_PAREN)
-        .and_then(parse_expression)
+        .then_parse_rest(parse_expression)
         .then_expect_tok(TokenType::RIGHT_PAREN);        
 }
 
@@ -75,15 +78,15 @@ NodeResult AbstractSyntaxTree::parse_unary(NodeResult ctx) {
     
     return ctx
         .want_tok(TokenType::SUB)
-        .and_then([](auto&& rest) {
+        .then_parse_rest([](auto&& rest) {
             return make_negated(parse_expression(std::move(rest)));
         })
         .or_try([&](auto&& c) {
             return c
                 .want_tok(TokenType::ADD)
-                .and_then(parse_expr)
-                .or_try(parse_expr);
-        });
+                .then_parse_rest(parse_expr);
+        })
+        .or_try(parse_expr);
 }
 
 NodeResult AbstractSyntaxTree::parse_as(NodeResult ctx) {
@@ -164,9 +167,9 @@ NodeResult AbstractSyntaxTree::parse_assigns(NodeResult ctx) {
     return ctx
         .want_tok(TokenType::IDENTIFIER, make_term)
         .then_want_tok(TokenType::ASSIGN)
-        .then_do([](auto&&, auto&& rest) {
+        .then_parse_rest_with([](auto&&, auto&& rest) {
             return expect_expression(std::move(rest))
-                .then_do(make_assign);
+                .then_parse_rest_with(make_assign);
         })
         .then_expect_tok(TokenType::SEMICOLON);
 }
