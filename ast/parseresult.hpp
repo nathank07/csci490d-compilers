@@ -215,7 +215,7 @@ private:
     // On no match, it has the same behavior as init_match/2.
     template <typename F>
     ParseResult init_match_do(bool match, ParseResult no_match, F&& make_this) {
-        if (!std::holds_alternative<Nothing>(value)) return std::move(*this);
+        if (std::holds_alternative<Err>(value)) return std::move(*this);
         if (!match) return no_match;
 
         return make_this(ParseResult{ Just{T{}}, advance_1(), rest.subspan(1) });
