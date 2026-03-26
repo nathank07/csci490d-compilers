@@ -55,11 +55,11 @@ NodeResult AbstractSyntaxTree::expect_statement(NodeResult ctx) {
 }
 
 NodeResult AbstractSyntaxTree::parse_expression(NodeResult ctx) {
-    return parse_as(NodeResult::nothing(ctx.rest));
+    return parse_as(std::move(ctx));
 }
 
 NodeResult AbstractSyntaxTree::expect_expression(NodeResult ctx) {
-    return parse_as(NodeResult::nothing(ctx.rest))
+    return parse_expression(std::move(ctx))
         .nothing_guard(AstErrorType::EXPECTED_EXPRESSION);
 }
 
@@ -169,10 +169,7 @@ NodeResult AbstractSyntaxTree::parse_assigns(NodeResult ctx) {
     return ctx
         .want_tok(TokenType::IDENTIFIER, make_term)
         .then_want_tok(TokenType::ASSIGN)
-        .then_parse_rest_with([](auto&&, auto&& rest) {
-            return expect_expression(std::move(rest))
-                .then_parse_rest_with(make_assign);
-        })
+        .then_parse_rest_with(expect_expression, make_assign)
         .then_expect_tok(TokenType::SEMICOLON);
 }
 

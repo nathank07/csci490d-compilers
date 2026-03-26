@@ -1,5 +1,4 @@
 #pragma once
-#include <memory>
 #include <variant>
 #include <span>
 #include "../lexer/token.hpp"
@@ -469,10 +468,10 @@ public:
     }
 
     template <typename F>
-    ParseResult then_parse_rest(F&& next) {
+    ParseResult then_parse_rest(F&& parser) {
         if (std::holds_alternative<Just>(value)
         ||  std::holds_alternative<Continue>(value)) {
-            auto result = next(std::move(*this));
+            auto result = parser(std::move(*this));
             return ParseResult(
                 std::move(result.value), 
                 merge_consumed(consumed, result.consumed), 
@@ -482,11 +481,18 @@ public:
         return std::move(*this);
     }
 
-    template <typename F>
-    ParseResult then_parse_rest_with(F&& make_this) {
+    template <typename F, typename P>
+    ParseResult then_parse_rest_with(P&& parser, F&& combine) {
         if (std::holds_alternative<Just>(value)) {
-            auto rhs = ParseResult{Continue{}, consumed, rest};
-            auto result = make_this(std::move(*this), std::move(rhs));
+
+            auto result = combine(std::move(*this), std::move(
+                parser(ParseResult{Nothing{}, consumed, rest})
+            ));
+
+            if (result.is_error()) {
+                return result;
+            }
+
             return ParseResult(
                 std::move(result.value), 
                 merge_consumed(consumed, result.consumed), 
