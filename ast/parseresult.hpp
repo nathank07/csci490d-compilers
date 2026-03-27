@@ -151,6 +151,30 @@ struct ParseResult {
         );
     }
 
+    template <typename P, typename F>
+    ParseResult collect_until_tok_recovering(P&& parse_next, TokenType tok, F&& combine, std::vector<ParseResult>& errors) {
+        if (rest.empty() || rest.front().type == tok)
+            return ParseResult::nothing(rest);
+
+        auto attempt = parse_next(std::move(*this));
+
+        if (attempt.is_error()) {
+            errors.push_back(std::move(attempt));
+            return ParseResult{Continue{}, {}, rest.subspan(std::max(attempt.size(), std::size_t{1}))}
+                .collect_until_tok_recovering(
+                    std::forward<P>(parse_next), tok,
+                    std::forward<F>(combine), errors);
+        }
+
+        return attempt.then_parse_rest([&](auto&& lhs) {
+            return combine(std::move(lhs), 
+                ParseResult{Continue{}, {}, lhs.rest}
+                    .collect_until_tok_recovering(
+                        std::forward<P>(parse_next), tok,
+                        std::forward<F>(combine), errors));
+        });
+    }
+
     template <typename P, typename S, typename F>
     ParseResult then_want_right_sep(P&& parse_next, S&& sep, F&& combine) {
         if (!std::holds_alternative<Just>(value)

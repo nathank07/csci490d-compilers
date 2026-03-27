@@ -11,26 +11,22 @@
 std::vector<NodeResult> AbstractSyntaxTree::create(const Lexer& lexer_result) {
     const auto& tokens = lexer_result.get_tokens();
     std::span<const Token> token_span(tokens.data(), tokens.size());
-    std::vector<NodeResult> v;
+    std::vector<NodeResult> errors;
 
-    while (!token_span.empty() && token_span.front().type != TokenType::END_OF_FILE) {
-        auto exp = parse_global(NodeResult::nothing(token_span));
-        if (exp.is_error()) {
-            token_span = token_span.subspan(std::max(exp.size(), std::size_t{1}));
-        } else { token_span = token_span.subspan(exp.size()); }
-        v.push_back(std::move(exp));
-    }
-    
-    return v; 
+    auto result = parse_global(NodeResult::nothing(token_span), errors);
+    errors.push_back(std::move(result));
+
+    return errors;
 }
 
 
-NodeResult AbstractSyntaxTree::parse_global(NodeResult ctx) {
+NodeResult AbstractSyntaxTree::parse_global(NodeResult ctx, std::vector<NodeResult>& errors) {
     return ctx
-        .collect_until_tok(
+        .collect_until_tok_recovering(
             expect_statement,
             TokenType::END_OF_FILE,
-            make_statements
+            make_statements,
+            errors
         )
         .then_parse_rest(make_statement_block);
 }

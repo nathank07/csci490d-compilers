@@ -9,7 +9,7 @@
 class AbstractSyntaxTree {
 
     
-    static NodeResult parse_global(NodeResult ctx);
+    static NodeResult parse_global(NodeResult ctx, std::vector<NodeResult>& errors);
     
     static NodeResult parse_statement(NodeResult ctx);
     static NodeResult parse_function_call(NodeResult ctx);

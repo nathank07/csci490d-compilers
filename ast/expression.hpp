@@ -157,27 +157,31 @@ inline NodeResult make_binary(const Token& t, NodeResult left, NodeResult right)
 }
 
 template <typename T>
-inline std::unique_ptr<Expression> ensure_ll_node(std::unique_ptr<Expression> expr) {
+inline NodeResult ensure_ll_node(NodeResult r) {
+    if (!r.is_just()) return r;
+    auto expr = std::move(*r);
     if (!std::holds_alternative<T>(expr->expression))
-        return std::make_unique<Expression>(T{std::move(expr), nullptr});
-    return expr;
+        return r.create_expr(std::make_unique<Expression>(T{std::move(expr), nullptr}));
+    return r.create_expr(std::move(expr));
 }
 
 template <typename T>
 inline NodeResult create_foldr_ll(NodeResult l, NodeResult r) {
     if (l.is_error()) return l;
     if (r.is_error()) return r;
-    auto r_expr = ensure_ll_node<T>(std::move(*r));
+    if (l.is_nothing()) return r;
+    if (r.is_nothing()) return l;
     return r.create_expr(std::make_unique<Expression>(
-            T{std::move(*l), std::move(r_expr)}));
+        T{std::move(*l),
+          std::move(*ensure_ll_node<T>(std::move(r)))}));
 }
 
 inline NodeResult make_func(NodeResult ident, NodeResult args) {
     if (ident.is_error()) return ident;
     if (args.is_error()) return args;
-    auto args_expr = ensure_ll_node<FunctionCallArgList>(std::move(*args));
-    return args.create_expr(std::make_unique<Expression>(
-        FunctionCall{std::move(*ident), std::move(args_expr)}));
+    auto wrapped = ensure_ll_node<FunctionCallArgList>(std::move(args));
+    return wrapped.create_expr(std::make_unique<Expression>(
+        FunctionCall{std::move(*ident), take_or_null(std::move(wrapped))}));
 }
 
 inline NodeResult make_func_args(NodeResult left, NodeResult right) {
@@ -202,9 +206,9 @@ inline NodeResult make_assign(NodeResult name, NodeResult value) {
 
 inline NodeResult make_statement_block(NodeResult statements) {
     if (statements.is_error()) return statements;
-    auto expr = ensure_ll_node<Statements>(std::move(*statements));
+    auto expr = ensure_ll_node<Statements>(std::move(statements));
     return statements.create_expr(
-        std::make_unique<Expression>(StatementBlock{std::move(expr)})
+        std::make_unique<Expression>(StatementBlock{std::move(*expr)})
     );
 }
 
