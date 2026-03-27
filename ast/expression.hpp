@@ -156,18 +156,32 @@ inline NodeResult make_binary(const Token& t, NodeResult left, NodeResult right)
 
 }
 
+template <typename T>
+inline std::unique_ptr<Expression> ensure_ll_node(std::unique_ptr<Expression> expr) {
+    if (!std::holds_alternative<T>(expr->expression))
+        return std::make_unique<Expression>(T{std::move(expr), nullptr});
+    return expr;
+}
+
+template <typename T>
+inline NodeResult create_foldr_ll(NodeResult l, NodeResult r) {
+    if (l.is_error()) return l;
+    if (r.is_error()) return r;
+    auto r_expr = ensure_ll_node<T>(std::move(*r));
+    return r.create_expr(std::make_unique<Expression>(
+            T{std::move(*l), std::move(r_expr)}));
+}
+
 inline NodeResult make_func(NodeResult ident, NodeResult args) {
     if (ident.is_error()) return ident;
     if (args.is_error()) return args;
+    auto args_expr = ensure_ll_node<FunctionCallArgList>(std::move(*args));
     return args.create_expr(std::make_unique<Expression>(
-        FunctionCall{std::move(*ident), take_or_null(std::move(args))}));
+        FunctionCall{std::move(*ident), std::move(args_expr)}));
 }
 
 inline NodeResult make_func_args(NodeResult left, NodeResult right) {
-    if (left.is_error()) return left;
-    if (right.is_error()) return right;
-    return right.create_expr(std::make_unique<Expression>(
-        FunctionCallArgList{std::move(*left), std::move(*right)}));
+    return create_foldr_ll<FunctionCallArgList>(std::move(left), std::move(right));
 }
 
 inline NodeResult make_declaration(NodeResult type, NodeResult name) {
@@ -188,14 +202,12 @@ inline NodeResult make_assign(NodeResult name, NodeResult value) {
 
 inline NodeResult make_statement_block(NodeResult statements) {
     if (statements.is_error()) return statements;
+    auto expr = ensure_ll_node<Statements>(std::move(*statements));
     return statements.create_expr(
-        std::make_unique<Expression>(StatementBlock{*std::move(statements)})
+        std::make_unique<Expression>(StatementBlock{std::move(expr)})
     );
 }
 
 inline NodeResult make_statements(NodeResult left, NodeResult right) {
-    if (left.is_error()) return left;
-    if (right.is_error()) return right;
-    return right.create_expr(std::make_unique<Expression>(
-            Statements{std::move(*left), take_or_null(std::move(right))}));
+    return create_foldr_ll<Statements>(std::move(left), std::move(right));
 }
