@@ -73,19 +73,18 @@ NodeResult AbstractSyntaxTree::parse_unary(NodeResult ctx) {
             .or_try_parse(parse_paren)
             .or_try_parse(parse_term);
     };
+
+    auto parse_no_nest = [parse_expr](auto&& rest) {
+        return parse_expr(std::move(rest))
+            .nothing_guard(AstErrorType::NO_NESTED_UNARIES);
+    };
     
     return NodeResult::init(ctx.rest)
         .want_tok(TokenType::SUB)
-        .then_parse([parse_expr](auto&& rest) {
-            return parse_expr(std::move(rest))
-                .nothing_guard(AstErrorType::NO_NESTED_UNARIES);
-        })
-        .then_parse(make_negated)
-        .or_try_parse([&](auto&& c) {
-            return c
-                .want_tok(TokenType::ADD)
-                .then_parse(parse_expr);
-        })
+            .then_parse(parse_no_nest)
+            .then_parse(make_negated)
+        .or_want_tok(TokenType::ADD)
+            .then_parse(parse_no_nest)
         .or_try_parse(parse_expr);
 }
 
