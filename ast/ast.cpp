@@ -13,7 +13,7 @@ std::vector<NodeResult> AbstractSyntaxTree::create(const Lexer& lexer_result) {
     std::span<const Token> token_span(tokens.data(), tokens.size());
     std::vector<NodeResult> errors;
 
-    auto result = parse_global(NodeResult::nothing(token_span), errors);
+    auto result = parse_global(NodeResult::init(token_span), errors);
     errors.push_back(std::move(result));
 
     return errors;
@@ -21,14 +21,14 @@ std::vector<NodeResult> AbstractSyntaxTree::create(const Lexer& lexer_result) {
 
 
 NodeResult AbstractSyntaxTree::parse_global(NodeResult ctx, std::vector<NodeResult>& errors) {
-    return ctx
+    return NodeResult::init(ctx.rest)
         .collect_until_tok_recovering(
             expect_statement,
             TokenType::END_OF_FILE,
             make_statements,
             errors
         )
-        .then_parse_rest(make_statement_block);
+        .then_parse(make_statement_block);
 }
 
 auto constexpr AbstractSyntaxTree::parse_semicoloned(auto&& f) {
@@ -39,10 +39,10 @@ auto constexpr AbstractSyntaxTree::parse_semicoloned(auto&& f) {
 }
 
 NodeResult AbstractSyntaxTree::parse_statement(NodeResult ctx) {
-    return NodeResult::nothing(ctx.rest)
-        .or_try(parse_assigns)
-        .or_try(parse_declaration)
-        .or_try(parse_semicoloned(parse_expression));
+    return NodeResult::init(ctx.rest)
+        .then_parse(parse_assigns)
+        .or_try_parse(parse_declaration)
+        .or_try_parse(parse_semicoloned(parse_expression));
 }
 
 NodeResult AbstractSyntaxTree::expect_statement(NodeResult ctx) {
@@ -60,9 +60,9 @@ NodeResult AbstractSyntaxTree::expect_expression(NodeResult ctx) {
 }
 
 NodeResult AbstractSyntaxTree::parse_paren(NodeResult ctx) {
-    return ctx
+    return NodeResult::init(ctx.rest)
         .want_tok(TokenType::LEFT_PAREN)
-        .then_parse_rest(parse_expression)
+        .then_parse(expect_expression)
         .then_expect_tok(TokenType::RIGHT_PAREN);        
 }
 
@@ -70,26 +70,27 @@ NodeResult AbstractSyntaxTree::parse_unary(NodeResult ctx) {
 
     auto parse_expr = [](auto&& rest) {
         return parse_function_call(std::move(rest))
-            .or_try(parse_paren)
-            .or_try(parse_term);
+            .or_try_parse(parse_paren)
+            .or_try_parse(parse_term);
     };
     
-    return ctx
+    return NodeResult::init(ctx.rest)
         .want_tok(TokenType::SUB)
-        .then_parse_rest([parse_expr](auto&& rest) {
-            return make_negated(parse_expr(std::move(rest))
-                .nothing_guard(AstErrorType::NO_NESTED_UNARIES));
+        .then_parse([parse_expr](auto&& rest) {
+            return parse_expr(std::move(rest))
+                .nothing_guard(AstErrorType::NO_NESTED_UNARIES);
         })
-        .or_try([&](auto&& c) {
+        .then_parse(make_negated)
+        .or_try_parse([&](auto&& c) {
             return c
                 .want_tok(TokenType::ADD)
-                .then_parse_rest(parse_expr);
+                .then_parse(parse_expr);
         })
-        .or_try(parse_expr);
+        .or_try_parse(parse_expr);
 }
 
 NodeResult AbstractSyntaxTree::parse_as(NodeResult ctx) {
-    return ctx
+    return NodeResult::init(ctx.rest)
         .want_left_sep(
             parse_md,
             [](auto&& rest) {
@@ -102,8 +103,7 @@ NodeResult AbstractSyntaxTree::parse_as(NodeResult ctx) {
 }
 
 NodeResult AbstractSyntaxTree::parse_md(NodeResult ctx) {
-
-    return ctx
+    return NodeResult::init(ctx.rest)
         .want_left_sep(
             parse_exp,
             [](auto&& rest) {
@@ -117,7 +117,7 @@ NodeResult AbstractSyntaxTree::parse_md(NodeResult ctx) {
 }
 
 NodeResult AbstractSyntaxTree::parse_exp(NodeResult ctx) {
-    return ctx
+    return NodeResult::init(ctx.rest)
         .want_right_sep(
             parse_unary,
             [](auto&& rest) { 
@@ -129,7 +129,7 @@ NodeResult AbstractSyntaxTree::parse_exp(NodeResult ctx) {
 }
 
 NodeResult AbstractSyntaxTree::parse_term(NodeResult ctx) {
-    return ctx
+    return NodeResult::init(ctx.rest)
         .want_tok(TokenType::IDENTIFIER, make_term)
         .or_want_tok(TokenType::INTEGER, make_term)
         .or_want_tok(TokenType::STRING, make_term)
@@ -140,7 +140,7 @@ NodeResult AbstractSyntaxTree::parse_function_call(NodeResult ctx) {
 
     auto sep = [](auto&& rest) { return rest.want_tok(TokenType::COMMA); };
 
-    return ctx
+    return NodeResult::init(ctx.rest)
         .want_tok(TokenType::IDENTIFIER, make_term)
         .then_want_tok(TokenType::LEFT_PAREN, [&](auto&& ident, auto&& rest) {
             auto args = rest
@@ -155,17 +155,17 @@ NodeResult AbstractSyntaxTree::parse_function_call(NodeResult ctx) {
 }
 
 NodeResult AbstractSyntaxTree::parse_declaration(NodeResult ctx) {
-    return ctx
+    return NodeResult::init(ctx.rest)
         .want_tok(TokenType::IDENTIFIER, make_term)
         .then_want_tok(TokenType::IDENTIFIER, make_declaration)
         .then_expect_tok(TokenType::SEMICOLON);
 }
 
 NodeResult AbstractSyntaxTree::parse_assigns(NodeResult ctx) {
-    return ctx
+    return NodeResult::init(ctx.rest)
         .want_tok(TokenType::IDENTIFIER, make_term)
         .then_want_tok(TokenType::ASSIGN)
-        .then_parse_rest_with(expect_expression, make_assign)
+        .then_parse_with(expect_expression, make_assign)
         .then_expect_tok(TokenType::SEMICOLON);
 }
 

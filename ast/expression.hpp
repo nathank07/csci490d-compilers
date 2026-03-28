@@ -1,4 +1,5 @@
 #pragma once
+#include <cassert>
 #include <memory>
 #include <variant>
 #include <span>
@@ -105,6 +106,7 @@ struct Expression {
     > expression;
 };
 
+
 inline std::unique_ptr<Expression> take_or_null(NodeResult&& r) {
     if (r.is_just()) return std::move(*r);
     return nullptr;
@@ -112,6 +114,7 @@ inline std::unique_ptr<Expression> take_or_null(NodeResult&& r) {
 
 inline NodeResult make_negated(NodeResult inner) {
     if (inner.is_error()) return inner;
+    assert(inner.is_just());
     return inner.create_expr(std::make_unique<Expression>(Negated{std::move(*inner)}));
 }
 
@@ -133,6 +136,8 @@ inline NodeResult make_term(NodeResult cont) {
 inline NodeResult make_binary(const Token& t, NodeResult left, NodeResult right) {
     if (left.is_error()) return left;
     if (right.is_error()) return right;
+
+    assert(left.is_just()); assert(right.is_just());
 
     auto make = [&](auto expr) { 
         return right.create_expr(std::make_unique<Expression>(std::move(expr))); };
@@ -169,8 +174,10 @@ template <typename T>
 inline NodeResult create_foldr_ll(NodeResult l, NodeResult r) {
     if (l.is_error()) return l;
     if (r.is_error()) return r;
-    if (l.is_nothing()) return r;
-    if (r.is_nothing()) return l;
+    // allows skipping over errors
+    if (l.is_nothing() || l.is_continue()) return r;
+    if (r.is_nothing() || r.is_continue()) return l;
+    assert(l.is_just());
     return r.create_expr(std::make_unique<Expression>(
         T{std::move(*l),
           std::move(*ensure_ll_node<T>(std::move(r)))}));
@@ -179,6 +186,7 @@ inline NodeResult create_foldr_ll(NodeResult l, NodeResult r) {
 inline NodeResult make_func(NodeResult ident, NodeResult args) {
     if (ident.is_error()) return ident;
     if (args.is_error()) return args;
+    assert(ident.is_just());
     auto wrapped = ensure_ll_node<FunctionCallArgList>(std::move(args));
     return wrapped.create_expr(std::make_unique<Expression>(
         FunctionCall{std::move(*ident), take_or_null(std::move(wrapped))}));
@@ -191,6 +199,7 @@ inline NodeResult make_func_args(NodeResult left, NodeResult right) {
 inline NodeResult make_declaration(NodeResult type, NodeResult name) {
     if (type.is_error()) return type;
     if (name.is_error()) return name;
+    assert(type.is_just());
     return name.create_expr(std::make_unique<Expression>(
         Declaration{std::move(*type), *make_term(std::move(name))}
     ));
@@ -199,6 +208,7 @@ inline NodeResult make_declaration(NodeResult type, NodeResult name) {
 inline NodeResult make_assign(NodeResult name, NodeResult value) {
     if (name.is_error()) return name;
     if (value.is_error()) return value;
+    assert(name.is_just()); assert(value.is_just());
     return value.create_expr(std::make_unique<Expression>(
         Assign{std::move(*name), std::move(*value)}
     ));
@@ -207,6 +217,7 @@ inline NodeResult make_assign(NodeResult name, NodeResult value) {
 inline NodeResult make_statement_block(NodeResult statements) {
     if (statements.is_error()) return statements;
     auto expr = ensure_ll_node<Statements>(std::move(statements));
+    assert(expr.is_just());
     return statements.create_expr(
         std::make_unique<Expression>(StatementBlock{std::move(*expr)})
     );

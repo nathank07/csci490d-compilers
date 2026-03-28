@@ -4,7 +4,6 @@
 #include "expression.hpp"
 #include <memory>
 #include <vector>
-#include <iostream>
 
 class AbstractSyntaxTree {
 

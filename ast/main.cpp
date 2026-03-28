@@ -23,11 +23,10 @@ int main(int argc, char** argv) {
     std::cout << "node_v len" << node_v.size() << "\n";
     
     for (auto& node : node_v) {
-        if (!node.is_error()) {
+        if (node.is_just()) {
             AbstractSyntaxTree::print_tree(std::cout, *node);
-        } else {
-            auto err = node.error();
-            AstError::pretty_print(err, l->get_char_buff(), std::cout);
+        } else if (node.is_error()) {
+            AstError::pretty_print(node.error(), l->get_char_buff(), std::cout);
         }
     }
 }

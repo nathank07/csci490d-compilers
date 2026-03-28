@@ -10,7 +10,8 @@ struct ParseResult {
     struct Nothing {};
     // Continue is functionally the same as Just{}, but it cannot be dereferenced.
     // This is essential for being able to chain ParseResults that don't particularly
-    // have anything in them without implying that they do have something in them
+    // have anything in them without implying that they do have something in them -
+    // also useful for starting a new ParseResult with init()
     struct Continue {};
     struct Err { E error; };
 
@@ -34,6 +35,12 @@ struct ParseResult {
     
     ParseResult create_expr(T val) { return ParseResult(Just{std::move(val)}, consumed, rest); }
 
+
+    static ParseResult init(std::span<const Token> span) { 
+        if (span.empty()) return ParseResult::nothing();
+        return ParseResult{ Continue{}, {}, span }; 
+    }
+
     static ParseResult just(T val) { return Just{std::move(val)}; }
     static ParseResult nothing() { return Nothing{}; }
     static ParseResult nothing(std::span<const Token> rest) { return ParseResult{ Nothing{}, {}, rest }; }
@@ -50,7 +57,7 @@ struct ParseResult {
     }
 
     bool operator! () const {
-        return !std::holds_alternative<Just>(value);
+        return !is_just();
     }
 
     T& operator* () & {
@@ -97,19 +104,19 @@ struct ParseResult {
         return take_while_just_left(parse_next(std::move(*this)),
             [&](auto&& acc, auto&& r) {
                 return sep(std::move(r))
-                    .then_parse_rest([&](auto&& s) { return parse_next(std::move(s)); })
-                    .then_parse_rest([&](auto&& rhs) { return combine(std::move(acc), std::move(rhs)); });
+                    .then_parse([&](auto&& s) { return parse_next(std::move(s)); })
+                    .then_parse([&](auto&& rhs) { return combine(std::move(acc), std::move(rhs)); });
             });
     }
 
     template <typename F>
     static ParseResult take_while_just_left(ParseResult&& init, F&& f) {
-        return init.then_parse_rest([&](auto&& acc) {
-            return f(std::move(acc), ParseResult::nothing(acc.rest))
-                .then_parse_rest([&](auto&& next) {
+        return init.then_parse([&](auto&& acc) {
+            return f(std::move(acc), ParseResult::init(acc.rest))
+                .then_parse([&](auto&& next) {
                     return take_while_just_left(std::move(next), std::forward<F>(f));
                 })
-                .or_else([&](auto&&) {
+                .or_try_parse([&](auto&&) {
                     return std::move(acc);
                 });
         });
@@ -118,19 +125,19 @@ struct ParseResult {
     template <typename P, typename S, typename F>
     ParseResult want_right_sep(P&& parse_next, S&& sep, F&& combine, AstErrorType on_missing = AstErrorType::EXPECTED_EXPRESSION) {
         return parse_next(std::move(*this))
-            .then_parse_rest([&](auto&& lhs) {
-                return sep(ParseResult{Continue{}, {}, lhs.rest})
-                    .then_parse_rest([&](auto&& after_sep) {
+            .then_parse([&](auto&& lhs) {
+                return sep(ParseResult::init(lhs.rest))
+                    .then_parse([&](auto&& after_sep) {
                         return after_sep.want_right_sep(
                             std::forward<P>(parse_next),
                             std::forward<S>(sep),
                             std::forward<F>(combine), on_missing)
                             .nothing_guard(on_missing);
                     })
-                    .then_parse_rest([&](auto&& rhs) {
+                    .then_parse([&](auto&& rhs) {
                         return combine(std::move(lhs), std::move(rhs));
                     })
-                    .or_else([&](auto&& stopped) {
+                    .or_try_parse([&](auto&& stopped) {
                         return stopped.create_expr(std::move(*lhs));
                     });
             });
@@ -141,7 +148,7 @@ struct ParseResult {
         return want_right_sep(
             parse_next, 
             [tok](auto&& r) {
-                return r.then_parse_rest([&](auto&& c) {
+                return r.then_parse([&](auto&& c) {
                     if (c.rest.front().type == tok)
                         return ParseResult::nothing();
                     return std::move(c); }
@@ -166,7 +173,7 @@ struct ParseResult {
                     std::forward<F>(combine), errors);
         }
 
-        return attempt.then_parse_rest([&](auto&& lhs) {
+        return attempt.then_parse([&](auto&& lhs) {
             return combine(std::move(lhs), 
                 ParseResult{Continue{}, {}, lhs.rest}
                     .collect_until_tok_recovering(
@@ -177,19 +184,18 @@ struct ParseResult {
 
     template <typename P, typename S, typename F>
     ParseResult then_want_right_sep(P&& parse_next, S&& sep, F&& combine) {
-        if (!std::holds_alternative<Just>(value)
-        &&  !std::holds_alternative<Continue>(value)) return std::move(*this);
+        if (!is_just() && !is_continue()) return std::move(*this);
 
         auto result = want_right_sep(std::forward<P>(parse_next), std::forward<S>(sep), std::forward<F>(combine));
 
-        if (std::holds_alternative<Just>(result.value))
+        if (result.is_just())
             return ParseResult(
                 std::move(result.value),
                 merge_consumed(consumed, result.consumed),
                 result.rest
             );
 
-        if (std::holds_alternative<Err>(result.value) && !result.consumed.empty()) {
+        if (result.is_error() && !result.consumed.empty()) {
             enrich_error(result, consumed);
             return result;
         }
@@ -198,7 +204,7 @@ struct ParseResult {
     }
 
     static void enrich_error(ParseResult& result, std::span<const Token> context) {
-        if (std::holds_alternative<Err>(result.value) && !context.empty()) {
+        if (result.is_error() && !context.empty()) {
             auto& err = std::get<Err>(result.value).error;
             err.error_toks = merge_consumed(context, err.error_toks);
         }
@@ -220,14 +226,14 @@ struct ParseResult {
 
         The general patterns goes like so -
 
-          * Start from ::nothing(span), use want_tok/1, then chain as needed. 
+          * Start from ::init(span), use want_tok/1, then chain as needed. 
 
           * All *_tok/2 functions will pass one ParseResult arg lambda (with the
             exception of the previously aforementioned .then_*_tok/2). This allows
             you to store the result in Just.
 
           * If you need to access the functions, the previously aforementioned 
-            .then_*_tok/2 works - or you can always bind it with .then_parse_rest_with.
+            .then_*_tok/2 works - or you can always bind it with .then_parse_with.
 
           * or_want_tok/1 and or_want_tok/2 are used to check if the result
             returned nothing. For instance you can check if the first token like so:
@@ -259,8 +265,8 @@ private:
     // When you return nothing, the convention is to undo everything consumed - as the 
     // recursive descent parser expects a fresh attempt on each parse attempted
     template <typename M>
-    ParseResult init_match(M&& match, ParseResult no_match) {
-        if (std::holds_alternative<Err>(value)) return std::move(*this);
+    ParseResult match(M&& match, ParseResult no_match) {
+        if (is_error()) return std::move(*this);
         if (!match()) return no_match;
 
         return ParseResult{ Continue{}, advance_1(), rest.subspan(1) };
@@ -274,8 +280,8 @@ private:
     //
     // On no match, it has the same behavior as init_match/2.
     template <typename M, typename F>
-    ParseResult init_match_do(M&& match, ParseResult no_match, F&& make_this) {
-        if (std::holds_alternative<Err>(value)) return std::move(*this);
+    ParseResult match_do(M&& match, ParseResult no_match, F&& make_this) {
+        if (is_error()) return std::move(*this);
         if (!match()) return no_match;
 
         return make_this(ParseResult{ Continue{}, advance_1(), rest.subspan(1) });
@@ -309,9 +315,7 @@ private:
     // The final result is you get a ParseResult with the expression desired.
     template <typename M>
     ParseResult continue_match(M&& match, ParseResult no_match) {
-        if (!std::holds_alternative<Just>(value)
-        &&  !std::holds_alternative<Continue>(value)) return std::move(*this);
-
+        if (!is_just() && !is_continue()) return std::move(*this);
         if (!match()) return no_match;
 
         return ParseResult{ std::move(value), advance_1(), rest.subspan(1) };
@@ -321,15 +325,13 @@ private:
     // to continue the Just chain
     template <typename M, typename F>
     ParseResult continue_match_do(M&& match, ParseResult no_match, F&& make_this) {
-        if (!std::holds_alternative<Just>(value)
-        &&  !std::holds_alternative<Continue>(value)) return std::move(*this);
+        if (!is_just() && !is_continue()) return std::move(*this);
 
         if (!match()) return no_match;
 
-        auto prev_consumed = consumed;
         auto rhs = ParseResult{Continue{}, advance_1(), rest.subspan(1)};
         auto result = make_this(std::move(*this), std::move(rhs));
-        enrich_error(result, prev_consumed);
+        enrich_error(result, consumed);
         return result;
     }
 
@@ -346,12 +348,14 @@ private:
 public:
 
     ParseResult want_tok(const TokenType wanted) {
-        return init_match(match_tok(rest, wanted), convert_nothing(rest));
+        if (!is_continue()) return std::move(*this);
+        return match(match_tok(rest, wanted), convert_nothing(rest));
     }
 
     template <typename F>
     ParseResult want_tok(const TokenType wanted, F&& make_this) {
-        return init_match_do(match_tok(rest, wanted), convert_nothing(rest), 
+        if (!is_continue()) return std::move(*this);
+        return match_do(match_tok(rest, wanted), convert_nothing(rest), 
                              std::forward<F>(make_this));
     }
 
@@ -367,23 +371,26 @@ public:
     }
     
     ParseResult or_want_tok(const TokenType wanted) {
-        if (!std::holds_alternative<Nothing>(value)) return std::move(*this);
-        return want_tok(wanted);
+        if (!is_nothing()) return std::move(*this);
+        return match(match_tok(rest, wanted), convert_nothing(rest));
     }
 
     template <typename F>
     ParseResult or_want_tok(const TokenType wanted, F&& make_this) {
-        if (!std::holds_alternative<Nothing>(value)) return std::move(*this);
-        return want_tok(wanted, std::forward<F>(make_this));
+        if (!is_nothing()) return std::move(*this);
+        return match_do(match_tok(rest, wanted), convert_nothing(rest), 
+                             std::forward<F>(make_this));
     }
 
     ParseResult expect_tok(const TokenType expected, AstErrorType on_fail = AstErrorType::EXPECTED_TOK) {
-        return init_match(match_tok(rest, expected), create_error(on_fail, consumed, rest, expected));
+        if (!is_continue()) return std::move(*this);
+        return match(match_tok(rest, expected), create_error(on_fail, consumed, rest, expected));
     }
 
     template <typename F>
     ParseResult expect_tok(const TokenType expected, F&& make_this, AstErrorType on_fail = AstErrorType::EXPECTED_TOK) {
-        return init_match_do(match_tok(rest, expected), create_error(on_fail, consumed, rest, expected),
+        if (!is_continue()) return std::move(*this);
+        return match_do(match_tok(rest, expected), create_error(on_fail, consumed, rest, expected),
             std::forward<F>(make_this));
     }
 
@@ -398,15 +405,16 @@ public:
             create_error(on_fail, consumed, rest, expected), std::forward<F>(make_this));
     }
 
-    ParseResult or_expect_tok(const TokenType expected) {
-        if (!std::holds_alternative<Nothing>(value)) return std::move(*this);
-        return expect_tok(expected);
+    ParseResult or_expect_tok(const TokenType expected, AstErrorType on_fail = AstErrorType::EXPECTED_TOK) {
+        if (!is_nothing()) return std::move(*this);
+        return match(match_tok(rest, expected), create_error(on_fail, consumed, rest, expected));
     }
 
     template <typename F>
-    ParseResult or_expect_tok(const TokenType expected, F&& make_this) {
-        if (!std::holds_alternative<Nothing>(value)) return std::move(*this);
-        return expect_tok(expected, make_this);
+    ParseResult or_expect_tok(const TokenType expected, F&& make_this, AstErrorType on_fail = AstErrorType::EXPECTED_TOK) {
+        if (!is_nothing()) return std::move(*this);
+        return match_do(match_tok(rest, expected), create_error(on_fail, consumed, rest, expected),
+            std::forward<F>(make_this));
     }
 
     // ident matching helpers — like *_tok but match IDENTIFIER tokens with a specific value
@@ -427,26 +435,27 @@ private:
 public:
 
     ParseResult want_ident(const std::string& name) {
-        return init_match(rest_is_ident(name), convert_nothing(rest));
+        if (!is_continue()) return std::move(*this);
+        return match(rest_is_ident(name), convert_nothing(rest));
     }
 
     template <typename F>
     ParseResult want_ident(const std::string& name, F&& make_this) {
-        return init_match_do(rest_is_ident(name), convert_nothing(rest),
+        if (!is_continue()) return std::move(*this);
+        return match_do(rest_is_ident(name), convert_nothing(rest),
             std::forward<F>(make_this));
     }
 
     ParseResult or_want_ident(const std::string& name) {
-        if (std::holds_alternative<Nothing>(value))
-            return want_ident(name);
-        return std::move(*this);
+        if (!is_nothing()) return std::move(*this);
+        return match(rest_is_ident(name), convert_nothing(rest));
     }
 
     template <typename F>
     ParseResult or_want_ident(const std::string& name, F&& make_this) {
-        if (std::holds_alternative<Nothing>(value))
-            return want_ident(name, std::forward<F>(make_this));
-        return std::move(*this);
+        if (!is_nothing()) return std::move(*this);
+        return match_do(rest_is_ident(name), convert_nothing(rest),
+            std::forward<F>(make_this));
     }
 
     ParseResult then_want_ident(const std::string& name) {
@@ -460,12 +469,14 @@ public:
     }
 
     ParseResult expect_ident(const std::string& name) {
-        return init_match(rest_is_ident(name), create_i_err(consumed, rest, name));
+        if (!is_continue()) return std::move(*this);
+        return match(rest_is_ident(name), create_i_err(consumed, rest, name));
     }
 
     template <typename F>
     ParseResult expect_ident(const std::string& name, F&& make_this) {
-        return init_match_do(rest_is_ident(name), create_i_err(consumed, rest, name),
+        if (!is_continue()) return std::move(*this);
+        return match_do(rest_is_ident(name), create_i_err(consumed, rest, name),
             std::forward<F>(make_this));
     }
 
@@ -480,21 +491,28 @@ public:
     }
 
     ParseResult or_expect_ident(const std::string& name) {
-        if (std::holds_alternative<Nothing>(value)) return expect_ident(name);
-        return std::move(*this);
+        if (!is_nothing()) return std::move(*this);
+        return match(rest_is_ident(name), create_i_err(consumed, rest, name));
     }
 
     template <typename F>
     ParseResult or_expect_ident(const std::string& name, F&& make_this) {
-        if (std::holds_alternative<Nothing>(value))
-            return expect_ident(name, std::forward<F>(make_this));
-        return std::move(*this);
+        if (!is_nothing()) return std::move(*this);
+        return match_do(rest_is_ident(name), create_i_err(consumed, rest, name),
+            std::forward<F>(make_this));
+    }
+
+    template<typename F>
+    ParseResult or_try_parse(F&& parser) {
+        if (!is_nothing()) 
+            return std::move(*this);
+    
+        return parser(std::move(*this));
     }
 
     template <typename F>
-    ParseResult then_parse_rest(F&& parser) {
-        if (std::holds_alternative<Just>(value)
-        ||  std::holds_alternative<Continue>(value)) {
+    ParseResult then_parse(F&& parser) {
+        if (is_just() || is_continue()) {
             auto result = parser(std::move(*this));
             return ParseResult(
                 std::move(result.value), 
@@ -506,11 +524,11 @@ public:
     }
 
     template <typename F, typename P>
-    ParseResult then_parse_rest_with(P&& parser, F&& combine) {
-        if (std::holds_alternative<Just>(value)) {
+    ParseResult then_parse_with(P&& parser, F&& combine) {
+        if (is_just()) {
 
             auto result = combine(std::move(*this), std::move(
-                parser(ParseResult{Nothing{}, consumed, rest})
+                parser(ParseResult{Continue{}, consumed, rest})
             ));
 
             if (result.is_error()) {
@@ -518,7 +536,7 @@ public:
             }
 
             return ParseResult(
-                std::move(result.value), 
+                Just{std::move(*result)}, 
                 merge_consumed(consumed, result.consumed), 
                 result.rest
             );
@@ -527,35 +545,16 @@ public:
     }
 
     template<typename F>
-    ParseResult or_else(F&& next) {
-        if (std::holds_alternative<Nothing>(value)) {
-            return next(std::move(*this));
-        }
-        return std::move(*this);
-    }
-
-    template<typename F>
     ParseResult on_fail(F&& next) {
-        if (std::holds_alternative<Err>(value)) {
+        if (is_error()) {
             return next(std::move(*this));
         }
         return std::move(*this);
     }
 
     ParseResult nothing_guard(AstErrorType err_type) {
-        if (std::holds_alternative<Nothing>(value)) {
+        if (is_nothing()) {
             return ParseResult{Err{AstError::create_error(err_type, rest.subspan(0, 1))}, {}, rest};
-        }
-        return std::move(*this);
-    }
-
-
-    template<typename F>
-    ParseResult or_try(F&& next) {
-        if (std::holds_alternative<Nothing>(value)) {
-            auto res = next(std::move(*this));
-            if (res || res.is_error()) return res;
-            return ParseResult{Nothing{}, {}, undo_consumed()};
         }
         return std::move(*this);
     }
