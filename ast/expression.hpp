@@ -20,37 +20,37 @@ using TermValue =
     >;
 
 struct Negated {
-    std::unique_ptr<Expression> expression;
+    NodeResult expression;
 };
 
 struct Add {
-    std::unique_ptr<Expression> left;
-    std::unique_ptr<Expression> right;
+    NodeResult left;
+    NodeResult right;
 };
 
 struct Sub {
-    std::unique_ptr<Expression> left;
-    std::unique_ptr<Expression> right;
+    NodeResult left;
+    NodeResult right;
 };
 
 struct Mult {
-    std::unique_ptr<Expression> left;
-    std::unique_ptr<Expression> right;
+    NodeResult left;
+    NodeResult right;
 };
 
 struct Div {
-    std::unique_ptr<Expression> left;
-    std::unique_ptr<Expression> right;
+    NodeResult left;
+    NodeResult right;
 };
 
 struct Mod {
-    std::unique_ptr<Expression> left;
-    std::unique_ptr<Expression> right;
+    NodeResult left;
+    NodeResult right;
 };
 
 struct Exp {
-    std::unique_ptr<Expression> base;
-    std::unique_ptr<Expression> exponent;
+    NodeResult base;
+    NodeResult exponent;
 };
 
 struct Term {
@@ -58,32 +58,32 @@ struct Term {
 };
 
 struct FunctionCall {
-    std::unique_ptr<Expression> ident;
-    std::unique_ptr<Expression> args;
+    NodeResult ident;
+    NodeResult args;
 };
 
 struct FunctionCallArgList {
-    std::unique_ptr<Expression> value;
-    std::unique_ptr<Expression> next;
+    NodeResult value;
+    NodeResult next;
 };
 
 struct Declaration {
-    std::unique_ptr<Expression> type_ident;
-    std::unique_ptr<Expression> declared_ident;
+    NodeResult type_ident;
+    NodeResult declared_ident;
 };
 
 struct Assign {
-    std::unique_ptr<Expression> ident;
-    std::unique_ptr<Expression> value;
+    NodeResult ident;
+    NodeResult value;
 };
 
 struct StatementBlock {
-    std::unique_ptr<Expression> statements;
+    NodeResult statements;
 };
 
 struct Statements {
-    std::unique_ptr<Expression> value;
-    std::unique_ptr<Expression> next;
+    NodeResult value;
+    NodeResult next;
 };
 
 struct Expression {
@@ -115,7 +115,8 @@ inline std::unique_ptr<Expression> take_or_null(NodeResult&& r) {
 inline NodeResult make_negated(NodeResult inner) {
     if (inner.is_error()) return inner;
     assert(inner.is_just());
-    return inner.create_expr(std::make_unique<Expression>(Negated{std::move(*inner)}));
+    return NodeResult(NodeResult::Just{std::make_unique<Expression>
+        (Negated{std::move(inner)})}, inner.consumed, inner.rest);
 }
 
 inline std::unique_ptr<Expression> make_term_expr(const Token& t) {
@@ -139,35 +140,35 @@ inline NodeResult make_binary(const Token& t, NodeResult left, NodeResult right)
 
     assert(left.is_just()); assert(right.is_just());
 
-    auto make = [&](auto expr) { 
-        return right.create_expr(std::make_unique<Expression>(std::move(expr))); };
+    auto consumed = NodeResult::merge_consumed(left.consumed, right.consumed);
+
+    auto make = [&](auto expr) {
+        return NodeResult(NodeResult::Just{std::make_unique<Expression>(std::move(expr))}, consumed, right.rest);
+    };
 
     switch (t.type) {
-        case TokenType::ADD:      return make(Add{std::move(*left), std::move(*right)});
-        case TokenType::SUB:      return make(Sub{std::move(*left), std::move(*right)});
-        case TokenType::MULTIPLY: return make(Mult{std::move(*left), std::move(*right)});
-        case TokenType::DIVIDE:   return make(Div{std::move(*left), std::move(*right)});
-        case TokenType::EXPONENT: return make(Exp{std::move(*left), std::move(*right)});
+        case TokenType::ADD:      return make(Add{std::move(left), std::move(right)});
+        case TokenType::SUB:      return make(Sub{std::move(left), std::move(right)});
+        case TokenType::MULTIPLY: return make(Mult{std::move(left), std::move(right)});
+        case TokenType::DIVIDE:   return make(Div{std::move(left), std::move(right)});
+        case TokenType::EXPONENT: return make(Exp{std::move(left), std::move(right)});
         case TokenType::IDENTIFIER: {
-
             if (std::get<TokenIdentifier>(t.data).value == "mod")
-                return make(Mod{std::move(*left), std::move(*right)});
-
+                return make(Mod{std::move(left), std::move(right)});
             return NodeResult::nothing(right.rest);
         }
-
         default: return NodeResult::nothing(right.rest);
     }
-
 }
 
 template <typename T>
 inline NodeResult ensure_ll_node(NodeResult r) {
     if (!r.is_just()) return r;
-    auto expr = std::move(*r);
-    if (!std::holds_alternative<T>(expr->expression))
-        return r.create_expr(std::make_unique<Expression>(T{std::move(expr), nullptr}));
-    return r.create_expr(std::move(expr));
+    if (!std::holds_alternative<T>((*r)->expression)) {
+        return NodeResult(NodeResult::Just{std::make_unique<Expression>(
+            T{std::move(r), NodeResult::nothing()})}, r.consumed, r.rest);
+    }
+    return r;
 }
 
 template <typename T>
@@ -178,9 +179,10 @@ inline NodeResult create_foldr_ll(NodeResult l, NodeResult r) {
     if (l.is_nothing() || l.is_continue()) return r;
     if (r.is_nothing() || r.is_continue()) return l;
     assert(l.is_just());
-    return r.create_expr(std::make_unique<Expression>(
-        T{std::move(*l),
-          std::move(*ensure_ll_node<T>(std::move(r)))}));
+    auto ensured = ensure_ll_node<T>(std::move(r));
+    auto consumed = NodeResult::merge_consumed(l.consumed, ensured.consumed);
+    return NodeResult(NodeResult::Just{std::make_unique<Expression>(
+        T{std::move(l), std::move(ensured)})}, consumed, ensured.rest);
 }
 
 inline NodeResult make_func(NodeResult ident, NodeResult args) {
@@ -188,8 +190,9 @@ inline NodeResult make_func(NodeResult ident, NodeResult args) {
     if (args.is_error()) return args;
     assert(ident.is_just());
     auto wrapped = ensure_ll_node<FunctionCallArgList>(std::move(args));
-    return wrapped.create_expr(std::make_unique<Expression>(
-        FunctionCall{std::move(*ident), take_or_null(std::move(wrapped))}));
+    auto consumed = NodeResult::merge_consumed(ident.consumed, wrapped.consumed);
+    return NodeResult(NodeResult::Just{std::make_unique<Expression>(
+        FunctionCall{std::move(ident), std::move(wrapped)})}, consumed, wrapped.rest);
 }
 
 inline NodeResult make_func_args(NodeResult left, NodeResult right) {
@@ -200,27 +203,27 @@ inline NodeResult make_declaration(NodeResult type, NodeResult name) {
     if (type.is_error()) return type;
     if (name.is_error()) return name;
     assert(type.is_just());
-    return name.create_expr(std::make_unique<Expression>(
-        Declaration{std::move(*type), *make_term(std::move(name))}
-    ));
+    auto term = make_term(std::move(name));
+    auto consumed = NodeResult::merge_consumed(type.consumed, term.consumed);
+    return NodeResult(NodeResult::Just{std::make_unique<Expression>(
+        Declaration{std::move(type), std::move(term)})}, consumed, term.rest);
 }
 
 inline NodeResult make_assign(NodeResult name, NodeResult value) {
     if (name.is_error()) return name;
     if (value.is_error()) return value;
     assert(name.is_just()); assert(value.is_just());
-    return value.create_expr(std::make_unique<Expression>(
-        Assign{std::move(*name), std::move(*value)}
-    ));
+    auto consumed = NodeResult::merge_consumed(name.consumed, value.consumed);
+    return NodeResult(NodeResult::Just{std::make_unique<Expression>(
+        Assign{std::move(name), std::move(value)})}, consumed, value.rest);
 }
 
 inline NodeResult make_statement_block(NodeResult statements) {
     if (statements.is_error()) return statements;
     auto expr = ensure_ll_node<Statements>(std::move(statements));
     assert(expr.is_just());
-    return statements.create_expr(
-        std::make_unique<Expression>(StatementBlock{std::move(*expr)})
-    );
+    return NodeResult(NodeResult::Just{std::make_unique<Expression>(
+        StatementBlock{std::move(expr)})}, expr.consumed, expr.rest);
 }
 
 inline NodeResult make_statements(NodeResult left, NodeResult right) {

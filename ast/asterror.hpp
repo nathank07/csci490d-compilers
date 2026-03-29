@@ -9,7 +9,10 @@ enum class AstErrorType {
     EXPECTED_TOK,
     EXPECTED_IDENT,
     NO_NESTED_UNARIES,
-    COMMA_OR_RPAREN
+    COMMA_OR_RPAREN,
+    UNRECOGNIZED_IDENT,
+    UNRECOGNIZED_TYPE,
+    VAR_DEFINED
 };
 
 struct AstError {
@@ -37,6 +40,9 @@ struct AstError {
             case AstErrorType::EXPECTED_STATEMENT: err.pretty_print_bad_stmt(i, o); return;
             case AstErrorType::NO_NESTED_UNARIES: err.pretty_print_unsupported_unary(i, o); return;
             case AstErrorType::COMMA_OR_RPAREN: err.pretty_print_comma_or_rparen(i, o); return;
+            case AstErrorType::UNRECOGNIZED_IDENT: err.pretty_print_bad_ident(i, o); return;
+            case AstErrorType::UNRECOGNIZED_TYPE: err.pretty_print_bad_type(i, o); return;
+            case AstErrorType::VAR_DEFINED: err.pretty_print_var_defined(i, o); return;
             default: o << static_cast<int>(err.type); return;
         }
         o << std::endl;
@@ -150,4 +156,33 @@ private:
         pretty_print_arrow(col, o);
     }
 
+    void pretty_print_bad_ident(const Input& in, std::ostream& o) const {
+        auto term = error_toks.front();
+        auto col = term.column_number;
+        o << "Undeclared variable '" << term.get_token_literal() << "' at "
+          << term.line_number << ":" << term.column_number << "\n\n";
+
+        print_span_context(in, o, true);
+        pretty_print_arrow(col, o);
+    }
+
+    void pretty_print_bad_type(const Input& in, std::ostream& o) const {
+        auto term = error_toks.front();
+        auto col = term.column_number;
+        o << "Unrecognized type '" << term.get_token_literal() << "' at "
+          << term.line_number << ":" << term.column_number << "\n\n";
+
+        print_span_context(in, o, true);
+        pretty_print_arrow(col, o);
+    }
+
+    void pretty_print_var_defined(const Input& in, std::ostream& o) const {
+        auto term = error_toks.subspan(1).front();
+        auto col = term.column_number;
+        o << "Attempted to declare '" << term.get_token_literal() << "' at "
+          << term.line_number << ":" << term.column_number << ", but it is already defined.\n\n";
+
+        print_span_context(in, o, true);
+        pretty_print_arrow(col, o);
+    }
 };

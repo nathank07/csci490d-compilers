@@ -60,6 +60,10 @@ struct ParseResult {
         return !is_just();
     }
 
+    const T& operator* () const & {
+        return std::get<Just>(value).value;
+    }
+
     T& operator* () & {
         return std::get<Just>(value).value;
     }

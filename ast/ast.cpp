@@ -211,66 +211,66 @@ void AbstractSyntaxTree::print_tree(std::ostream& o, const std::unique_ptr<Expre
         },
         [&](const Negated& e) {
             o << "- (neg)\n";
-            print_tree(o, e.expression, indent + 2); 
+            print_tree(o, *e.expression, indent + 2);
         },
-        [&](const Add& v) { 
+        [&](const Add& v) {
             o << "+ (add)\n";
-            print_tree(o, v.left,  indent + 2);
-            print_tree(o, v.right, indent + 2);
+            print_tree(o, *v.left,  indent + 2);
+            print_tree(o, *v.right, indent + 2);
         },
-        [&](const Sub& v) { 
+        [&](const Sub& v) {
             o << "- (sub)\n";
-            print_tree(o, v.left, indent + 2);
-            print_tree(o, v.right, indent + 2);
+            print_tree(o, *v.left, indent + 2);
+            print_tree(o, *v.right, indent + 2);
         },
-        [&](const Mult& v) { 
+        [&](const Mult& v) {
             o << "* (mult)\n";
-            print_tree(o, v.left, indent + 2);
-            print_tree(o, v.right, indent + 2);
+            print_tree(o, *v.left, indent + 2);
+            print_tree(o, *v.right, indent + 2);
         },
-        [&](const Div& v) { 
+        [&](const Div& v) {
             o << "/ (div)\n";
-            print_tree(o, v.left, indent + 2);
-            print_tree(o, v.right, indent + 2);
+            print_tree(o, *v.left, indent + 2);
+            print_tree(o, *v.right, indent + 2);
         },
-        [&](const Mod& v) { 
+        [&](const Mod& v) {
             o << "mod \n";
-            print_tree(o, v.left, indent + 2);
-            print_tree(o, v.right, indent + 2);
+            print_tree(o, *v.left, indent + 2);
+            print_tree(o, *v.right, indent + 2);
         },
-        [&](const Exp& v) { 
+        [&](const Exp& v) {
             o << "^ (pow)\n";
-            print_tree(o, v.base, indent + 2);
-            print_tree(o, v.exponent, indent + 2);
+            print_tree(o, *v.base, indent + 2);
+            print_tree(o, *v.exponent, indent + 2);
         },
         [&](const FunctionCall& v) {
             o << "call\n";
-            print_tree(o, v.ident, indent + 2);
-            if (v.args) print_tree(o, v.args, indent + 2);
+            print_tree(o, *v.ident, indent + 2);
+            if (v.args) print_tree(o, *v.args, indent + 2);
         },
         [&](const FunctionCallArgList& v) {
             o << "arg\n";
-            print_tree(o, v.value, indent + 2);
-            if (v.next) print_tree(o, v.next, indent);
+            print_tree(o, *v.value, indent + 2);
+            if (v.next) print_tree(o, *v.next, indent);
         },
         [&](const Declaration& v) {
             o << "decl\n";
-            print_tree(o, v.type_ident, indent + 2);
-            print_tree(o, v.declared_ident, indent + 2);
+            print_tree(o, *v.type_ident, indent + 2);
+            print_tree(o, *v.declared_ident, indent + 2);
         },
         [&](const Assign& v) {
             o << "assigns\n";
-            print_tree(o, v.ident, indent + 2);
-            print_tree(o, v.value, indent + 2);
+            print_tree(o, *v.ident, indent + 2);
+            print_tree(o, *v.value, indent + 2);
         },
         [&](const StatementBlock& v) {
             o << "statement block\n";
-            print_tree(o, v.statements, indent + 2);
+            print_tree(o, *v.statements, indent + 2);
         },
         [&](const Statements& v) {
             o << "statement\n";
-            print_tree(o, v.value, indent + 2);
-            if (v.next) print_tree(o, v.next, indent);
+            print_tree(o, *v.value, indent + 2);
+            if (v.next) print_tree(o, *v.next, indent);
         }
     };
 
