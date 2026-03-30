@@ -157,7 +157,7 @@ private:
     }
 
     void pretty_print_bad_ident(const Input& in, std::ostream& o) const {
-        auto term = error_toks.front();
+        auto term = error_toks.back();
         auto col = term.column_number;
         o << "Undeclared variable '" << term.get_token_literal() << "' at "
           << term.line_number << ":" << term.column_number << "\n\n";
