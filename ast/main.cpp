@@ -30,10 +30,6 @@ int main(int argc, char** argv) {
             AbstractSyntaxTree::print_tree(std::cout, *node);
         } else if (node.is_error()) {
             AstError::pretty_print(node.error(), l->get_char_buff(), std::cout);
-        } else if (node.is_continue()) {
-            std::cout << "node is continue\n";
-        } else {
-            std::cout << "node is nothing\n";
         }
     }
 }

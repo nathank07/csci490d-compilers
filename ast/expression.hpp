@@ -55,6 +55,7 @@ struct Exp {
 
 struct Term {
     TermValue v;
+    Token tok;
 };
 
 struct FunctionCall {
@@ -121,10 +122,10 @@ inline NodeResult make_negated(NodeResult inner) {
 
 inline std::unique_ptr<Expression> make_term_expr(const Token& t) {
     switch (t.type) {
-        case TokenType::STRING:      return std::make_unique<Expression>(Term{TermValue{std::get<TokenString>(t.data).value}});
-        case TokenType::IDENTIFIER:  return std::make_unique<Expression>(Term{TermValue{std::get<TokenIdentifier>(t.data).value}});
-        case TokenType::REAL_NUMBER: return std::make_unique<Expression>(Term{TermValue{std::get<TokenReal>(t.data).value}});
-        case TokenType::INTEGER:     return std::make_unique<Expression>(Term{TermValue{std::get<TokenInteger>(t.data).value}});
+        case TokenType::STRING:      return std::make_unique<Expression>(Term{TermValue{std::get<TokenString>(t.data).value}, t});
+        case TokenType::IDENTIFIER:  return std::make_unique<Expression>(Term{TermValue{std::get<TokenIdentifier>(t.data).value}, t});
+        case TokenType::REAL_NUMBER: return std::make_unique<Expression>(Term{TermValue{std::get<TokenReal>(t.data).value}, t});
+        case TokenType::INTEGER:     return std::make_unique<Expression>(Term{TermValue{std::get<TokenInteger>(t.data).value}, t});
         default: __builtin_unreachable();
     }
 }

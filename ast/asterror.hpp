@@ -19,13 +19,18 @@ struct AstError {
     AstErrorType type;
     std::span<const Token> error_toks;
     std::variant<std::monostate, TokenType, std::string> expected = std::monostate{};
-    
+    std::optional<Token> subject = std::nullopt;
+
     static AstError create_error(AstErrorType err, std::span<const Token> toks) {
         return { err, toks };
     }
 
     static AstError create_error(AstErrorType err, std::span<const Token> toks, std::variant<std::monostate, TokenType, std::string> expected) {
         return { err, toks, expected };
+    }
+
+    static AstError create_error(AstErrorType err, std::span<const Token> toks, Token subject) {
+        return { err, toks, std::monostate{}, subject };
     }
 
     static void pretty_print(const AstError& err, const Input& i, std::ostream& o) {
@@ -139,7 +144,7 @@ private:
         o << "Expected \'" << Token::get_token_literal(std::get<TokenType>(expected)) << "\'"
           << " at " << expr_end.line_number << ":" << col << "\n\n";
 
-        print_span_context(in, o, false);
+        print_span_context(in, o, true);
         pretty_print_arrow(col, o);
     }
 
@@ -152,12 +157,12 @@ private:
         auto expr_end = error_toks.back();
         auto col = expr_end.get_token_width() + expr_end.column_number;
         o << "Expected ',' or ')' at " << expr_end.line_number << ":" << col << "\n\n";
-        print_span_context(in, o, false);
+        print_span_context(in, o, true);
         pretty_print_arrow(col, o);
     }
 
     void pretty_print_bad_ident(const Input& in, std::ostream& o) const {
-        auto term = error_toks.back();
+        auto term = subject.value_or(error_toks.back());
         auto col = term.column_number;
         o << "Undeclared variable '" << term.get_token_literal() << "' at "
           << term.line_number << ":" << term.column_number << "\n\n";
