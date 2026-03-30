@@ -49,7 +49,7 @@ private:
             [&](const std::monostate&) { },
             [&](const Term& t) {
                 if (!in_table(t.v, symbol_table)) {
-                    results.push_back(NodeResult::error(AstErrorType::UNRECOGNIZED_IDENT, just_value.consumed));
+                    results.push_back(NodeResult::error(AstErrorType::UNRECOGNIZED_IDENT, just_value.consumed, t.tok));
                 }
             },
             [&](const Negated& e) {
@@ -134,7 +134,9 @@ public:
                 std::get<NodeResult::Just>(r.value).value->expression);
         });
 
-        assert(rit != ast_results.rend());
+        if (rit == ast_results.rend()) {
+            return symbol_table;
+        }
 
         analyze(*rit, symbol_table, ast_results);
 
