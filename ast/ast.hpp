@@ -36,6 +36,5 @@ class AbstractSyntaxTree {
 public:
 
     static std::vector<NodeResult> create(const Lexer& lexer_result);
-    static std::vector<std::unique_ptr<Expression>> unwrap_valid_nodes(std::vector<NodeResult>& node_v);
     static void print_tree(std::ostream& o, const std::unique_ptr<Expression>& tree, std::size_t indent = 0);
 };

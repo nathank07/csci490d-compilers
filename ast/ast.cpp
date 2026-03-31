@@ -168,19 +168,6 @@ NodeResult AbstractSyntaxTree::parse_assigns(NodeResult ctx) {
         .then_expect_tok(TokenType::SEMICOLON);
 }
 
-
-std::vector<std::unique_ptr<Expression>> AbstractSyntaxTree::unwrap_valid_nodes(std::vector<NodeResult>& node_v) {
-    std::vector<std::unique_ptr<Expression>> expressions;
-
-    for (auto& node : node_v) {
-        if(!node.is_error())
-            expressions.push_back(std::move(*node));
-            
-    }
-
-    return expressions;
-}
-
 void AbstractSyntaxTree::print_tree(std::ostream& o, const std::unique_ptr<Expression>& tree, std::size_t indent) {
     if (!tree) 
         return;

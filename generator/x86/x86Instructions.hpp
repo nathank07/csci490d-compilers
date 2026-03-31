@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <functional>
 #include <limits>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -120,6 +121,25 @@ private:
         return get_rm_byte(rm, static_cast<OpcodeExtension>(r));
     }
 
+    static uint8_t get_rm_byte(Register r, OpcodeExtension ext, uint32_t offset) {
+        uint8_t mod;
+
+        if (offset == 0) {
+            mod = 0x0;
+        } else if (std::in_range<uint8_t>(offset)) {
+            mod = 0x40;
+        } else {
+            mod = 0x80;
+        }
+
+        return static_cast<uint8_t>(mod | ((static_cast<uint8_t>(r) & 0x7) | 
+               static_cast<uint8_t>(ext) << 3));
+    }
+
+    static uint8_t get_rm_byte(Register rm, Register r, uint32_t offset) {
+        return get_rm_byte(rm, static_cast<OpcodeExtension>(r), offset);
+    }
+
     template <typename... Args>
     static Instruction create_instr(std::string emit, Args&&... args) {
         return {emit, sizeof...(args), [=](auto* prog, auto& ptr) {
@@ -188,6 +208,37 @@ private:
         return compose(
             write_rex_prefix(r, ext, is_64),
             create_instr(emit, op_hex, byte)
+        );
+    }
+
+    static Instruction rm(std::string opcode, Register r, OpcodeExtension ext, uint8_t op_hex, int32_t offset, bool is_64 = false) {
+        auto emit = opcode + " [" + get_register(r) + " + " + std::to_string(offset) + "]\n";
+        auto byte = get_rm_byte(r, ext, offset);
+
+        auto write = [](int32_t& offset) {
+
+            if (offset == 0) {
+                return compose();
+            }
+            
+            if (std::in_range<uint8_t>(offset)) {
+                return create_instr("", offset);
+            } 
+
+            return write_32(offset);
+        };
+
+        if (r < Register::R8 && !is_64) {
+            return compose(
+                create_instr(emit, op_hex, byte),
+                write(offset)
+            );
+        }
+
+        return compose(
+            write_rex_prefix(r, ext, is_64),
+            create_instr(emit, op_hex, byte),
+            write(offset)
         );
     }
 
@@ -277,6 +328,8 @@ public:
         return rm_i("ADD", r, OpcodeExtension::Zero,  0x83, 0x81, v); }
     static Instruction sub(Register r, int32_t v) { 
         return rm_i("SUB", r, OpcodeExtension::Five,  0x83, 0x81, v); }
+    static Instruction sub64(Register r, int32_t v) { 
+        return rm_i("SUB", r, OpcodeExtension::Five,  0x83, 0x81, v, true); }
     
     static Instruction mov(Register r, int32_t v) {
         return rm_i32("MOV", r, OpcodeExtension::Zero,  0xC7, v); }
@@ -287,8 +340,11 @@ public:
     static Instruction add(Register r1, Register r2) { return rm_r("ADD", r1, r2, 0x01); }
     static Instruction sub(Register r1, Register r2) { return rm_r("SUB", r1, r2, 0x29); }
     static Instruction mov(Register r1, Register r2) { return rm_r("MOV", r1, r2, 0x89); }
+    static Instruction mov64(Register r1, Register r2) { return rm_r("MOV", r1, r2, 0x89, true); }
     static Instruction test(Register r1, Register r2) { return rm_r("TEST", r1, r2, 0x85); }
     static Instruction _xor(Register r1, Register r2) { return rm_r("XOR", r1, r2, 0x31); }
+
+    static Instruction pop(Register r, int32_t offset) { return rm("POP", r, OpcodeExtension::Zero, 0x8F, offset); }
 
     // End x86 instructions
 

@@ -92,6 +92,13 @@ struct x86Prog {
             x86::push(x86::Register::EAX)
         );
     }
+
+    void pop_last_into_bp(int32_t offset) {
+        prog_fn = x86::compose(
+            std::move(prog_fn),
+            x86::pop(x86::Register::EBP, offset)
+        );
+    }
     
     static long long run_prog(const x86Prog& p, int max_size = 50000) {
         return run_prog_bytes(p, max_size).first;

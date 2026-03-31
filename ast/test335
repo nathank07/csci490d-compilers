@@ -1,0 +1,6 @@
+# Error checking -- multiple declarations
+
+
+int4 f;
+f(1, 2, 3, f, 
+    );

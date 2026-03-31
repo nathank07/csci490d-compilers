@@ -61,21 +61,30 @@ struct Term {
 struct FunctionCall {
     NodeResult ident;
     NodeResult args;
+
+    std::string_view get_ident();
+    uint8_t arg_count();
 };
 
 struct FunctionCallArgList {
     NodeResult value;
     NodeResult next;
+
+    uint8_t length();
 };
 
 struct Declaration {
     NodeResult type_ident;
     NodeResult declared_ident;
+
+    std::string_view get_declared_ident();
 };
 
 struct Assign {
     NodeResult ident;
     NodeResult value;
+
+    std::string_view get_ident();
 };
 
 struct StatementBlock {
@@ -107,6 +116,32 @@ struct Expression {
     > expression;
 };
 
+inline std::string_view Declaration::get_declared_ident() {
+    return std::get<std::string>(std::get<Term>((*declared_ident)->expression).v);
+}
+
+inline std::string_view Assign::get_ident() {
+    return std::get<std::string>(std::get<Term>((*ident)->expression).v);
+}
+
+inline std::string_view FunctionCall::get_ident() {
+    return std::get<std::string>(std::get<Term>((*ident)->expression).v);
+}
+
+inline uint8_t FunctionCallArgList::length() {
+    if (next) { 
+        return 1 + std::get<FunctionCallArgList>((*next)->expression).length(); 
+    }
+
+    return 1;
+}
+
+inline uint8_t FunctionCall::arg_count() {
+    if (args) {
+        return std::get<FunctionCallArgList>((*args)->expression).length();
+    }
+    return 0;
+}
 
 inline std::unique_ptr<Expression> take_or_null(NodeResult&& r) {
     if (r.is_just()) return std::move(*r);

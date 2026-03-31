@@ -118,7 +118,7 @@ private:
         auto col = expr_end.column_number;
 
         print_span_context(in, o, true);
-        o << "\nExpected expression while reading statement, read '" 
+        o << "\nExpected expression, read '" 
           << expr_end.get_token_literal() << "' ("  
           << expr_end.line_number << ":" << col << ")\n\n";
     }
@@ -164,7 +164,7 @@ private:
     void pretty_print_bad_ident(const Input& in, std::ostream& o) const {
         auto term = subject.value_or(error_toks.back());
         auto col = term.column_number;
-        o << "Undeclared variable '" << term.get_token_literal() << "' at "
+        o << "Undeclared variable used '" << term.get_token_literal() << "' at "
           << term.line_number << ":" << term.column_number << "\n\n";
 
         print_span_context(in, o, true);
@@ -175,7 +175,7 @@ private:
         auto term = error_toks.front();
         auto col = term.column_number;
         o << "Unrecognized type '" << term.get_token_literal() << "' at "
-          << term.line_number << ":" << term.column_number << "\n\n";
+          << term.line_number << ":" << term.column_number << ", ignoring declaration.\n\n";
 
         print_span_context(in, o, true);
         pretty_print_arrow(col, o);
@@ -184,8 +184,9 @@ private:
     void pretty_print_var_defined(const Input& in, std::ostream& o) const {
         auto term = error_toks.subspan(1).front();
         auto col = term.column_number;
-        o << "Attempted to declare '" << term.get_token_literal() << "' at "
-          << term.line_number << ":" << term.column_number << ", but it is already defined.\n\n";
+        o << "Warning: Attempted to declare '" << term.get_token_literal() << "' at "
+          << term.line_number << ":" << term.column_number << ", but it is already defined" 
+          << "in this scope. Ignoring declaration.\n\n";
 
         print_span_context(in, o, true);
         pretty_print_arrow(col, o);
