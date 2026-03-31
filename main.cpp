@@ -18,20 +18,19 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    auto nodes = std::move(AbstractSyntaxTree::create(std::move(*l)));
-
+    auto nodes = AbstractSyntaxTree::create(std::move(*l));
+    auto table = Analyzer::analyze(nodes);
+    
     for (auto& node : nodes) {
         if (node.is_error()) {
             AstError::pretty_print(node.error(), l->get_char_buff(), std::cout);
         }
     }
 
-    auto table = Analyzer::analyze(nodes);
-
-    if (table.node_loc != nodes.rend()) {
+    if (table.node_idx) {
         std::cout << "Code tree:\n";
-        AbstractSyntaxTree::print_tree(std::cout, **table.node_loc);
-        auto prog = x86Generator::generate(std::move(*table.node_loc), table.table);
+        AbstractSyntaxTree::print_tree(std::cout, *nodes[*table.node_idx]);
+        auto prog = x86Generator::generate(std::move(nodes[*table.node_idx]), table.table);
         std::cout << "Emitted instructions: \n";
         x86Prog::emit_prog(prog, std::cout);
         auto res = x86Prog::run_prog_bytes(prog);

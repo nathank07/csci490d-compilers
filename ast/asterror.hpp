@@ -164,7 +164,7 @@ private:
     void pretty_print_bad_ident(const Input& in, std::ostream& o) const {
         auto term = subject.value_or(error_toks.back());
         auto col = term.column_number;
-        o << "Undeclared variable used '" << term.get_token_literal() << "' at "
+        o << "Undeclared variable '" << term.get_token_literal() << "' used at "
           << term.line_number << ":" << term.column_number << "\n\n";
 
         print_span_context(in, o, true);

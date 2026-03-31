@@ -36,7 +36,7 @@ struct Analyzer {
 
 struct SymbolTable {
     std::unordered_map<std::string, TypedVar> table;
-    std::vector<NodeResult>::reverse_iterator node_loc;
+    std::optional<std::size_t> node_idx;
 };
 
 using ExprPtr = std::unique_ptr<Expression>;
@@ -132,18 +132,20 @@ public:
             // TODO: Give print and read real type checking
             {"print", Function{{}, {}, Type::Void}},
             {"read", Function{{}, {}, Type::Void}}
-        },
-        std::find_if(ast_results.rbegin(), ast_results.rend(), [](const NodeResult& r) {
+        }, std::nullopt};
+        
+        auto rit = std::find_if(ast_results.rbegin(), ast_results.rend(), [](const NodeResult& r) {
             return r.is_just() && std::holds_alternative<StatementBlock>(
                 std::get<NodeResult::Just>(r.value).value->expression);
-        })};
-        
+        });
 
-        if (symbol_table.node_loc == ast_results.rend()) {
+        if (rit == ast_results.rend()) {
             return symbol_table;
         }
 
-        analyze(*symbol_table.node_loc, symbol_table, ast_results);
+        symbol_table.node_idx = rit.base() - ast_results.begin() - 1;
+
+        analyze(*rit, symbol_table, ast_results);
 
         return symbol_table;
     }
