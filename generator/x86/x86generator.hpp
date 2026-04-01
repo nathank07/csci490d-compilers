@@ -83,9 +83,16 @@ private:
                 results = {{Type::Int4}};
             },
             [&](FunctionCall& v) {
-                auto arg_types = eval(p, std::move(*v.args), vars);
+
+                if (v.get_ident() == "read" && v.args.is_just()) {
+                    auto& arg_list = std::get<FunctionCallArgList>((*v.args)->expression);
+                    auto ident = std::get<Term>((*arg_list.value)->expression).tok.get_token_literal();
+                    p.read_var_eax();
+                    p.assign_var(vars.get(ident));
+                }
 
                 if (v.get_ident() == "print") {
+                    auto arg_types = eval(p, std::move(*v.args), vars);
                     for (auto& res : arg_types) {
                         switch (res.type) {
                             case Type::Int4: p.print_num(); break;
@@ -105,7 +112,7 @@ private:
             [&](Declaration& v) {},
             [&](Assign& v) {
                 eval(p, std::move(*v.value), vars);
-                p.load_var(vars.get(v.get_ident()));
+                p.assign_var(vars.get(v.get_ident()));
             },
             [&](StatementBlock& v) {
                 eval(p, std::move(*v.statements), vars);

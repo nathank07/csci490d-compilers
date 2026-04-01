@@ -93,10 +93,18 @@ struct x86Prog {
         );
     }
 
-    void load_var(int32_t symbol_table_bp_offset) {
+    void assign_var(int32_t symbol_table_bp_offset) {
         prog_fn = x86::compose(
             std::move(prog_fn),
             x86::pop(x86::Register::EBP, symbol_table_bp_offset)
+        );
+    }
+
+    void read_var_eax() {
+        prog_fn = x86::compose(
+            std::move(prog_fn),
+            x86::read_int4(x86::Register::EAX),
+            x86::push(x86::Register::EAX)
         );
     }
 

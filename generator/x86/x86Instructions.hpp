@@ -420,6 +420,12 @@ private:
         std::cout << v;
     }
     
+    static int32_t __read_int() {
+        int32_t v;
+        std::cin >> v;
+        return v;
+    }
+
 public:
 
     static Instruction print_num_literal(Register r) {
@@ -439,6 +445,23 @@ public:
             mov64(Register::ESI, reinterpret_cast<uint64_t>(__print<char *>)),
             mov64(Register::EDI, r),
             call(Register::ESI)
+        );
+    }
+
+    static Instruction read_int4(Register r) {
+        assert(r != Register::ESI);
+
+        auto call_read = compose(
+            mov64(Register::ESI, reinterpret_cast<uint64_t>(__read_int)),
+            call(Register::ESI)
+        );
+
+        if (r == Register::EAX)
+            return call_read;
+
+        return compose(
+            std::move(call_read),
+            mov(r, Register::EAX)
         );
     }
 

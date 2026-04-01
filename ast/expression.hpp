@@ -69,8 +69,6 @@ struct FunctionCall {
 struct FunctionCallArgList {
     NodeResult value;
     NodeResult next;
-
-    uint8_t length();
 };
 
 struct Declaration {
@@ -126,21 +124,6 @@ inline std::string_view Assign::get_ident() {
 
 inline std::string_view FunctionCall::get_ident() {
     return std::get<std::string>(std::get<Term>((*ident)->expression).v);
-}
-
-inline uint8_t FunctionCallArgList::length() {
-    if (next) { 
-        return 1 + std::get<FunctionCallArgList>((*next)->expression).length(); 
-    }
-
-    return 1;
-}
-
-inline uint8_t FunctionCall::arg_count() {
-    if (args) {
-        return std::get<FunctionCallArgList>((*args)->expression).length();
-    }
-    return 0;
 }
 
 inline std::unique_ptr<Expression> take_or_null(NodeResult&& r) {
