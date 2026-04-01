@@ -185,7 +185,7 @@ private:
         auto term = error_toks.subspan(1).front();
         auto col = term.column_number;
         o << "Warning: Attempted to declare '" << term.get_token_literal() << "' at "
-          << term.line_number << ":" << term.column_number << ", but it is already defined" 
+          << term.line_number << ":" << term.column_number << ", but it is already defined " 
           << "in this scope. Ignoring declaration.\n\n";
 
         print_span_context(in, o, true);

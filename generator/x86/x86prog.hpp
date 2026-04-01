@@ -56,7 +56,7 @@ struct x86Prog {
             std::move(prog_fn),
             x86::pop(x86::Register::ECX),
             x86::pop(x86::Register::EAX),
-            x86::imul(x86::Register::EAX),
+            x86::imul(x86::Register::ECX),
             x86::push(x86::Register::EAX)
         );
     }
@@ -93,11 +93,76 @@ struct x86Prog {
         );
     }
 
-    void pop_last_into_bp(int32_t offset) {
+    void load_var(int32_t symbol_table_bp_offset) {
         prog_fn = x86::compose(
             std::move(prog_fn),
-            x86::pop(x86::Register::EBP, offset)
+            x86::pop(x86::Register::EBP, symbol_table_bp_offset)
         );
+    }
+
+    void push_var(int32_t symbol_table_bp_offset) {
+        prog_fn = x86::compose(
+            std::move(prog_fn),
+            x86::push(x86::Register::EBP, symbol_table_bp_offset)
+        );
+    }
+
+    void print_num() {
+        prog_fn = x86::compose(
+            std::move(prog_fn),
+            x86::pop64(x86::Register::EAX),
+            x86::print_num_literal(x86::Register::EAX)
+        );
+    }
+
+    uint64_t push_string(std::u8string str) {
+
+        x86::Instruction str_data;
+        str += '\0';
+        while (str.size() % 8 != 0) str += '\0';
+
+        for (std::size_t i = str.size(); i >= 8; i -= 8) {
+            uint64_t v = 0;
+            for (std::size_t j = 0; j < 8; j++) {
+                v |= static_cast<uint64_t>(str[(i - 8) + j]) << (j * 8);
+            }
+            str_data = x86::compose(
+                std::move(str_data),
+                x86::mov64(x86::Register::EAX, v),
+                x86::push64(x86::Register::EAX)
+            );
+        }
+        
+        prog_fn = x86::compose(
+            std::move(prog_fn),
+            std::move(str_data),
+            x86::push64(x86::Register::ESP)
+        );
+
+        return str.size() / 8;
+    }
+
+    void print_str(uint64_t last_str_size) {
+
+        x86::Instruction pops;
+
+        for (uint64_t i = 0; i < last_str_size; i++) {
+            pops = x86::compose(
+                pops,
+                x86::pop64(x86::Register::EAX)
+            );
+        }
+
+        prog_fn = x86::compose(
+            std::move(prog_fn),
+            x86::pop64(x86::Register::EAX),
+            x86::print_char_addr(x86::Register::EAX),
+            std::move(pops)
+        );
+    }
+
+    uint32_t get_jmp_size() {
+        return x86::jmp32(0).byte_size;
     }
     
     static long long run_prog(const x86Prog& p, int max_size = 50000) {

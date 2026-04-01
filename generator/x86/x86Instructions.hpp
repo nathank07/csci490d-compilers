@@ -1,11 +1,14 @@
 #pragma once
 #include "../baseInstruction.hpp"
+#include <cassert>
 #include <cstdint>
+#include <cstdlib>
 #include <functional>
 #include <limits>
 #include <optional>
 #include <string>
 #include <utility>
+#include <iostream>
 
 struct x86 : InstructionControl<x86> {
 
@@ -168,6 +171,13 @@ private:
         );
     }
 
+    static Instruction write_64(uint64_t addr) {
+        return compose(
+            write_32(static_cast<uint32_t>(addr)),
+            write_32(static_cast<uint32_t>(addr >> 32))
+        );
+    }
+
     static Instruction jcc(std::string opcode, int32_t addr, uint8_t short_op_hex) {
         auto emit = opcode + " " + std::to_string(addr) + "\n";
 
@@ -196,6 +206,16 @@ private:
             write_32(static_cast<uint32_t>(v))
         );
     }
+
+    static Instruction i(std::string opcode, int32_t v, uint8_t long_op_hex) {
+        auto emit = opcode + " " + std::to_string(v) + "\n";
+
+        return compose(
+            create_instr(emit, long_op_hex),
+            write_32(static_cast<uint32_t>(v))
+        );
+    }
+
 
     static Instruction rm(std::string opcode, Register r, OpcodeExtension ext, uint8_t op_hex, bool is_64 = false) {
         auto emit = opcode + " " + get_register(r) + "\n";
@@ -283,7 +303,7 @@ private:
     }
 
     static Instruction r_plus_rm(std::string opcode, Register r, OpcodeExtension ext, uint8_t op_hex) {
-        return rm(opcode, r, ext, op_hex + static_cast<uint8_t>(r));
+        return rm(opcode, r, ext, (op_hex + static_cast<uint8_t>(r) & 0x7));
     }
 
     // End utils
@@ -309,23 +329,38 @@ public:
         );
     }
 
+    static Instruction mov64(Register r, uint64_t v) {
+        auto emit = "MOV " + get_register(r) + ", " + std::to_string(v) + "\n";
+        return compose(
+            write_rex_prefix(r, OpcodeExtension::Zero, true),
+            create_instr(emit, 0xB8 + (static_cast<uint8_t>(r) & 0x7)),
+            write_64(v)
+        );
+    }
+
     static Instruction push(int32_t v) { return i("PUSH", v, 0x6A, 0x68); }
     static Instruction jmp(int32_t addr) { return i("JMP", addr, 0xEB, 0xE9); }
+    static Instruction jmp32(int32_t addr) { return i("JMP", addr, 0xE9); }
 
 
     static Instruction inc(Register r) { return rm("INC", r, OpcodeExtension::Zero, 0xFF); }
     static Instruction neg(Register r) { return rm("NEG", r, OpcodeExtension::Three, 0xF7); }
     static Instruction pop(Register r) { return rm("POP", r, OpcodeExtension::Zero, 0x8F); }
+    static Instruction pop64(Register r) { return rm("POP", r, OpcodeExtension::Zero, 0x8F, true); }
     static Instruction push(Register r) { return rm("PUSH", r, OpcodeExtension::Six, 0xFF); }
+    static Instruction push64(Register r) { return rm("PUSH", r, OpcodeExtension::Six, 0xFF, true); }
     static Instruction imul(Register r) { return rm("IMUL", r, OpcodeExtension::Five, 0xF7); }
     static Instruction idiv(Register r) { return rm("IDIV", r, OpcodeExtension::Seven, 0xF7); }
     static Instruction sar1(Register r) { return rm("SAR [, 1]", r, OpcodeExtension::Seven, 0xD1); }
+    static Instruction call(Register r) { return rm("CALL", r, OpcodeExtension::Two, 0xFF, true); }
 
 
     static Instruction cmp(Register r, int32_t v) { 
         return rm_i("CMP", r, OpcodeExtension::Seven, 0x83, 0x81, v); }
     static Instruction add(Register r, int32_t v) { 
         return rm_i("ADD", r, OpcodeExtension::Zero,  0x83, 0x81, v); }
+    static Instruction add64(Register r, int32_t v) { 
+        return rm_i("ADD", r, OpcodeExtension::Zero,  0x83, 0x81, v, true); }
     static Instruction sub(Register r, int32_t v) { 
         return rm_i("SUB", r, OpcodeExtension::Five,  0x83, 0x81, v); }
     static Instruction sub64(Register r, int32_t v) { 
@@ -345,6 +380,7 @@ public:
     static Instruction _xor(Register r1, Register r2) { return rm_r("XOR", r1, r2, 0x31); }
 
     static Instruction pop(Register r, int32_t offset) { return rm("POP", r, OpcodeExtension::Zero, 0x8F, offset); }
+    static Instruction push(Register r, int32_t offset) { return rm("PUSH", r, OpcodeExtension::Six, 0xFF, offset); }
 
     // End x86 instructions
 
@@ -376,6 +412,35 @@ public:
             pop(base)
         );
     };
+
+private:
+
+    template <typename T>
+    static void __print(T v) {
+        std::cout << v;
+    }
+    
+public:
+
+    static Instruction print_num_literal(Register r) {
+        assert(r != Register::ESI);
+
+        return compose(
+            mov64(Register::ESI, reinterpret_cast<uint64_t>(__print<int64_t>)),
+            mov64(Register::EDI, r),
+            call(Register::ESI)
+        );
+    }
+
+    static Instruction print_char_addr(Register r) {
+        assert(r != Register::ESI);
+
+        return compose(
+            mov64(Register::ESI, reinterpret_cast<uint64_t>(__print<char *>)),
+            mov64(Register::EDI, r),
+            call(Register::ESI)
+        );
+    }
 
     // End psuedo instructions
 };

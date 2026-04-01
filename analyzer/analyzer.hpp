@@ -14,7 +14,7 @@ struct Int4;
 struct Function;
 
 enum class Type {
-    Int4, Void
+    Int4, StringConstant, Void
 };
 
 using TypedVar = 
