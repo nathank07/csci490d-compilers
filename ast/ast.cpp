@@ -81,10 +81,13 @@ NodeResult AbstractSyntaxTree::parse_unary(NodeResult ctx) {
     
     return NodeResult::init(ctx.rest)
         .want_tok(TokenType::SUB)
-            .then_parse(parse_no_nest)
-            .then_parse(make_negated)
-        .or_want_tok(TokenType::ADD)
-            .then_parse(parse_no_nest)
+        .then_parse(parse_no_nest)
+        .then_parse(make_negated)
+        .or_try_parse([parse_no_nest, parse_expr](auto&& c) {
+            return NodeResult::init(c.rest)
+                .want_tok(TokenType::ADD)
+                .then_parse(parse_no_nest);
+        })
         .or_try_parse(parse_expr);
 }
 
