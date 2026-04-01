@@ -160,10 +160,6 @@ struct x86Prog {
             std::move(pops)
         );
     }
-
-    uint32_t get_jmp_size() {
-        return x86::jmp32(0).byte_size;
-    }
     
     static long long run_prog(const x86Prog& p, int max_size = 50000) {
         return run_prog_bytes(p, max_size).first;

@@ -303,7 +303,7 @@ private:
     }
 
     static Instruction r_plus_rm(std::string opcode, Register r, OpcodeExtension ext, uint8_t op_hex) {
-        return rm(opcode, r, ext, (op_hex + static_cast<uint8_t>(r) & 0x7));
+        return rm(opcode, r, ext, (op_hex + static_cast<uint8_t>(r)) & 0x7);
     }
 
     // End utils
@@ -426,7 +426,7 @@ public:
         assert(r != Register::ESI);
 
         return compose(
-            mov64(Register::ESI, reinterpret_cast<uint64_t>(__print<int64_t>)),
+            mov64(Register::ESI, reinterpret_cast<uint64_t>(__print<int32_t>)),
             mov64(Register::EDI, r),
             call(Register::ESI)
         );
