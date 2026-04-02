@@ -31,11 +31,13 @@ int main(int argc, char** argv) {
         std::cout << "Code tree:\n";
         AbstractSyntaxTree::print_tree(std::cout, *nodes[*table.node_idx]);
         auto prog = x86Generator::generate(std::move(nodes[*table.node_idx]), table.table);
-        // std::cout << "Emitted instructions: \n";
-        // x86Prog::emit_prog(prog, std::cout);
-        auto res = x86Prog::run_prog_bytes(prog);
-        std::cout << "Code size: " << res.second << " bytes.\n"
-                  << "Code execution:\n" << res.first << "\n\n";
+        std::cout << "Emitted instructions: \n";
+        x86Prog::emit_prog(prog, std::cout);
+        
+        std::cout << "Code size: " << prog.size() << " bytes.\n"
+                  << "Code execution:\n";
+
+        x86Prog::run_prog(prog);
         
     }
 }

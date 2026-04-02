@@ -216,8 +216,7 @@ private:
         );
     }
 
-
-    static Instruction rm(std::string opcode, Register r, OpcodeExtension ext, uint8_t op_hex, bool is_64 = false) {
+    static Instruction rm(std::string opcode, Register r, OpcodeExtension ext, uint8_t op_hex, bool is_64 = true) {
         auto emit = opcode + " " + get_register(r) + "\n";
         auto byte = get_rm_byte(r, ext);
 
@@ -231,21 +230,21 @@ private:
         );
     }
 
-    static Instruction rm(std::string opcode, Register r, OpcodeExtension ext, uint8_t op_hex, int32_t offset, bool is_64 = false) {
+    static Instruction rm(std::string opcode, Register r, OpcodeExtension ext, uint8_t op_hex, int32_t offset, bool is_64 = true) {
         auto emit = opcode + " [" + get_register(r) + " + " + std::to_string(offset) + "]\n";
         auto byte = get_rm_byte(r, ext, offset);
 
-        auto write = [](int32_t& offset) {
+        auto write = [](int32_t& off) {
 
-            if (offset == 0) {
+            if (off == 0) {
                 return compose();
             }
-            
-            if (std::in_range<uint8_t>(offset)) {
-                return create_instr("", offset);
-            } 
 
-            return write_32(offset);
+            if (std::in_range<uint8_t>(off)) {
+                return create_instr("", off);
+            }
+
+            return write_32(off);
         };
 
         if (r < Register::R8 && !is_64) {
@@ -262,7 +261,7 @@ private:
         );
     }
 
-    static Instruction rm_r(std::string opcode, Register rm, Register r, uint8_t op_hex, bool is_64 = false) {
+    static Instruction rm_r(std::string opcode, Register rm, Register r, uint8_t op_hex, bool is_64 = true) {
         auto emit = opcode + " " + get_register(rm) + ", " + get_register(r) + "\n";
         auto byte = get_rm_byte(rm, r);
 
@@ -276,13 +275,13 @@ private:
         );
     }
 
-    static Instruction r_rm(std::string opcode, Register r, Register rm, uint8_t op_hex, bool is_64 = false) {
+    static Instruction r_rm(std::string opcode, Register r, Register rm, uint8_t op_hex, bool is_64 = true) {
         auto instr = rm_r(opcode, rm, r, op_hex, is_64);
         instr.emitted_content = opcode + " " + get_register(r) + ", " + get_register(rm) + "\n";
         return instr;
     }
 
-    static Instruction rm_i(std::string opcode, Register r, OpcodeExtension ext, uint8_t short_op_hex, uint8_t long_op_hex, uint32_t v, bool is_64 = false) {        
+    static Instruction rm_i(std::string opcode, Register r, OpcodeExtension ext, uint8_t short_op_hex, uint8_t long_op_hex, uint32_t v, bool is_64 = true) {        
         if (std::in_range<int8_t>(v)) {
             return compose(
                 rm(opcode + " [, " + std::to_string(v) + "]", r, ext, short_op_hex, is_64),
@@ -293,12 +292,21 @@ private:
         return rm_i32(opcode, r, ext, long_op_hex, v, is_64);
     }
 
-    static Instruction rm_i32(std::string opcode, Register r, OpcodeExtension ext, uint8_t op_hex, uint32_t v, bool is_64 = false) {
+    static Instruction rm_i32(std::string opcode, Register r, OpcodeExtension ext, uint8_t op_hex, uint32_t v, bool is_64 = true) {
         opcode = opcode + " [, " + std::to_string(v) + "]";
         
         return compose(
             rm(opcode, r, ext, op_hex, is_64),
             write_32(v)
+        );
+    }
+
+    static Instruction rm_i64(std::string opcode, Register r, OpcodeExtension ext, uint8_t op_hex, uint32_t v, bool is_64 = true) {
+        opcode = opcode + " [, " + std::to_string(v) + "]";
+        
+        return compose(
+            rm(opcode, r, ext, op_hex, is_64),
+            write_64(v)
         );
     }
 
@@ -325,17 +333,38 @@ public:
     static Instruction imul(Register r1, Register r2) {
         return compose(
             create_instr("IMUL", 0x0F),
-            r_rm("", r1, r2, 0xAF)
+            r_rm("", r1, r2, 0xAF, false)
         );
     }
 
-    static Instruction mov64(Register r, uint64_t v) {
+    static Instruction mov_64(Register r, uint64_t v) {
         auto emit = "MOV " + get_register(r) + ", " + std::to_string(v) + "\n";
         return compose(
             write_rex_prefix(r, OpcodeExtension::Zero, true),
             create_instr(emit, 0xB8 + (static_cast<uint8_t>(r) & 0x7)),
             write_64(v)
         );
+    }
+
+    static Instruction mov_memr_32(Register src, Register mem_addr, int32_t offset) {
+        auto instr = rm("MOV", mem_addr, static_cast<OpcodeExtension>(src), 0x8B, offset);
+        instr.emitted_content = "MOV " + get_register(src) + ", [" + get_register(mem_addr) + " + " + std::to_string(offset) + "]\n";
+        return instr;
+    }
+
+    static Instruction mov_rmem_64(Register mem_addr, Register src, int32_t offset) {
+        auto instr = rm("MOV", mem_addr, static_cast<OpcodeExtension>(src), 0x89, offset);
+        instr.emitted_content = "MOV [" + get_register(mem_addr) + " + " + std::to_string(offset) + "], " + get_register(src) + "\n";
+        return instr;
+    }
+
+    static Instruction mov_mem_32(Register r, int32_t imm, int32_t offset) {
+        auto instr = compose(
+            rm("MOV", r, OpcodeExtension::Zero, 0xC7, offset),
+            write_32(static_cast<uint32_t>(imm))
+        );
+        instr.emitted_content = "MOV [" + get_register(r) + " + " + std::to_string(offset) + "], " + std::to_string(imm) + "\n";
+        return instr;
     }
 
     static Instruction push(int32_t v) { return i("PUSH", v, 0x6A, 0x68); }
@@ -346,28 +375,19 @@ public:
     static Instruction inc(Register r) { return rm("INC", r, OpcodeExtension::Zero, 0xFF); }
     static Instruction neg(Register r) { return rm("NEG", r, OpcodeExtension::Three, 0xF7); }
     static Instruction pop(Register r) { return rm("POP", r, OpcodeExtension::Zero, 0x8F); }
-    static Instruction pop64(Register r) { return rm("POP", r, OpcodeExtension::Zero, 0x8F, true); }
     static Instruction push(Register r) { return rm("PUSH", r, OpcodeExtension::Six, 0xFF); }
-    static Instruction push64(Register r) { return rm("PUSH", r, OpcodeExtension::Six, 0xFF, true); }
     static Instruction imul(Register r) { return rm("IMUL", r, OpcodeExtension::Five, 0xF7); }
     static Instruction idiv(Register r) { return rm("IDIV", r, OpcodeExtension::Seven, 0xF7); }
     static Instruction sar1(Register r) { return rm("SAR [, 1]", r, OpcodeExtension::Seven, 0xD1); }
     static Instruction call(Register r) { return rm("CALL", r, OpcodeExtension::Two, 0xFF, true); }
 
-
-    static Instruction cmp(Register r, int32_t v) { 
+    static Instruction cmp(Register r, int32_t v) {
         return rm_i("CMP", r, OpcodeExtension::Seven, 0x83, 0x81, v); }
     static Instruction add(Register r, int32_t v) { 
         return rm_i("ADD", r, OpcodeExtension::Zero,  0x83, 0x81, v); }
-    static Instruction add64(Register r, int32_t v) { 
-        return rm_i("ADD", r, OpcodeExtension::Zero,  0x83, 0x81, v, true); }
     static Instruction sub(Register r, int32_t v) { 
         return rm_i("SUB", r, OpcodeExtension::Five,  0x83, 0x81, v); }
-    static Instruction sub64(Register r, int32_t v) { 
-        return rm_i("SUB", r, OpcodeExtension::Five,  0x83, 0x81, v, true); }
     
-    static Instruction mov(Register r, int32_t v) {
-        return rm_i32("MOV", r, OpcodeExtension::Zero,  0xC7, v); }
     static Instruction test(Register r, int32_t v) {
         return rm_i32("TEST", r, OpcodeExtension::Zero, 0xF7, v); }
     
@@ -375,7 +395,6 @@ public:
     static Instruction add(Register r1, Register r2) { return rm_r("ADD", r1, r2, 0x01); }
     static Instruction sub(Register r1, Register r2) { return rm_r("SUB", r1, r2, 0x29); }
     static Instruction mov(Register r1, Register r2) { return rm_r("MOV", r1, r2, 0x89); }
-    static Instruction mov64(Register r1, Register r2) { return rm_r("MOV", r1, r2, 0x89, true); }
     static Instruction test(Register r1, Register r2) { return rm_r("TEST", r1, r2, 0x85); }
     static Instruction _xor(Register r1, Register r2) { return rm_r("XOR", r1, r2, 0x31); }
 
@@ -426,35 +445,50 @@ private:
         return v;
     }
 
+    static Instruction align_sp(Instruction func_call) {
+        return compose(
+            // EBX is not clobbered by callee so save 
+            mov(Register::EBX, Register::ESP),
+            // all stack operations performed should be 8 bytes,
+            // so check if lowest 4 bits are 0s and if not 
+            // then sub 8 from SP
+            skip_if(test(Register::ESP, 15), Conditional::EQ, 
+                sub(Register::ESP, 8)
+            ),
+            std::move(func_call),
+            mov(Register::ESP, Register::EBX)
+        );  
+    }
+
 public:
 
     static Instruction print_num_literal(Register r) {
         assert(r != Register::ESI);
 
-        return compose(
-            mov64(Register::ESI, reinterpret_cast<uint64_t>(__print<int32_t>)),
-            mov64(Register::EDI, r),
+        return align_sp(compose(
+            mov_64(Register::ESI, reinterpret_cast<uint64_t>(__print<int32_t>)),
+            mov(Register::EDI, r),
             call(Register::ESI)
-        );
+        ));
     }
 
     static Instruction print_char_addr(Register r) {
         assert(r != Register::ESI);
 
-        return compose(
-            mov64(Register::ESI, reinterpret_cast<uint64_t>(__print<char *>)),
-            mov64(Register::EDI, r),
+        return align_sp(compose(
+            mov_64(Register::ESI, reinterpret_cast<uint64_t>(__print<char *>)),
+            mov(Register::EDI, r),
             call(Register::ESI)
-        );
+        ));
     }
 
     static Instruction read_int4(Register r) {
         assert(r != Register::ESI);
 
-        auto call_read = compose(
-            mov64(Register::ESI, reinterpret_cast<uint64_t>(__read_int)),
+        auto call_read = align_sp(compose(
+            mov_64(Register::ESI, reinterpret_cast<uint64_t>(__read_int)),
             call(Register::ESI)
-        );
+        ));
 
         if (r == Register::EAX)
             return call_read;
