@@ -163,6 +163,7 @@ private:
                 eval(std::move(*v.ident));
                 auto fn = Stack::assert_ident(stack.pop());
                 if (fn == "print") {
+                    p.append(x86::align_sp_start());
                     uint32_t string_chunks = 0;
                     while (!args.empty()) {
                         auto arg = std::move(args.top()); args.pop();
@@ -191,6 +192,8 @@ private:
                             }
                         }, arg);
                     }
+                    
+                    p.append(x86::align_sp_end());
 
                     if (string_chunks > 0)
                         p.append(x86::add(x86::Register::ESP, 

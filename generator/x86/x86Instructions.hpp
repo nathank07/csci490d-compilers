@@ -445,7 +445,9 @@ private:
         return v;
     }
 
-    static Instruction align_sp(Instruction func_call) {
+public:
+
+    static Instruction align_sp_start() {
         return compose(
             // EBX is not clobbered by callee so save 
             mov(Register::EBX, Register::ESP),
@@ -454,41 +456,43 @@ private:
             // then sub 8 from SP
             skip_if(test(Register::ESP, 15), Conditional::EQ, 
                 sub(Register::ESP, 8)
-            ),
-            std::move(func_call),
-            mov(Register::ESP, Register::EBX)
+            )
         );  
     }
 
-public:
+    static Instruction align_sp_end() {
+        return mov(Register::ESP, Register::EBX);
+    }
 
     static Instruction print_num_literal(Register r) {
         assert(r != Register::ESI);
 
-        return align_sp(compose(
+        return compose(
             mov_64(Register::ESI, reinterpret_cast<uint64_t>(__print<int32_t>)),
             mov(Register::EDI, r),
             call(Register::ESI)
-        ));
+        );
     }
 
     static Instruction print_char_addr(Register r) {
         assert(r != Register::ESI);
 
-        return align_sp(compose(
+        return compose(
             mov_64(Register::ESI, reinterpret_cast<uint64_t>(__print<char *>)),
             mov(Register::EDI, r),
             call(Register::ESI)
-        ));
+        );
     }
 
     static Instruction read_int4(Register r) {
         assert(r != Register::ESI);
 
-        auto call_read = align_sp(compose(
+        auto call_read = compose(
+            align_sp_start(),
             mov_64(Register::ESI, reinterpret_cast<uint64_t>(__read_int)),
-            call(Register::ESI)
-        ));
+            call(Register::ESI),
+            align_sp_end()
+        );
 
         if (r == Register::EAX)
             return call_read;
