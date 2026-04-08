@@ -115,9 +115,9 @@ private:
     }
 
     static uint8_t get_rm_byte(Register r, OpcodeExtension ext) {
-        return static_cast<uint8_t>(0xC0 | 
-             ((static_cast<uint8_t>(r) & 0x7) | 
-               static_cast<uint8_t>(ext) << 3));
+        return static_cast<uint8_t>(0xC0 |
+             ((static_cast<uint8_t>(r) & 0x7) |
+               (static_cast<uint8_t>(ext) & 0x7) << 3));
     }
 
     static uint8_t get_rm_byte(Register rm, Register r) {
@@ -135,8 +135,8 @@ private:
             mod = 0x80;
         }
 
-        return static_cast<uint8_t>(mod | ((static_cast<uint8_t>(r) & 0x7) | 
-               static_cast<uint8_t>(ext) << 3));
+        return static_cast<uint8_t>(mod | ((static_cast<uint8_t>(r) & 0x7) |
+               (static_cast<uint8_t>(ext) & 0x7) << 3));
     }
 
     static uint8_t get_rm_byte(Register rm, Register r, uint32_t offset) {
