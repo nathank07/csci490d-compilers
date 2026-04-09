@@ -1,7 +1,11 @@
+#pragma once
 #include "../analyzer/analyzer.hpp"
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
-#include <stack>
+#include <map>
+#include <set>
+#include <vector>
 #include <unordered_map>
 #include <variant>
 
@@ -19,76 +23,99 @@ struct TypeSize {
 
 };
 
-// Real values that fit into one stack unit - an example of this could be an int,
-// if an int size is 8 and the stack unit size is 8, you'd get this specific object.
-struct RealUnit {};
 
-// These are the same as a RealUnit - but they're known at compile time, allowing
+template <typename Register>
+struct RegisterUnit { Register in_register; };
+
+struct VirtualRegisterUnit { std::size_t sp_idx; };
+
+// These are the same as a RealStackUnit - but they're known at compile time, allowing
 // for constant folding optimizations
-struct ValueUnit {
-    uint64_t literal;
-};
+struct ValueUnit { uint64_t literal; };
 
-// A real value, but doesn't fit into a single stack unit. It contains the how
-// many stack units it has (size), and a pointer to the address of memory 
-// at the current point of time. Note that you are expected to consume the pointer
-// prior to pushing to the stack because otherwise you'll overwrite it.
-struct PointerUnit {
-    uint8_t size;
-    int64_t bp_offset;
-};
+// Used for string pooling or anything else known at compile time
+struct StaticPointerUnit { std::size_t s; };
 
 // You get this when you evaluate a node and it's an identifier. It could be
 // an symboled expression, in which case you can call .get() on the symbol table, 
 // or it could be a keyword.
-struct IdentifierUnit {
-    std::string literal;
-};
+struct IdentifierUnit { std::string ident; };
 
-template <typename Generator>
+namespace StackUtils {
+
+    template <typename StackUnit>
+    static std::optional<uint64_t> maybe_value_u64(const StackUnit& unit) {
+        if (!std::holds_alternative<ValueUnit>(unit)) return std::nullopt;
+        return std::get<ValueUnit>(unit).literal;
+    }
+
+    template <typename StackUnit>
+    static bool is_virtual(const StackUnit& unit) {
+        return std::holds_alternative<VirtualRegisterUnit>(unit);
+    }
+
+    template <typename StackUnit, typename Register>
+    static bool is_register(const StackUnit& unit) {
+        return std::holds_alternative<RegisterUnit<Register>>(unit);
+    }
+
+    template <typename StackUnit, typename Register>
+    static bool is_register(const StackUnit& unit, Register reg) {
+        return std::holds_alternative<RegisterUnit<Register>>(unit)
+            && std::get<RegisterUnit<Register>>(unit).in_register == reg;
+    }
+
+    template <typename StackUnit>
+    static std::string assert_ident(const StackUnit& unit) {
+        assert(std::holds_alternative<IdentifierUnit>(unit));
+        return std::get<IdentifierUnit>(unit).ident;
+    }
+
+}
+
+template <typename Generator, typename Register>
 struct StackAllocator {
 
-    using StackUnit = std::variant<RealUnit, ValueUnit, PointerUnit, IdentifierUnit>;
+    using StackUnit = std::variant<
+        VirtualRegisterUnit,
+        RegisterUnit<Register>,
+        ValueUnit, 
+        StaticPointerUnit, 
+        IdentifierUnit
+    >;
+
+    using RegisterTUnit = std::variant<RegisterUnit<Register>, VirtualRegisterUnit>;
+
 
 private:
 
-    std::stack<StackUnit> eval_stack;
-    uint64_t eval_stack_size = 0;
+    std::vector<StackUnit> eval_stack;
 
-    std::unordered_map<std::string, uint64_t> symbol_table;
-    uint64_t allocated_symbol_size = 0;
-    
-    template <typename T>
-    typename Generator::Instruction push_large_value(T) {
-        //todo make generic version of this
-        assert(false && "unimplemented stackallocator func");
-        return Generator::compose();
+    std::map<std::string, uint64_t> symbol_table;
+    std::map<Register, bool> scratch_regs_in_use;
+    std::vector<bool> virtual_regs_in_use;    
+    std::size_t allocated_symbols = 0;
+
+    void initalize_registers() {}
+
+    template <typename RegisterT, typename... Args>
+    void initalize_registers(RegisterT reg, Args... rest) {
+        scratch_regs_in_use[reg] = false;
+        initalize_registers(rest...);
     }
 
-    auto push_large_value(std::u8string value) {
+    std::size_t get_first_free_virtual_reg() {
+        auto it = std::find_if(virtual_regs_in_use.begin(), virtual_regs_in_use.end(), [](auto reg) {
+            return !reg;
+        });
 
-        auto init = Generator::compose();
-
-        value += '\0';
-        while(value.size() % sizeof(uint64_t) != 0) value += '\0';
-
-        for (std::size_t i = 0; i < value.size(); i += sizeof(uint64_t)) {
-            uint64_t val = 0;
-            std::memcpy(&val, value.data() + i, sizeof(uint64_t));
-            init = Generator::compose(
-                Generator::push_imm(val),
-                std::move(init)
-            );
+        if (it != virtual_regs_in_use.end()) {
+            *it = true;
+            return std::distance(virtual_regs_in_use.begin(), it);
         }
 
-        uint64_t string_bytes = value.size();
-        eval_stack.push(PointerUnit{
-            static_cast<uint8_t>(string_bytes / sizeof(uint64_t)),
-            -static_cast<int64_t>(allocated_symbol_size + eval_stack_size + string_bytes)
-        });
-        eval_stack_size += string_bytes;
-
-        return init;
+        virtual_regs_in_use.push_back(true);
+        return virtual_regs_in_use.size() - 1;
     }
 
 public:
@@ -96,66 +123,110 @@ public:
     StackAllocator(const std::unordered_map<std::string, TypedVar>& analyzed_symbol_table) {
 
         for (auto& symbol : analyzed_symbol_table) {
-            allocated_symbol_size += Generator::size_of(symbol.second);
-            symbol_table[symbol.first] = allocated_symbol_size;
+            symbol_table[symbol.first] = allocated_symbols++;
         }
 
     }
 
-    uint64_t symbols_size() {
-        return allocated_symbol_size;
+    template <typename... Args>
+    StackAllocator(const std::unordered_map<std::string, TypedVar>& analyzed_symbol_table, Args... registers)
+        : StackAllocator(analyzed_symbol_table) {
+        initalize_registers(registers...);
+    }
+
+    uint64_t size() {
+        return (allocated_symbols + virtual_regs_in_use.size()) * Generator::stack_size;
     }
 
     int32_t get(std::string_view symbol) {
         assert(symbol_table.contains(std::string(symbol)));
-        return static_cast<int32_t>(-symbol_table[std::string(symbol)]);
+        return static_cast<int32_t>(symbol_table[std::string(symbol)] * Generator::stack_size);
+    }
+
+    int32_t get_vreg(std::size_t sp_idx) {
+        return static_cast<int32_t>((allocated_symbols + sp_idx) * Generator::stack_size);
+    }
+
+    // Allows for the consumer to put a specific value into desired_reg; 
+    // Returns an optional that suggests a different register or makes the
+    // caller save the previous register to a specific point in memory
+    std::optional<RegisterTUnit> force_space_for(Register desired_reg) {
+        auto it = std::find_if(eval_stack.begin(), eval_stack.end(), [&](const StackUnit& u) {
+            return StackUtils::is_register<StackUnit, Register>(u, desired_reg);
+        });
+
+        if (it == eval_stack.end()) return std::nullopt;
+
+        auto free_scratch = std::find_if(scratch_regs_in_use.begin(), scratch_regs_in_use.end(),
+            [](auto& p) { return !p.second; });
+
+        if (free_scratch != scratch_regs_in_use.end()) {
+            return RegisterUnit<Register>{ free_scratch->first };
+        }
+
+        auto idx = get_first_free_virtual_reg();
+        *it = VirtualRegisterUnit{ idx };
+        scratch_regs_in_use[desired_reg] = false;
+        return RegisterTUnit{ VirtualRegisterUnit{ idx } };
     }
 
     void push_identifier(const std::string& identifier) {
-        eval_stack.push(IdentifierUnit{identifier});
+        eval_stack.push_back(IdentifierUnit{identifier});
     }
 
-    void push_real_value() {
-        eval_stack.push(RealUnit{});
-        eval_stack_size += sizeof(uint64_t);
+    RegisterTUnit push() {
+        auto it = std::find_if(scratch_regs_in_use.begin(), scratch_regs_in_use.end(), [](auto& reg){
+            return !reg.second;
+        });
+
+        if (it != scratch_regs_in_use.end()) {
+            it->second = true;
+            eval_stack.push_back(RegisterUnit{ it->first });
+            return RegisterUnit { it->first };
+        }
+
+        auto vr = VirtualRegisterUnit { get_first_free_virtual_reg() };
+        eval_stack.push_back(vr);
+
+        return vr;
     }
 
-    template <typename T>
-    auto push_value(T value) {
-        if constexpr (std::is_same_v<T, std::u8string>) {
-            return push_large_value(std::move(value));
-        } else if (sizeof(value) <= sizeof(uint64_t)) {
-            eval_stack.push(ValueUnit{ value });
-            return Generator::compose();
-        } 
+    void push(StackUnit unit) {
+        if (auto* r = std::get_if<RegisterUnit<Register>>(&unit)) {
+            scratch_regs_in_use[r->in_register] = true;
+        }
 
-        return push_large_value(value);
+        if (auto* r = std::get_if<VirtualRegisterUnit>(&unit)) {
+            virtual_regs_in_use[r->sp_idx] = true;
+        }
+
+        eval_stack.push_back(std::move(unit));
+    }
+
+    void push_const(uint64_t value) {
+        push(ValueUnit{ value });
     }
 
     StackUnit pop() {
-        auto top = eval_stack.top();
-        eval_stack.pop();
-        eval_stack_size -= std::visit(overloads {
-            [](ValueUnit&)       { return uint64_t{0}; },
-            [](RealUnit&)        { return sizeof(uint64_t); },
-            [](PointerUnit& p)   { return p.size * sizeof(uint64_t); },
-            [](IdentifierUnit&)  { return uint64_t{0}; }
-        }, top);
+        auto top = eval_stack.back();
+        eval_stack.pop_back();
+        if (auto* r = std::get_if<RegisterUnit<Register>>(&top)) {
+            scratch_regs_in_use[r->in_register] = false;
+        }
+
+        if (auto* r = std::get_if<VirtualRegisterUnit>(&top)) {
+            virtual_regs_in_use[r->sp_idx] = false;
+        }
+
         return top;
     }
 
-    static std::optional<uint64_t> maybe_value_u64(const StackUnit& unit) {
-        if (!std::holds_alternative<ValueUnit>(unit)) return std::nullopt;
-        return std::get<ValueUnit>(unit).literal;
-    }
-
-    static bool is_real(const StackUnit& unit) {
-        return std::holds_alternative<RealUnit>(unit);
-    }
-
-    static std::string assert_ident(const StackUnit& unit) {
-        assert(std::holds_alternative<IdentifierUnit>(unit));
-        return std::get<IdentifierUnit>(unit).literal;
+    const std::string pop_ident() {
+        auto top = eval_stack.back();
+        assert(std::holds_alternative<IdentifierUnit>(top));
+        eval_stack.pop_back();
+        return std::get<IdentifierUnit>(top).ident;
     }
 
 };
+

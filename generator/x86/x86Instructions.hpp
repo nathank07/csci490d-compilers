@@ -127,7 +127,11 @@ private:
     static uint8_t get_rm_byte(Register r, OpcodeExtension ext, uint32_t offset) {
         uint8_t mod;
 
-        if (offset == 0) {
+        // EBP in the r/m field with mod=00 means disp32 (table 2-2)
+        // so we have to make it [EBP + disp8 (0)] by letting it be mod 01
+        bool is_ebp_like = (static_cast<uint8_t>(r) & 0x7) == (static_cast<uint8_t>(Register::EBP) & 0x7);
+
+        if (offset == 0 && !is_ebp_like) {
             mod = 0x0;
         } else if (std::in_range<uint8_t>(offset)) {
             mod = 0x40;
@@ -234,10 +238,18 @@ private:
         auto emit = opcode + " [" + get_register(r) + " + " + std::to_string(offset) + "]\n";
         auto byte = get_rm_byte(r, ext, offset);
 
-        auto write = [](int32_t& off) {
+        bool is_ebp_like = (static_cast<uint8_t>(r) & 0x7) == (static_cast<uint8_t>(Register::EBP) & 0x7);
 
-            if (off == 0) {
+        auto write = [&](int32_t& off) {
+
+            if (off == 0 && !is_ebp_like) {
                 return compose();
+            }
+
+            // EBP in the r/m field with mod=00 means disp32 (table 2-2)
+            // so we have to make it [EBP + 0]
+            if (off == 0 && is_ebp_like) {
+                return create_instr("", uint8_t{0});
             }
 
             if (std::in_range<uint8_t>(off)) {
@@ -334,6 +346,22 @@ public:
         return compose(
             create_instr("IMUL", 0x0F),
             r_rm("", r1, r2, 0xAF, false)
+        );
+    }
+
+    static Instruction imul(Register r, int32_t v) {
+        auto emit = "IMUL " + get_register(r) + ", " + std::to_string(v) + "\n";
+        if (std::in_range<int8_t>(v)) {
+            return compose(
+                write_rex_prefix(r, r, true),
+                create_instr(emit, 0x6B, get_rm_byte(r, r)),
+                create_instr("", static_cast<uint8_t>(v))
+            );
+        }
+        return compose(
+            write_rex_prefix(r, r, true),
+            create_instr(emit, 0x69, get_rm_byte(r, r)),
+            write_32(static_cast<uint32_t>(v))
         );
     }
 
@@ -447,21 +475,21 @@ private:
 
 public:
 
-    static Instruction align_sp_start() {
-        return compose(
-            // EBX is not clobbered by callee so save 
-            mov(Register::EBX, Register::ESP),
-            // all stack operations performed should be 8 bytes,
-            // so check if lowest 4 bits are 0s and if not 
-            // then sub 8 from SP
-            skip_if(test(Register::ESP, 15), Conditional::EQ, 
-                sub(Register::ESP, 8)
-            )
-        );  
+    // Decide statically whether ESP needs an 8-byte bump before a CALL to
+    // satisfy SysV's 16-byte alignment requirement.
+    //
+    // Entry ESP is 8 mod 16 (caller's CALL pushed the return address).
+    // PUSH EBP -> 0 mod 16. SUB ESP, frame_size -> (-frame_size) mod 16.
+    // At the CALL we need ESP == 0 mod 16, so frame_size must be 0 mod 16;
+    // otherwise bump ESP by 8.
+    static Instruction align_sp_start(uint64_t frame_size) {
+        if (frame_size % 16 == 0) return compose();
+        return sub(Register::ESP, 8);
     }
 
-    static Instruction align_sp_end() {
-        return mov(Register::ESP, Register::EBX);
+    static Instruction align_sp_end(uint64_t frame_size) {
+        if (frame_size % 16 == 0) return compose();
+        return add(Register::ESP, 8);
     }
 
     static Instruction print_num_literal(Register r) {
@@ -484,14 +512,14 @@ public:
         );
     }
 
-    static Instruction read_int4(Register r) {
+    static Instruction read_int4(Register r, uint64_t frame_size) {
         assert(r != Register::ESI);
 
         auto call_read = compose(
-            align_sp_start(),
+            align_sp_start(frame_size),
             mov_64(Register::ESI, reinterpret_cast<uint64_t>(__read_int)),
             call(Register::ESI),
-            align_sp_end()
+            align_sp_end(frame_size)
         );
 
         if (r == Register::EAX)

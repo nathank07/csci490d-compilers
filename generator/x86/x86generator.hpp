@@ -5,15 +5,19 @@
 #include "x86prog.hpp"
 #include "x86Instructions.hpp"
 #include "../stackAllocator.hpp"
+#include "../stackInstruction.hpp"
 #include <cmath>
 #include <cstdint>
 #include <variant>
+#include <stack>
 
 struct x86Generator : TypeSize<x86Generator> {
 
     static constexpr uint64_t int4_size = 8;
+    static constexpr uint64_t stack_size = 8;
 
     using Instruction = x86::Instruction;
+    using Register = x86::Register;
 
     template<typename... Args>
     static Instruction compose(Args&&... args) {
@@ -27,45 +31,59 @@ struct x86Generator : TypeSize<x86Generator> {
         );
     }
 
+    // StackOperation interface
+    static Register primary_scratch()   { return Register::ECX; }
+    static Register secondary_scratch() { return Register::EAX; }
+
+    static Instruction move_sp_offset_into_reg(int32_t offset, Register reg) {
+        return x86::mov_memr_32(reg, Register::EBP, offset);
+    }
+    static Instruction move_reg_into_sp_offset(Register reg, int32_t offset) {
+        return x86::mov_rmem_64(Register::EBP, reg, offset);
+    }
+    static Instruction mov_const_to_reg(uint64_t val, Register reg) {
+        return x86::mov_64(reg, val);
+    }
+    static Instruction add_imm_to_reg(Register reg, uint64_t imm) {
+        return x86::add(reg, static_cast<int32_t>(imm));
+    }
+    static Instruction add_reg_to_reg(Register lhs, Register rhs) {
+        return x86::add(lhs, rhs);
+    }
+    static Instruction move_reg_to_reg(Register lhs, Register rhs) {
+        return x86::mov(lhs, rhs);
+    }
+    static Instruction push_reg_into_stack(Register reg) {
+        return x86::push(reg);
+    }
+
 private:
 
-    using Stack = StackAllocator<x86Generator>;
+    using Stack = StackAllocator<x86Generator, x86::Register>;
+
+public:
+
+    inline static Stack stack{{}};
+
+private:
 
     x86Prog& p;
-    Stack& stack;
 
-    x86Generator(x86Prog& p_, Stack& stack_) : p(p_), stack(stack_) {}
-
-    void binary_op(auto fold, auto x86_operation, x86::Register push_me = x86::Register::EAX) {
-        auto rhs = stack.pop();
-        auto lhs = stack.pop();
-        auto l = Stack::maybe_value_u64(lhs);
-        auto r = Stack::maybe_value_u64(rhs);
-        if (l && r) { 
-            stack.push_value(fold(*l, *r)); 
-            return; 
-        }
-        load_reg(x86::Register::EAX, lhs);
-        load_reg(x86::Register::ECX, rhs);
-        p.append(x86::compose(
-            x86_operation(x86::Register::EAX, x86::Register::ECX), 
-            x86::push(push_me)
-        ));
-        stack.push_real_value();
-    };
+    x86Generator(x86Prog& p_) : p(p_) {}
 
     void load_reg(x86::Register r, Stack::StackUnit v) {
         std::visit(overloads {
             [&](ValueUnit& u)    { p.append(x86::mov_64(r, u.literal)); },
-            [&](RealUnit&)       { p.append(x86::pop(r)); },
-            [&](PointerUnit&)    { p.append(x86::pop(r)); },
-            [&](IdentifierUnit& id) { put_var(r, static_cast<int32_t>(stack.get(id.literal))); }
+            [&](VirtualRegisterUnit& u) { put_var(r, stack.get_vreg(u.sp_idx)); },
+            [&](RegisterUnit<x86::Register>&) {},
+            [&](StaticPointerUnit&) { assert(false && "static pointers unsupported"); },
+            [&](IdentifierUnit& id) { put_var(r, static_cast<int32_t>(stack.get(id.ident))); }
         }, v);
     }
 
     std::optional<uint64_t> load_reg(x86::Register r) {
         auto top = stack.pop();
-        auto v = Stack::maybe_value_u64(top);
+        auto v = StackUtils::maybe_value_u64(top);
         if (v) return v;
 
         load_reg(r, top);
@@ -73,8 +91,8 @@ private:
         return std::nullopt;
     }
 
-    void put_var(x86::Register r, int32_t symbol_table_bp_offset) {
-        p.append(x86::mov_memr_32(r, x86::Register::EBP, symbol_table_bp_offset));
+    void put_var(x86::Register r, int32_t symbol_offset) {
+        p.append(x86::mov_memr_32(r, x86::Register::EBP, symbol_offset));
     }
 
     void eval(std::unique_ptr<Expression> expr) {
@@ -87,10 +105,10 @@ private:
                         stack.push_identifier(v);
                     },
                     [&](std::u8string v) {
-                        p.append(stack.push_value(v));
+                        assert(false && "string literals unsupported");
                     },
                     [&](long long v) {
-                        stack.push_value(static_cast<uint64_t>(v));
+                        stack.push_const(static_cast<uint64_t>(v));
                     },
                     [&](double) {
                         assert(false && "doubles unsupported");
@@ -100,58 +118,104 @@ private:
             [&](Add& e) {
                 eval(std::move(*e.left));
                 eval(std::move(*e.right));
-                binary_op([](auto a, auto b){ return a + b; },
-                          [](auto r1, auto r2){ return x86::add(r1, r2); });
-
+                p.append(StackOperation<x86Generator>::commutative_binary(
+                    std::plus<uint64_t>(), 
+                    [](Register lhs, Register rhs) { return x86::add(lhs, rhs); },
+                    [](Register reg, int32_t imm) { return x86::add(reg, imm); }));
             },
             [&](Sub& e) {
                 eval(std::move(*e.left));
                 eval(std::move(*e.right));
-                binary_op([](auto a, auto b){ return a - b; },
-                          [](auto r1, auto r2){ return x86::sub(r1, r2); });
+                p.append(StackOperation<x86Generator>::non_commutative_binary(
+                    std::minus<uint64_t>(), 
+                    [](Register lhs, Register rhs) { return x86::sub(lhs, rhs); },
+                    [](Register reg, int32_t imm) { return x86::sub(reg, imm); } ));
             },
             [&](Mult& e) {
                 eval(std::move(*e.left));
                 eval(std::move(*e.right));
-                binary_op([](auto a, auto b){ return a * b; },
-                          [](auto r1, auto r2){ return x86::imul(r1, r2); });
+                p.append(StackOperation<x86Generator>::commutative_binary(
+                    std::multiplies<uint64_t>(),
+                    [](Register lhs, Register rhs) { return x86::imul(lhs, rhs); },
+                    [](Register reg, int32_t imm) { return x86::imul(reg, imm); }));
             },
             [&](Div& e) {
                 eval(std::move(*e.left));
                 eval(std::move(*e.right));
-                binary_op([](auto a, auto b){ return a / b; },
-                          [](auto, auto r2){ return x86::compose(
-                            x86::cdq(), 
-                            x86::idiv(r2)); 
-                        });
+                p.append(StackOperation<x86Generator>::non_commutative_binary(
+                    [](uint64_t l, uint64_t r) {
+                        return static_cast<uint64_t>(
+                            static_cast<int64_t>(l) / static_cast<int64_t>(r));
+                    },
+                    [](Register lhs, Register rhs) {
+                        if (lhs == x86::Register::EAX) {
+                            return x86::compose(
+                                x86::cdq(),
+                                x86::idiv(rhs));
+                        }
+                        return x86::compose(
+                            x86::mov(x86::Register::EDX, lhs),
+                            x86::mov(x86::Register::ECX, rhs),
+                            x86::mov(x86::Register::EAX, x86::Register::EDX),
+                            x86::cdq(),
+                            x86::idiv(x86::Register::ECX),
+                            x86::mov(lhs, x86::Register::EAX));
+                    },
+                    [](Register lhs, int32_t imm) {
+                        return x86::compose(
+                            x86::mov_64(x86::Register::ECX,
+                                static_cast<uint64_t>(static_cast<int64_t>(imm))),
+                            x86::cdq(),
+                            x86::idiv(x86::Register::ECX));
+                    }));
             },
             [&](Mod& e) {
                 eval(std::move(*e.left));
                 eval(std::move(*e.right));
-                binary_op([](auto a, auto b){ return a % b; },
-                          [](auto, auto r2){ return x86::compose(
-                            x86::cdq(), 
-                            x86::idiv(r2)); 
-                        }, x86::Register::EDX);
+                p.append(StackOperation<x86Generator>::non_commutative_binary(
+                    [](uint64_t l, uint64_t r) {
+                        return static_cast<uint64_t>(
+                            static_cast<int64_t>(l) % static_cast<int64_t>(r));
+                    },
+                    [](Register lhs, Register rhs) {
+                        if (lhs == x86::Register::EAX) {
+                            return x86::compose(
+                                x86::cdq(),
+                                x86::idiv(rhs),
+                                x86::mov(lhs, x86::Register::EDX));
+                        }
+                        return x86::compose(
+                            x86::mov(x86::Register::EDX, lhs),
+                            x86::mov(x86::Register::ECX, rhs),
+                            x86::mov(x86::Register::EAX, x86::Register::EDX),
+                            x86::cdq(),
+                            x86::idiv(x86::Register::ECX),
+                            x86::mov(lhs, x86::Register::EDX));
+                    },
+                    [](Register lhs, int32_t imm) {
+                        return x86::compose(
+                            x86::mov_64(x86::Register::ECX,
+                                static_cast<uint64_t>(static_cast<int64_t>(imm))),
+                            x86::cdq(),
+                            x86::idiv(x86::Register::ECX),
+                            x86::mov(lhs, x86::Register::EDX));
+                    }));
             },
             [&](Exp& e) {
                 eval(std::move(*e.base));
                 eval(std::move(*e.exponent));
-                binary_op([](auto a, auto b){ 
-                    return static_cast<uint64_t>(std::pow(a, b)); }, x86::exp);
+                p.append(StackOperation<x86Generator>::non_commutative_binary(
+                    [](uint64_t l, uint64_t r) { return static_cast<uint64_t>(std::pow(l, r)); },
+                    [](Register lhs, Register rhs) { return x86::exp(lhs, rhs); },
+                    [](Register lhs, int32_t imm) {
+                        return x86::compose(
+                            x86::mov_64(x86::Register::EDX, static_cast<uint64_t>(static_cast<int64_t>(imm))),
+                            x86::exp(lhs, x86::Register::EDX));
+                    }));
             },
             [&](Negated& e) {
                 eval(std::move(*e.expression));
-                auto v = load_reg(x86::Register::EAX);
-                if (v) {
-                    stack.push_value(std::bit_cast<uint64_t>(-(*v)));
-                    return;
-                }
-                p.append(x86::compose(
-                    x86::neg(x86::Register::EAX),
-                    x86::push(x86::Register::EAX)
-                ));
-                stack.push_real_value();
+                p.append(StackOperation<x86Generator>::perform_unary_op(std::negate<uint64_t>(), x86::neg));
             },
             [&](FunctionCall& v) {
                 auto n = v.arg_count();
@@ -161,10 +225,10 @@ private:
                 for (uint8_t i = 0; i < n; i++) args.push(stack.pop());
 
                 eval(std::move(*v.ident));
-                auto fn = Stack::assert_ident(stack.pop());
+                auto fn = StackUtils::assert_ident(stack.pop());
                 if (fn == "print") {
-                    p.append(x86::align_sp_start());
-                    uint32_t string_chunks = 0;
+                    auto stack_size = stack.size();
+                    p.append(x86::align_sp_start(stack_size));
                     while (!args.empty()) {
                         auto arg = std::move(args.top()); args.pop();
                         std::visit(overloads {
@@ -174,36 +238,30 @@ private:
                                     x86::print_num_literal(x86::Register::EAX))
                                 );
                             },
-                            [&](RealUnit&) {
-                                p.append(x86::compose(
-                                    x86::pop(x86::Register::EAX),
-                                    x86::print_num_literal(x86::Register::EAX))
-                                );
-                            },
-                            [&](IdentifierUnit& u) {
-                                put_var(x86::Register::EAX, stack.get(u.literal));
+                            [&](VirtualRegisterUnit& u) {
+                                put_var(x86::Register::EAX, stack.get_vreg(u.sp_idx));
                                 p.append(x86::print_num_literal(x86::Register::EAX));
                             },
-                            [&](PointerUnit& u) {
-                                p.append(x86::mov(x86::Register::EAX, x86::Register::EBP));
-                                p.append(x86::add(x86::Register::EAX, static_cast<int32_t>(u.bp_offset)));
-                                p.append(x86::print_char_addr(x86::Register::EAX));
-                                string_chunks += u.size;
+                            [&](RegisterUnit<x86::Register>& u) {
+                                p.append(x86::print_num_literal(u.in_register));
+                            },
+                            [&](IdentifierUnit& u) {
+                                put_var(x86::Register::EAX, stack.get(u.ident));
+                                p.append(x86::print_num_literal(x86::Register::EAX));
+                            },
+                            [&](StaticPointerUnit&) {
+                                assert(false && "static pointers unsupported");
                             }
                         }, arg);
                     }
-                    
-                    p.append(x86::align_sp_end());
 
-                    if (string_chunks > 0)
-                        p.append(x86::add(x86::Register::ESP, 
-                                 static_cast<int32_t>(string_chunks * sizeof(uint64_t))));
+                    p.append(x86::align_sp_end(stack_size));
 
                 } else if (fn == "read") {
                     assert(n == 1 && "read takes exactly one argument");
                     auto arg = std::move(args.top()); args.pop();
-                    auto id = stack.assert_ident(arg);
-                    p.append(x86::read_int4(x86::Register::EAX));
+                    auto id = StackUtils::assert_ident(arg);
+                    p.append(x86::read_int4(x86::Register::EAX, stack.size()));
                     p.append(x86::mov_rmem_64(x86::Register::EBP, x86::Register::EAX, stack.get(id)));
                 } else {
                     assert(false && "unknown function");
@@ -213,22 +271,25 @@ private:
                 eval(std::move(*v.value));
                 if (v.next.is_just()) eval(std::move(*v.next));
             },
-            [&](Declaration&) {}, // nothing needed because its initalized by StackAllocator
+            [&](Declaration&) {},
             [&](Assign& v) {
                 eval(std::move(*v.ident));
                 auto ident_unit = stack.pop();
-                auto offset = static_cast<int32_t>(stack.get(stack.assert_ident(ident_unit)));
+                auto offset = static_cast<int32_t>(stack.get(StackUtils::assert_ident(ident_unit)));
                 eval(std::move(*v.value));
                 auto top = stack.pop();
                 std::visit(overloads {
                     [&](ValueUnit& u)    { p.append(x86::mov_mem_32(x86::Register::EBP, static_cast<int32_t>(u.literal), offset)); },
-                    // pop here and move to memory - you want pop here because
-                    // at the moment it's on the evaluation stack, and we're moving it to
-                    // the initialized stack with all the other variables
-                    [&](RealUnit&)       { p.append(x86::pop(x86::Register::EBP, offset)); },
-                    [&](PointerUnit&)    { assert(false && "Variable strings not supported"); },
+                    [&](VirtualRegisterUnit& u) {
+                        p.append(x86::mov_memr_32(x86::Register::EAX, x86::Register::EBP, stack.get_vreg(u.sp_idx)));
+                        p.append(x86::mov_rmem_64(x86::Register::EBP, x86::Register::EAX, offset));
+                    },
+                    [&](RegisterUnit<x86::Register>& u) {
+                        p.append(x86::mov_rmem_64(x86::Register::EBP, u.in_register, offset));
+                    },
+                    [&](StaticPointerUnit&) { assert(false && "Variable strings not supported"); },
                     [&](IdentifierUnit& id) {
-                        p.append(x86::mov_memr_32(x86::Register::EAX, x86::Register::EBP, stack.get(id.literal)));
+                        p.append(x86::mov_memr_32(x86::Register::EAX, x86::Register::EBP, stack.get(id.ident)));
                         p.append(x86::mov_rmem_64(x86::Register::EBP, x86::Register::EAX, offset));
                     }
                 }, top);
@@ -249,26 +310,15 @@ public:
 
     static x86Prog generate(NodeResult expr, const std::unordered_map<std::string, TypedVar>& symbol_table) {
         x86Prog prog;
-        Stack stack_vars(symbol_table);
-        x86Generator(prog, stack_vars).eval(std::move(*expr));
+        stack = Stack(symbol_table, Register::R12, Register::R13, Register::R14, Register::R15); 
+        x86Generator(prog).eval(std::move(*expr));
+        auto stack_size = static_cast<int32_t>(stack.size());
         prog.prog_fn = x86::compose(
-
-            // bp: [caller] sp: [top]
             x86::push(x86::Register::EBP),
-
-            // bp: [top] sp: [top]
+            x86::sub(x86::Register::ESP, stack_size),
             x86::mov(x86::Register::EBP, x86::Register::ESP),
-
-            // bp: [top] sp: [top after vars]
-            x86::sub(x86::Register::ESP, static_cast<int32_t>(stack_vars.symbols_size())),
-
-            // bp: [top] sp: [unknown]
             prog.prog_fn,
-
-            // bp: [top] sp: [top]
-            x86::mov(x86::Register::ESP, x86::Register::EBP),
-
-            // bp: [caller]
+            x86::add(x86::Register::ESP, stack_size),
             x86::pop(x86::Register::EBP),
             x86::ret()
         );

@@ -1,6 +1,7 @@
 #pragma once
 #include <algorithm>
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -32,10 +33,12 @@ struct Function {
     Type return_value;
 };
 
+
 struct Analyzer {
 
 struct SymbolTable {
     std::unordered_map<std::string, TypedVar> table;
+    std::map<std::u8string, std::size_t> string_consts;
     std::optional<std::size_t> node_idx;
 };
 
@@ -48,11 +51,35 @@ private:
             symbol_table.table.contains(std::get<std::string>(term));
     }
 
+    static void create_str_loc(TermValue term, SymbolTable& symbol_table) {
+        auto str = std::get<std::u8string>(term) + u8'\0';
+        
+        if (symbol_table.string_consts.contains(str)) {
+            return;
+        }
+
+        auto it = std::max_element(symbol_table.string_consts.begin(), symbol_table.string_consts.end(), [](auto& l, auto& r){
+            return l.second < r.second;
+        });
+
+        if (it != symbol_table.string_consts.begin()) {
+            symbol_table.string_consts[str] = it->first.length() + it->second;
+            return;
+        }
+
+        symbol_table.string_consts[str] = 0;
+    }
+
     static void analyze(const NodeResult& just_value, SymbolTable& symbols, std::vector<NodeResult>& results) {
         const auto visitor = overloads
         {
             [&](const std::monostate&) { },
             [&](const Term& t) {
+                if (std::holds_alternative<std::u8string>(t.v)) {
+                    create_str_loc(t.v, symbols);
+                    return;
+                }
+
                 if (!in_table(t.v, symbols)) {
                     results.push_back(NodeResult::error(AstErrorType::UNRECOGNIZED_IDENT, just_value.consumed, t.tok));
                 }
@@ -132,7 +159,7 @@ public:
             // TODO: Give print and read real type checking
             {"print", Function{{}, {}, Type::Void}},
             {"read", Function{{}, {}, Type::Void}}
-        }, std::nullopt};
+        }, {}, std::nullopt};
         
         auto rit = std::find_if(ast_results.rbegin(), ast_results.rend(), [](const NodeResult& r) {
             return r.is_just() && std::holds_alternative<StatementBlock>(
