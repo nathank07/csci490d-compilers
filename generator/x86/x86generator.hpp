@@ -5,7 +5,7 @@
 #include "x86prog.hpp"
 #include "x86Instructions.hpp"
 #include "../stackAllocator.hpp"
-#include "../stackInstruction.hpp"
+#include "../stackOperator.hpp"
 #include <cmath>
 #include <cstdint>
 #include <variant>
@@ -22,13 +22,6 @@ struct x86Generator : TypeSize<x86Generator> {
     template<typename... Args>
     static Instruction compose(Args&&... args) {
         return x86::compose(std::forward<Args>(args)...);
-    }
-
-    static Instruction push_imm(uint64_t v) {
-        return x86::compose(
-            x86::mov_64(x86::Register::EAX, v),
-            x86::push(x86::Register::EAX)
-        );
     }
 
     // StackOperation interface
@@ -66,10 +59,6 @@ private:
     x86Prog& p;
 
     x86Generator(x86Prog& p_, Stack& stack_) : p(p_), stack(stack_) {}
-
-    void put_var(x86::Register r, int32_t symbol_offset) {
-        p.append(x86::mov_memr_32(r, x86::Register::EBP, symbol_offset));
-    }
 
     void eval(std::unique_ptr<Expression> expr) {
 
@@ -220,6 +209,7 @@ private:
                             std::move(load),
                             x86::print_num_literal(reg)
                         ));
+                        stack.unlock_reg(reg);
                     }
                     p.append(x86::align_sp_end(pre_print_size));
 
