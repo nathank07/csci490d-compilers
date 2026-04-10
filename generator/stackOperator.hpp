@@ -2,6 +2,7 @@
 #include "stackAllocator.hpp"
 #include <cassert>
 #include <cstdlib>
+#include <iostream>
 
 template <typename Generator>
 struct StackOperator {
@@ -17,15 +18,34 @@ private:
         Evicts your desired reg and returns an instruction on what you need to
         do to save the register you evicted.
     */
-    auto free_space_for(Register& desired_reg) {
+    auto evict_space_for(Register desired_reg) {
         auto dest = stack.lock_reg(desired_reg);
         if (!dest) return Generator::compose();
         return std::visit(overloads {
             [&](RegisterUnit<Register>& u) {
-                stack.lock_reg(u.in_register);
-                auto instr = Generator::move_reg_to_reg(u.in_register, desired_reg);
+                return Generator::move_reg_to_reg(u.in_register, desired_reg);
+            },
+            [&](VirtualRegisterUnit& u) {
+                return Generator::move_reg_into_sp_offset(desired_reg, stack.get_vreg(u.sp_idx));
+            }
+        }, *dest);
+    }
+
+    /*
+        Like evict_space_for but instead of evicting, it returns the first
+        free scratch register. If there are no free scratch registers,
+        then it will evict.
+    */
+    auto find_free_reg(Register& desired_reg) {
+        auto dest = stack.lock_reg(desired_reg);
+        if (!dest) return Generator::compose();
+        return std::visit(overloads {
+            [&](RegisterUnit<Register>& u) {
+                if (stack.in_stack(u.in_register)) {
+                    return Generator::move_reg_to_reg(u.in_register, desired_reg);
+                }
                 desired_reg = u.in_register;
-                return instr;
+                return Generator::compose();
             },
             [&](VirtualRegisterUnit& u) {
                 return Generator::move_reg_into_sp_offset(desired_reg, stack.get_vreg(u.sp_idx));
@@ -52,7 +72,11 @@ private:
                 return Generator::move_sp_offset_into_reg(offset, reg);
             },
             [&](RegisterUnit<Register>& u) {
-                return Generator::compose();
+                if (u.in_register == reg) return Generator::compose();
+                auto emit = Generator::move_reg_to_reg(reg, u.in_register);
+                stack.unlock_reg(u.in_register);
+                unit = RegisterUnit<Register>{ reg };
+                return emit;
             },
             [&](ValueUnit& u) {
                 auto emit = Generator::mov_const_to_reg(u.literal, reg);
@@ -153,14 +177,7 @@ public:
         // be used and just early return the registerunit
         // force evicition is necessary for things like the x86 platform (eax and edx)
         // requiring to exist
-        // if (!force_eviction) {
-            if (auto* r = std::get_if<RegisterUnit<Register>>(&unit)) {
-                reg = r->in_register;
-                return Generator::compose();
-            }
-        // }
-        
-        auto free = free_space_for(reg);
+        auto free = force_eviction ? evict_space_for(reg) : find_free_reg(reg);
         auto norm = normalize_into(reg, unit);
         return Generator::compose(
             std::move(free),

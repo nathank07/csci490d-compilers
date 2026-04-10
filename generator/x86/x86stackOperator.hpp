@@ -39,14 +39,13 @@ struct x86StackOperator : StackOperator<Generator> {
 
         stack.unlock_reg(rhs_reg);
         stack.push(RegisterUnit { lhs_reg });
+        
         return x86::compose(
             std::move(load_lhs),
             std::move(load_rhs),
             x86::cdq(),
             x86::idiv(rhs_reg),
-            type == DivType::MOD ?
-                x86::mov(lhs_reg, x86::Register::EDX) :
-                x86::compose()
+            std::move(mov_eax)
         );
         
     }
