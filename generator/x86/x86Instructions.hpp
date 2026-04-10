@@ -475,13 +475,6 @@ private:
 
 public:
 
-    // Decide statically whether ESP needs an 8-byte bump before a CALL to
-    // satisfy SysV's 16-byte alignment requirement.
-    //
-    // Entry ESP is 8 mod 16 (caller's CALL pushed the return address).
-    // PUSH EBP -> 0 mod 16. SUB ESP, frame_size -> (-frame_size) mod 16.
-    // At the CALL we need ESP == 0 mod 16, so frame_size must be 0 mod 16;
-    // otherwise bump ESP by 8.
     static Instruction align_sp_start(uint64_t frame_size) {
         if (frame_size % 16 == 0) return compose();
         return sub(Register::ESP, 8);

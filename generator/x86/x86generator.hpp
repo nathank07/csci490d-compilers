@@ -5,7 +5,7 @@
 #include "x86prog.hpp"
 #include "x86Instructions.hpp"
 #include "../stackAllocator.hpp"
-#include "../stackOperator.hpp"
+#include "x86stackOperator.hpp"
 #include <cmath>
 #include <cstdint>
 #include <variant>
@@ -55,7 +55,7 @@ private:
     using Stack = StackAllocator<x86Generator, x86::Register>;
 
     Stack stack;
-    StackOperator<x86Generator> s{stack};
+    x86StackOperator<x86Generator> s{stack};
     x86Prog& p;
 
     x86Generator(x86Prog& p_, Stack& stack_) : p(p_), stack(stack_) {}
@@ -107,64 +107,16 @@ private:
             [&](Div& e) {
                 eval(std::move(*e.left));
                 eval(std::move(*e.right));
-                p.append(s.non_commutative_binary(
-                    [](uint64_t l, uint64_t r) {
-                        return static_cast<uint64_t>(
-                            static_cast<int64_t>(l) / static_cast<int64_t>(r));
-                    },
-                    [](Register lhs, Register rhs) {
-                        if (lhs == x86::Register::EAX) {
-                            return x86::compose(
-                                x86::cdq(),
-                                x86::idiv(rhs));
-                        }
-                        return x86::compose(
-                            x86::mov(x86::Register::EDX, lhs),
-                            x86::mov(x86::Register::ECX, rhs),
-                            x86::mov(x86::Register::EAX, x86::Register::EDX),
-                            x86::cdq(),
-                            x86::idiv(x86::Register::ECX),
-                            x86::mov(lhs, x86::Register::EAX));
-                    },
-                    [](Register lhs, int32_t imm) {
-                        return x86::compose(
-                            x86::mov_64(x86::Register::ECX,
-                                static_cast<uint64_t>(static_cast<int64_t>(imm))),
-                            x86::cdq(),
-                            x86::idiv(x86::Register::ECX));
-                    }));
+                p.append(s.handle_div_family(
+                    x86StackOperator<x86Generator>::DivType::DIV
+                ));
             },
             [&](Mod& e) {
                 eval(std::move(*e.left));
                 eval(std::move(*e.right));
-                p.append(s.non_commutative_binary(
-                    [](uint64_t l, uint64_t r) {
-                        return static_cast<uint64_t>(
-                            static_cast<int64_t>(l) % static_cast<int64_t>(r));
-                    },
-                    [](Register lhs, Register rhs) {
-                        if (lhs == x86::Register::EAX) {
-                            return x86::compose(
-                                x86::cdq(),
-                                x86::idiv(rhs),
-                                x86::mov(lhs, x86::Register::EDX));
-                        }
-                        return x86::compose(
-                            x86::mov(x86::Register::EDX, lhs),
-                            x86::mov(x86::Register::ECX, rhs),
-                            x86::mov(x86::Register::EAX, x86::Register::EDX),
-                            x86::cdq(),
-                            x86::idiv(x86::Register::ECX),
-                            x86::mov(lhs, x86::Register::EDX));
-                    },
-                    [](Register lhs, int32_t imm) {
-                        return x86::compose(
-                            x86::mov_64(x86::Register::ECX,
-                                static_cast<uint64_t>(static_cast<int64_t>(imm))),
-                            x86::cdq(),
-                            x86::idiv(x86::Register::ECX),
-                            x86::mov(lhs, x86::Register::EDX));
-                    }));
+                p.append(s.handle_div_family(
+                    x86StackOperator<x86Generator>::DivType::MOD
+                ));
             },
             [&](Exp& e) {
                 eval(std::move(*e.base));

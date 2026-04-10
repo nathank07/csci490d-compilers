@@ -176,6 +176,7 @@ public:
         if (!free_scratches.empty()) {
             auto reg = free_scratches.front();
             locked_regs.insert(reg);
+            *it = RegisterUnit<Register> { reg };
             return RegisterUnit<Register>{ reg };
         }
 
