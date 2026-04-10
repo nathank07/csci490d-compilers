@@ -92,15 +92,16 @@ private:
     std::vector<StackUnit> eval_stack;
 
     std::map<std::string, uint64_t> symbol_table;
-    std::map<Register, bool> scratch_regs_in_use;
-    std::vector<bool> virtual_regs_in_use;    
+    std::set<Register> scratch_regs;
+    std::set<Register> locked_regs;
+    std::vector<bool> virtual_regs_in_use;
     std::size_t allocated_symbols = 0;
 
     void initalize_registers() {}
 
     template <typename RegisterT, typename... Args>
     void initalize_registers(RegisterT reg, Args... rest) {
-        scratch_regs_in_use[reg] = false;
+        scratch_regs.insert(reg);
         initalize_registers(rest...);
     }
 
@@ -150,24 +151,44 @@ public:
     // Allows for the consumer to put a specific value into desired_reg; 
     // Returns an optional that suggests a different register or makes the
     // caller save the previous register to a specific point in memory
-    std::optional<RegisterTUnit> force_space_for(Register desired_reg) {
+    //
+    // If the register returned is specified as scratch register, it will be prevented
+    // from being used as scratch until it is either pushed and popped, or, 
+    // more importantly, freed via free_space_for(). This means that the register
+    // must be accounted for by either pushing or freeing.
+    std::optional<RegisterTUnit> lock_reg(Register desired_reg) {
         auto it = std::find_if(eval_stack.begin(), eval_stack.end(), [&](const StackUnit& u) {
             return StackUtils::is_register<StackUnit, Register>(u, desired_reg);
         });
 
-        if (it == eval_stack.end()) return std::nullopt;
-
-        auto free_scratch = std::find_if(scratch_regs_in_use.begin(), scratch_regs_in_use.end(),
-            [](auto& p) { return !p.second; });
-
-        if (free_scratch != scratch_regs_in_use.end()) {
-            return RegisterUnit<Register>{ free_scratch->first };
+        if (it == eval_stack.end() && !locked_regs.contains(desired_reg)) {
+            locked_regs.insert(desired_reg);
+            return std::nullopt;
         }
 
+        std::vector<Register> free_scratches;
+        std::set_difference(
+            scratch_regs.begin(), scratch_regs.end(),
+            locked_regs.begin(), locked_regs.end(),
+            std::back_inserter(free_scratches)
+        );
+
+        if (!free_scratches.empty()) {
+            auto reg = free_scratches.front();
+            locked_regs.insert(reg);
+            return RegisterUnit<Register>{ reg };
+        }
+
+        assert(it != eval_stack.end() && "Register is locked, and no scratch regs free.");
+
+        locked_regs.insert(desired_reg);
         auto idx = get_first_free_virtual_reg();
         *it = VirtualRegisterUnit{ idx };
-        scratch_regs_in_use[desired_reg] = false;
         return RegisterTUnit{ VirtualRegisterUnit{ idx } };
+    }
+
+    void unlock_reg(Register locked_reg) {
+        locked_regs.erase(locked_reg);
     }
 
     void push_identifier(const std::string& identifier) {
@@ -175,14 +196,18 @@ public:
     }
 
     RegisterTUnit push() {
-        auto it = std::find_if(scratch_regs_in_use.begin(), scratch_regs_in_use.end(), [](auto& reg){
-            return !reg.second;
-        });
+        std::vector<Register> free_scratches;
+        std::set_difference(
+            scratch_regs.begin(), scratch_regs.end(),
+            locked_regs.begin(), locked_regs.end(),
+            std::back_inserter(free_scratches)
+        );
 
-        if (it != scratch_regs_in_use.end()) {
-            it->second = true;
-            eval_stack.push_back(RegisterUnit{ it->first });
-            return RegisterUnit { it->first };
+        if (!free_scratches.empty()) {
+            auto reg = free_scratches.front();
+            locked_regs.insert(reg);
+            eval_stack.push_back(RegisterUnit{ reg });
+            return RegisterUnit { reg };
         }
 
         auto vr = VirtualRegisterUnit { get_first_free_virtual_reg() };
@@ -193,7 +218,7 @@ public:
 
     void push(StackUnit unit) {
         if (auto* r = std::get_if<RegisterUnit<Register>>(&unit)) {
-            scratch_regs_in_use[r->in_register] = true;
+            locked_regs.insert(r->in_register);
         }
 
         if (auto* r = std::get_if<VirtualRegisterUnit>(&unit)) {
@@ -210,9 +235,9 @@ public:
     StackUnit pop() {
         auto top = eval_stack.back();
         eval_stack.pop_back();
-        if (auto* r = std::get_if<RegisterUnit<Register>>(&top)) {
-            scratch_regs_in_use[r->in_register] = false;
-        }
+        // Note: if top is a RegisterUnit, the lock transfers from the stack
+        // to the caller. The caller must either unlock_reg() it or push() it
+        // back — otherwise the reg leaks from the scratch pool.
 
         if (auto* r = std::get_if<VirtualRegisterUnit>(&top)) {
             virtual_regs_in_use[r->sp_idx] = false;

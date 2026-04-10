@@ -71,26 +71,6 @@ private:
 
     x86Generator(x86Prog& p_) : p(p_) {}
 
-    void load_reg(x86::Register r, Stack::StackUnit v) {
-        std::visit(overloads {
-            [&](ValueUnit& u)    { p.append(x86::mov_64(r, u.literal)); },
-            [&](VirtualRegisterUnit& u) { put_var(r, stack.get_vreg(u.sp_idx)); },
-            [&](RegisterUnit<x86::Register>&) {},
-            [&](StaticPointerUnit&) { assert(false && "static pointers unsupported"); },
-            [&](IdentifierUnit& id) { put_var(r, static_cast<int32_t>(stack.get(id.ident))); }
-        }, v);
-    }
-
-    std::optional<uint64_t> load_reg(x86::Register r) {
-        auto top = stack.pop();
-        auto v = StackUtils::maybe_value_u64(top);
-        if (v) return v;
-
-        load_reg(r, top);
-
-        return std::nullopt;
-    }
-
     void put_var(x86::Register r, int32_t symbol_offset) {
         p.append(x86::mov_memr_32(r, x86::Register::EBP, symbol_offset));
     }
@@ -215,7 +195,14 @@ private:
             },
             [&](Negated& e) {
                 eval(std::move(*e.expression));
-                p.append(StackOperation<x86Generator>::perform_unary_op(std::negate<uint64_t>(), x86::neg));
+                auto reg = primary_scratch();
+                auto instr = StackOperation<x86Generator>::push_reg(reg, std::negate<uint64_t>());
+                if (instr) {
+                    p.append(x86::compose(
+                        std::move(*instr),
+                        x86::neg(reg)
+                    ));
+                }
             },
             [&](FunctionCall& v) {
                 auto n = v.arg_count();
@@ -227,35 +214,18 @@ private:
                 eval(std::move(*v.ident));
                 auto fn = StackUtils::assert_ident(stack.pop());
                 if (fn == "print") {
-                    auto stack_size = stack.size();
-                    p.append(x86::align_sp_start(stack_size));
+                    auto pre_print_size = stack.size();
+                    p.append(x86::align_sp_start(pre_print_size));
                     while (!args.empty()) {
                         auto arg = std::move(args.top()); args.pop();
-                        std::visit(overloads {
-                            [&](ValueUnit& u) {
-                                p.append(x86::compose(
-                                    x86::mov_64(x86::Register::EAX, u.literal),
-                                    x86::print_num_literal(x86::Register::EAX))
-                                );
-                            },
-                            [&](VirtualRegisterUnit& u) {
-                                put_var(x86::Register::EAX, stack.get_vreg(u.sp_idx));
-                                p.append(x86::print_num_literal(x86::Register::EAX));
-                            },
-                            [&](RegisterUnit<x86::Register>& u) {
-                                p.append(x86::print_num_literal(u.in_register));
-                            },
-                            [&](IdentifierUnit& u) {
-                                put_var(x86::Register::EAX, stack.get(u.ident));
-                                p.append(x86::print_num_literal(x86::Register::EAX));
-                            },
-                            [&](StaticPointerUnit&) {
-                                assert(false && "static pointers unsupported");
-                            }
-                        }, arg);
+                        auto reg = Register::EAX;
+                        auto load = StackOperation<x86Generator>::load_numeric_reg_from_pop(reg, arg);
+                        p.append(x86::compose(
+                            std::move(load),
+                            x86::print_num_literal(reg)
+                        ));
                     }
-
-                    p.append(x86::align_sp_end(stack_size));
+                    p.append(x86::align_sp_end(pre_print_size));
 
                 } else if (fn == "read") {
                     assert(n == 1 && "read takes exactly one argument");
@@ -279,7 +249,9 @@ private:
                 eval(std::move(*v.value));
                 auto top = stack.pop();
                 std::visit(overloads {
-                    [&](ValueUnit& u)    { p.append(x86::mov_mem_32(x86::Register::EBP, static_cast<int32_t>(u.literal), offset)); },
+                    [&](ValueUnit& u)    { 
+                        p.append(x86::mov_mem_32(x86::Register::EBP, static_cast<int32_t>(u.literal), offset)); 
+                    },
                     [&](VirtualRegisterUnit& u) {
                         p.append(x86::mov_memr_32(x86::Register::EAX, x86::Register::EBP, stack.get_vreg(u.sp_idx)));
                         p.append(x86::mov_rmem_64(x86::Register::EBP, x86::Register::EAX, offset));

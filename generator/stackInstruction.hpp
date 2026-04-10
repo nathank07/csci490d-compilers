@@ -1,6 +1,7 @@
 #pragma once
 #include "stackAllocator.hpp"
 #include <cassert>
+#include <cstdlib>
 
 template <typename Generator>
 struct StackOperation {
@@ -10,21 +11,36 @@ struct StackOperation {
 
 private:
 
-    static auto free_space_for(Register& reg) {
-        auto dest = Generator::stack.force_space_for(reg);
+    /* 
+        Takes in a reference to a register and locks it if it's free;
+        otherwise it will modify the register, then lock that register.
+        It's expected that you either free this register or push this
+        register.
+
+        Returns an Instruction to append in the event it needs to be moved
+        to a virtual register
+    */
+    static auto free_space_for(Register& desired_reg) {
+        auto dest = Generator::stack.lock_reg(desired_reg);
         if (!dest) return Generator::compose();
         return std::visit(overloads {
             [&](RegisterUnit<Register>& u) {
-                reg = u.in_register;
+                desired_reg = u.in_register;
                 return Generator::compose();
             },
             [&](VirtualRegisterUnit& u) {
-                return Generator::move_reg_into_sp_offset(reg, Generator::stack.get_vreg(u.sp_idx));
+                return Generator::move_reg_into_sp_offset(desired_reg, Generator::stack.get_vreg(u.sp_idx));
             }
         }, *dest);
     }
 
-    static auto normalize_into(Register& reg, StackUnit& unit) {
+    /*
+        Helper that loads values into a register. This is somewhat of an opposite
+        parallel to free_space_for(), and usually you want to use free_space_for()
+        prior to calling normalize_into(); As this function doesn't check if the 
+        register is locked and you may overwrite a register that is locked.
+    */
+    static auto normalize_into(Register reg, StackUnit& unit) {
         return std::visit(overloads {
             [&](IdentifierUnit& u) {
                 auto offset = Generator::stack.get(u.ident);
@@ -33,16 +49,16 @@ private:
             },
             [&](VirtualRegisterUnit& u) {
                 auto offset = Generator::stack.get_vreg(u.sp_idx);
-                auto emit = Generator::move_sp_offset_into_reg(offset, reg);
                 unit = RegisterUnit<Register>{ reg };
-                return emit;
+                return Generator::move_sp_offset_into_reg(offset, reg);
             },
             [&](RegisterUnit<Register>& u) {
-                reg = u.in_register;
                 return Generator::compose();
             },
             [&](ValueUnit& u) {
-                return Generator::compose();
+                auto emit = Generator::mov_const_to_reg(u.literal, reg);
+                unit = RegisterUnit<Register>{ reg };
+                return emit;
             },
             [&](StaticPointerUnit& u) {
                 return Generator::compose();
@@ -50,76 +66,60 @@ private:
         }, unit);
     }
 
-    static auto make_const_reg(Register reg, StackUnit& unit) {
-        auto value = StackUtils::maybe_value_u64(unit);
-        assert(value);
-        unit = RegisterUnit<Register> { reg };
-        return Generator::mov_const_to_reg(*value, reg);
-    }
-
     static auto perform_binary_op(auto const_fold, auto perform_r_r, auto perform_r_imm, bool is_commutative) {
 
         auto rhs_reg = Generator::primary_scratch();
         auto lhs_reg = Generator::secondary_scratch();
-        auto rhs = Generator::stack.pop();
-        auto lhs = Generator::stack.pop();
-        auto l_const = StackUtils::maybe_value_u64(lhs);
-        auto r_const = StackUtils::maybe_value_u64(rhs);
+        auto rhs_unit = Generator::stack.pop();
+        auto lhs_unit = Generator::stack.pop();
+        auto l_const = StackUtils::maybe_value_u64(lhs_unit);
+        auto r_const = StackUtils::maybe_value_u64(rhs_unit);
 
         if (l_const && r_const) {
             Generator::stack.push_const(const_fold(*l_const, *r_const));
             return Generator::compose();
         }
 
-        if (StackUtils::is_register<StackUnit, Register>(rhs, lhs_reg)) {
-            std::swap(lhs_reg, rhs_reg);
-        }
-
-        auto free_lhs = free_space_for(lhs_reg);
-        auto free_rhs = free_space_for(rhs_reg);
-        auto norm_rhs = normalize_into(rhs_reg, rhs);
-        auto norm_lhs = normalize_into(lhs_reg, lhs);
-
-        auto emit = Generator::compose(
-            std::move(free_lhs),
-            std::move(free_rhs),
-            std::move(norm_rhs),
-            std::move(norm_lhs)
-        );
-
-        bool lhs_ok = StackUtils::is_register<StackUnit, Register>(lhs) || l_const;
-        bool rhs_ok = StackUtils::is_register<StackUnit, Register>(rhs) || r_const;
+        auto load_lhs = load_numeric_reg_from_pop(lhs_reg, lhs_unit);
+        auto load_rhs = load_numeric_reg_from_pop(rhs_reg, rhs_unit);
+        bool lhs_ok = StackUtils::is_register<StackUnit, Register>(lhs_unit) || l_const;
+        bool rhs_ok = StackUtils::is_register<StackUnit, Register>(rhs_unit) || r_const;
         assert(lhs_ok);
         assert(rhs_ok);
 
         if (!is_commutative && l_const) {
+            Generator::stack.unlock_reg(rhs_reg);
             Generator::stack.push(RegisterUnit{ lhs_reg });
             return Generator::compose(
-                std::move(emit),
-                make_const_reg(lhs_reg, lhs),
+                std::move(load_lhs),
+                std::move(load_rhs),
                 perform_r_r(lhs_reg, rhs_reg)
             );
         }
 
-        if (is_commutative && l_const) {
+        if (l_const) {
+            Generator::stack.unlock_reg(lhs_reg);
             Generator::stack.push(RegisterUnit{ rhs_reg });
             return Generator::compose(
-                std::move(emit),
+                std::move(load_rhs),
                 perform_r_imm(rhs_reg, *l_const)
             );
         }
 
         if (r_const) {
+            Generator::stack.unlock_reg(rhs_reg);
             Generator::stack.push(RegisterUnit{ lhs_reg });
             return Generator::compose(
-                std::move(emit),
+                std::move(load_lhs),
                 perform_r_imm(lhs_reg, *r_const)
             );
         }
 
+        Generator::stack.unlock_reg(rhs_reg);
         Generator::stack.push(RegisterUnit{ lhs_reg });
         return Generator::compose(
-            std::move(emit),
+            std::move(load_lhs),
+            std::move(load_rhs),
             perform_r_r(lhs_reg, rhs_reg)
         );
     }
@@ -127,27 +127,41 @@ private:
 
 public:
 
-    static auto perform_unary_op(auto const_fold, auto perform_r) {
-        auto reg = Generator::primary_scratch();
+    // Prepares a register to be modified in the stack, or suggests a different
+    // register by modifying. Returns an optional instruction to inform user
+    // if the constant fold was performed or not (with nullopt implying it was)
+    static std::optional<typename Generator::Instruction> push_reg(Register& desired_reg, auto const_fold) {
         auto top = Generator::stack.pop();
         auto top_const = StackUtils::maybe_value_u64(top);
 
         if (top_const) {
             Generator::stack.push_const(const_fold(*top_const));
-            return Generator::compose();
+            return std::nullopt;
         }
 
-        auto free_reg = free_space_for(reg);
-        auto norm_reg = normalize_into(reg, top);
+        auto emit = load_numeric_reg_from_pop(desired_reg, top);
 
         bool reg_ok = StackUtils::is_register<StackUnit, Register>(top);
         assert(reg_ok);
 
-        Generator::stack.push(RegisterUnit{ reg });
+        Generator::stack.push(RegisterUnit{ desired_reg });
+        return emit;
+    }
+
+    static auto load_numeric_reg_from_pop(Register& reg, StackUnit& unit) {
+
+        // prevent claiming and therefore locking a register that won't even
+        // be used and just early return the registerunit
+        if (auto* r = std::get_if<RegisterUnit<Register>>(&unit)) {
+            reg = r->in_register;
+            return Generator::compose();
+        }
+
+        auto free = free_space_for(reg);
+        auto norm = normalize_into(reg, unit);
         return Generator::compose(
-            std::move(free_reg),
-            std::move(norm_reg),
-            perform_r(reg)
+            std::move(free),
+            std::move(norm)
         );
     }
 
