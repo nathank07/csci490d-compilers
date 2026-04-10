@@ -61,15 +61,11 @@ private:
 
     using Stack = StackAllocator<x86Generator, x86::Register>;
 
-public:
-
-    inline static Stack stack{{}};
-
-private:
-
+    Stack stack;
+    StackOperator<x86Generator> s{stack};
     x86Prog& p;
 
-    x86Generator(x86Prog& p_) : p(p_) {}
+    x86Generator(x86Prog& p_, Stack& stack_) : p(p_), stack(stack_) {}
 
     void put_var(x86::Register r, int32_t symbol_offset) {
         p.append(x86::mov_memr_32(r, x86::Register::EBP, symbol_offset));
@@ -98,7 +94,7 @@ private:
             [&](Add& e) {
                 eval(std::move(*e.left));
                 eval(std::move(*e.right));
-                p.append(StackOperation<x86Generator>::commutative_binary(
+                p.append(s.commutative_binary(
                     std::plus<uint64_t>(), 
                     [](Register lhs, Register rhs) { return x86::add(lhs, rhs); },
                     [](Register reg, int32_t imm) { return x86::add(reg, imm); }));
@@ -106,7 +102,7 @@ private:
             [&](Sub& e) {
                 eval(std::move(*e.left));
                 eval(std::move(*e.right));
-                p.append(StackOperation<x86Generator>::non_commutative_binary(
+                p.append(s.non_commutative_binary(
                     std::minus<uint64_t>(), 
                     [](Register lhs, Register rhs) { return x86::sub(lhs, rhs); },
                     [](Register reg, int32_t imm) { return x86::sub(reg, imm); } ));
@@ -114,7 +110,7 @@ private:
             [&](Mult& e) {
                 eval(std::move(*e.left));
                 eval(std::move(*e.right));
-                p.append(StackOperation<x86Generator>::commutative_binary(
+                p.append(s.commutative_binary(
                     std::multiplies<uint64_t>(),
                     [](Register lhs, Register rhs) { return x86::imul(lhs, rhs); },
                     [](Register reg, int32_t imm) { return x86::imul(reg, imm); }));
@@ -122,7 +118,7 @@ private:
             [&](Div& e) {
                 eval(std::move(*e.left));
                 eval(std::move(*e.right));
-                p.append(StackOperation<x86Generator>::non_commutative_binary(
+                p.append(s.non_commutative_binary(
                     [](uint64_t l, uint64_t r) {
                         return static_cast<uint64_t>(
                             static_cast<int64_t>(l) / static_cast<int64_t>(r));
@@ -152,7 +148,7 @@ private:
             [&](Mod& e) {
                 eval(std::move(*e.left));
                 eval(std::move(*e.right));
-                p.append(StackOperation<x86Generator>::non_commutative_binary(
+                p.append(s.non_commutative_binary(
                     [](uint64_t l, uint64_t r) {
                         return static_cast<uint64_t>(
                             static_cast<int64_t>(l) % static_cast<int64_t>(r));
@@ -184,7 +180,7 @@ private:
             [&](Exp& e) {
                 eval(std::move(*e.base));
                 eval(std::move(*e.exponent));
-                p.append(StackOperation<x86Generator>::non_commutative_binary(
+                p.append(s.non_commutative_binary(
                     [](uint64_t l, uint64_t r) { return static_cast<uint64_t>(std::pow(l, r)); },
                     [](Register lhs, Register rhs) { return x86::exp(lhs, rhs); },
                     [](Register lhs, int32_t imm) {
@@ -196,7 +192,7 @@ private:
             [&](Negated& e) {
                 eval(std::move(*e.expression));
                 auto reg = primary_scratch();
-                auto instr = StackOperation<x86Generator>::push_reg(reg, std::negate<uint64_t>());
+                auto instr = s.push_reg(reg, std::negate<uint64_t>());
                 if (instr) {
                     p.append(x86::compose(
                         std::move(*instr),
@@ -219,7 +215,7 @@ private:
                     while (!args.empty()) {
                         auto arg = std::move(args.top()); args.pop();
                         auto reg = Register::EAX;
-                        auto load = StackOperation<x86Generator>::load_numeric_reg_from_pop(reg, arg);
+                        auto load = s.load_numeric_reg_from_pop(reg, arg);
                         p.append(x86::compose(
                             std::move(load),
                             x86::print_num_literal(reg)
@@ -282,8 +278,8 @@ public:
 
     static x86Prog generate(NodeResult expr, const std::unordered_map<std::string, TypedVar>& symbol_table) {
         x86Prog prog;
-        stack = Stack(symbol_table, Register::R12, Register::R13, Register::R14, Register::R15); 
-        x86Generator(prog).eval(std::move(*expr));
+        auto stack = Stack(symbol_table, Register::R12, Register::R13, Register::R14, Register::R15);
+        x86Generator(prog, stack).eval(std::move(*expr));
         auto stack_size = static_cast<int32_t>(stack.size());
         prog.prog_fn = x86::compose(
             x86::push(x86::Register::EBP),

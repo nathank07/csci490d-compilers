@@ -4,7 +4,9 @@
 #include <cstdlib>
 
 template <typename Generator>
-struct StackOperation {
+struct StackOperator {
+
+    StackAllocator<Generator, typename Generator::Register>& stack;
 
     using Register = typename Generator::Register;
     using StackUnit = typename StackAllocator<Generator, typename Generator::Register>::StackUnit;
@@ -20,8 +22,8 @@ private:
         Returns an Instruction to append in the event it needs to be moved
         to a virtual register
     */
-    static auto free_space_for(Register& desired_reg) {
-        auto dest = Generator::stack.lock_reg(desired_reg);
+    auto free_space_for(Register& desired_reg) {
+        auto dest = stack.lock_reg(desired_reg);
         if (!dest) return Generator::compose();
         return std::visit(overloads {
             [&](RegisterUnit<Register>& u) {
@@ -29,7 +31,7 @@ private:
                 return Generator::compose();
             },
             [&](VirtualRegisterUnit& u) {
-                return Generator::move_reg_into_sp_offset(desired_reg, Generator::stack.get_vreg(u.sp_idx));
+                return Generator::move_reg_into_sp_offset(desired_reg, stack.get_vreg(u.sp_idx));
             }
         }, *dest);
     }
@@ -40,15 +42,15 @@ private:
         prior to calling normalize_into(); As this function doesn't check if the 
         register is locked and you may overwrite a register that is locked.
     */
-    static auto normalize_into(Register reg, StackUnit& unit) {
+    auto normalize_into(Register reg, StackUnit& unit) {
         return std::visit(overloads {
             [&](IdentifierUnit& u) {
-                auto offset = Generator::stack.get(u.ident);
+                auto offset = stack.get(u.ident);
                 unit = RegisterUnit<Register>{ reg };
                 return Generator::move_sp_offset_into_reg(offset, reg);
             },
             [&](VirtualRegisterUnit& u) {
-                auto offset = Generator::stack.get_vreg(u.sp_idx);
+                auto offset = stack.get_vreg(u.sp_idx);
                 unit = RegisterUnit<Register>{ reg };
                 return Generator::move_sp_offset_into_reg(offset, reg);
             },
@@ -66,17 +68,17 @@ private:
         }, unit);
     }
 
-    static auto perform_binary_op(auto const_fold, auto perform_r_r, auto perform_r_imm, bool is_commutative) {
+    auto perform_binary_op(auto const_fold, auto perform_r_r, auto perform_r_imm, bool is_commutative) {
 
         auto rhs_reg = Generator::primary_scratch();
         auto lhs_reg = Generator::secondary_scratch();
-        auto rhs_unit = Generator::stack.pop();
-        auto lhs_unit = Generator::stack.pop();
+        auto rhs_unit = stack.pop();
+        auto lhs_unit = stack.pop();
         auto l_const = StackUtils::maybe_value_u64(lhs_unit);
         auto r_const = StackUtils::maybe_value_u64(rhs_unit);
 
         if (l_const && r_const) {
-            Generator::stack.push_const(const_fold(*l_const, *r_const));
+            stack.push_const(const_fold(*l_const, *r_const));
             return Generator::compose();
         }
 
@@ -88,8 +90,8 @@ private:
         assert(rhs_ok);
 
         if (!is_commutative && l_const) {
-            Generator::stack.unlock_reg(rhs_reg);
-            Generator::stack.push(RegisterUnit{ lhs_reg });
+            stack.unlock_reg(rhs_reg);
+            stack.push(RegisterUnit{ lhs_reg });
             return Generator::compose(
                 std::move(load_lhs),
                 std::move(load_rhs),
@@ -98,8 +100,8 @@ private:
         }
 
         if (l_const) {
-            Generator::stack.unlock_reg(lhs_reg);
-            Generator::stack.push(RegisterUnit{ rhs_reg });
+            stack.unlock_reg(lhs_reg);
+            stack.push(RegisterUnit{ rhs_reg });
             return Generator::compose(
                 std::move(load_rhs),
                 perform_r_imm(rhs_reg, *l_const)
@@ -107,16 +109,16 @@ private:
         }
 
         if (r_const) {
-            Generator::stack.unlock_reg(rhs_reg);
-            Generator::stack.push(RegisterUnit{ lhs_reg });
+            stack.unlock_reg(rhs_reg);
+            stack.push(RegisterUnit{ lhs_reg });
             return Generator::compose(
                 std::move(load_lhs),
                 perform_r_imm(lhs_reg, *r_const)
             );
         }
 
-        Generator::stack.unlock_reg(rhs_reg);
-        Generator::stack.push(RegisterUnit{ lhs_reg });
+        stack.unlock_reg(rhs_reg);
+        stack.push(RegisterUnit{ lhs_reg });
         return Generator::compose(
             std::move(load_lhs),
             std::move(load_rhs),
@@ -130,12 +132,12 @@ public:
     // Prepares a register to be modified in the stack, or suggests a different
     // register by modifying. Returns an optional instruction to inform user
     // if the constant fold was performed or not (with nullopt implying it was)
-    static std::optional<typename Generator::Instruction> push_reg(Register& desired_reg, auto const_fold) {
-        auto top = Generator::stack.pop();
+    std::optional<typename Generator::Instruction> push_reg(Register& desired_reg, auto const_fold) {
+        auto top = stack.pop();
         auto top_const = StackUtils::maybe_value_u64(top);
 
         if (top_const) {
-            Generator::stack.push_const(const_fold(*top_const));
+            stack.push_const(const_fold(*top_const));
             return std::nullopt;
         }
 
@@ -144,11 +146,11 @@ public:
         bool reg_ok = StackUtils::is_register<StackUnit, Register>(top);
         assert(reg_ok);
 
-        Generator::stack.push(RegisterUnit{ desired_reg });
+        stack.push(RegisterUnit{ desired_reg });
         return emit;
     }
 
-    static auto load_numeric_reg_from_pop(Register& reg, StackUnit& unit) {
+    auto load_numeric_reg_from_pop(Register& reg, StackUnit& unit) {
 
         // prevent claiming and therefore locking a register that won't even
         // be used and just early return the registerunit
@@ -165,7 +167,7 @@ public:
         );
     }
 
-    static auto commutative_binary(auto const_fold, auto perform_r_r, auto perform_r_imm) {
+    auto commutative_binary(auto const_fold, auto perform_r_r, auto perform_r_imm) {
         return perform_binary_op(
             const_fold,
             perform_r_r,
@@ -174,7 +176,7 @@ public:
         );
     }
 
-    static auto non_commutative_binary(auto const_fold, auto perform_r_r, auto perform_r_imm) {
+    auto non_commutative_binary(auto const_fold, auto perform_r_r, auto perform_r_imm) {
         return perform_binary_op(
             const_fold,
             perform_r_r,
