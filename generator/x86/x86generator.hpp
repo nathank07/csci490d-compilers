@@ -161,16 +161,30 @@ private:
             },
             [&](FunctionCall& v) {
                 auto n = v.arg_count();
+                eval(std::move(*v.ident));
+                auto fn = StackUtils::assert_ident(stack.pop());
+
                 if (v.args.is_just()) eval(std::move(*v.args));
+
+                // ECX can get overwritten by the SysV ABI so we evict it to
+                // another register to save it; we have to do this because the
+                // args get popped to the C++ stack; and our abstracted stack
+                // cannot lock values in the C++ stack (it thinks it already
+                // got popped, and that it doesn't need to be protected.)
+                x86::Instruction free_ecx = x86::compose();
+                if (fn == "print" || fn == "read") {
+                    free_ecx = s.evict_space_for(Register::ECX);
+                }
 
                 std::stack<Stack::StackUnit> args;
                 for (uint8_t i = 0; i < n; i++) args.push(stack.pop());
 
-                eval(std::move(*v.ident));
-                auto fn = StackUtils::assert_ident(stack.pop());
                 if (fn == "print") {
                     auto pre_print_size = stack.size();
-                    p.append(x86::align_sp_start(pre_print_size));
+                    p.append(x86::compose(
+                        std::move(free_ecx),
+                        x86::align_sp_start(pre_print_size)
+                    ));
                     while (!args.empty()) {
                         auto arg = std::move(args.top()); args.pop();
                         auto reg = Register::EAX;
@@ -184,14 +198,19 @@ private:
                         ));
                         stack.unlock_reg(reg);
                     }
+                    stack.unlock_reg(Register::ECX);
                     p.append(x86::align_sp_end(pre_print_size));
 
                 } else if (fn == "read") {
                     assert(n == 1 && "read takes exactly one argument");
                     auto arg = std::move(args.top()); args.pop();
                     auto id = StackUtils::assert_ident(arg);
-                    p.append(x86::read_int4(x86::Register::EAX, stack.size()));
-                    p.append(x86::mov_rmem_64(x86::Register::EBP, x86::Register::EAX, stack.get(id)));
+                    p.append(x86::compose(
+                        std::move(free_ecx),
+                        x86::read_int4(x86::Register::EAX, stack.size()),
+                        x86::mov_rmem_64(x86::Register::EBP, x86::Register::EAX, stack.get(id))
+                    ));
+                    stack.unlock_reg(Register::ECX);
                 } else {
                     assert(false && "unknown function");
                 }

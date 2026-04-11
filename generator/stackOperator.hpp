@@ -12,7 +12,7 @@ struct StackOperator {
     using Register = typename Generator::Register;
     using StackUnit = typename StackAllocator<Generator, typename Generator::Register>::StackUnit;
 
-private:
+
 
     /* 
         Evicts your desired reg and returns an instruction on what you need to
@@ -52,6 +52,8 @@ private:
             }
         }, *dest);
     }
+    
+private:
 
     /*
         Helper that loads values into a register. This is somewhat of an opposite
