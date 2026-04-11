@@ -84,7 +84,9 @@ private:
                 return emit;
             },
             [&](StaticPointerUnit& u) {
-                return Generator::compose();
+                auto emit = Generator::mov_static_ptr_to_reg(u.abs_addr, reg);
+                unit = RegisterUnit<Register>{ reg };
+                return emit;
             }
         }, unit);
     }
@@ -95,6 +97,10 @@ private:
         auto lhs_reg = Generator::secondary_scratch();
         auto rhs_unit = stack.pop();
         auto lhs_unit = stack.pop();
+
+        assert(!StackUtils::maybe_static_ptr(rhs_unit));
+        assert(!StackUtils::maybe_static_ptr(lhs_unit));
+
         auto l_const = StackUtils::maybe_value_u64(lhs_unit);
         auto r_const = StackUtils::maybe_value_u64(rhs_unit);
 
@@ -103,8 +109,8 @@ private:
             return Generator::compose();
         }
 
-        auto load_lhs = load_numeric_reg_from_pop(lhs_reg, lhs_unit);
-        auto load_rhs = load_numeric_reg_from_pop(rhs_reg, rhs_unit);
+        auto load_lhs = load_reg_from_pop(lhs_reg, lhs_unit);
+        auto load_rhs = load_reg_from_pop(rhs_reg, rhs_unit);
         bool lhs_ok = StackUtils::is_register<StackUnit, Register>(lhs_unit) || l_const;
         bool rhs_ok = StackUtils::is_register<StackUnit, Register>(rhs_unit) || r_const;
         assert(lhs_ok);
@@ -162,7 +168,7 @@ public:
             return std::nullopt;
         }
 
-        auto emit = load_numeric_reg_from_pop(desired_reg, top);
+        auto emit = load_reg_from_pop(desired_reg, top);
 
         bool reg_ok = StackUtils::is_register<StackUnit, Register>(top);
         assert(reg_ok);
@@ -171,7 +177,7 @@ public:
         return emit;
     }
 
-    auto load_numeric_reg_from_pop(Register& reg, StackUnit& unit, bool force_eviction = false) {
+    auto load_reg_from_pop(Register& reg, StackUnit& unit, bool force_eviction = false) {
 
         // prevent claiming and therefore locking a register that won't even
         // be used and just early return the registerunit

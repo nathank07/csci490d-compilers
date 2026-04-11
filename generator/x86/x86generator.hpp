@@ -8,6 +8,7 @@
 #include "x86stackOperator.hpp"
 #include <cmath>
 #include <cstdint>
+#include <unordered_map>
 #include <variant>
 #include <stack>
 
@@ -37,6 +38,9 @@ struct x86Generator : TypeSize<x86Generator> {
     static Instruction mov_const_to_reg(uint64_t val, Register reg) {
         return x86::mov_64(reg, val);
     }
+    static Instruction mov_static_ptr_to_reg(uint64_t abs_from_0x0, Register reg) {
+        return x86::mov_abs(reg, abs_from_0x0);
+    }
     static Instruction add_imm_to_reg(Register reg, uint64_t imm) {
         return x86::add(reg, static_cast<int32_t>(imm));
     }
@@ -55,10 +59,22 @@ private:
     using Stack = StackAllocator<x86Generator, x86::Register>;
 
     Stack stack;
+    const std::map<std::u8string, std::size_t> str_locs;
     x86StackOperator<x86Generator> s{stack};
     x86Prog& p;
+    
+    // jump_rel varies on how much string data there is, so we store it
+    // here so that the u8string variant can get the correct abs addr
+    x86::Instruction skip_strs = x86::compose();
 
-    x86Generator(x86Prog& p_, Stack& stack_) : p(p_), stack(stack_) {}
+    x86Generator(x86Prog& p_, Stack& stack_, const std::map<std::u8string, std::size_t>& str_locs_)
+        : stack(stack_), str_locs(str_locs_), p(p_) {
+        if (!str_locs.empty()) {
+            auto it = std::max_element(str_locs.begin(), str_locs.end(),
+                [](auto& a, auto& b) { return a.second < b.second; });
+            skip_strs = x86::jump_rel(it->second + it->first.size());
+        }
+    }
 
     void eval(std::unique_ptr<Expression> expr) {
 
@@ -70,7 +86,9 @@ private:
                         stack.push_identifier(v);
                     },
                     [&](std::u8string v) {
-                        assert(false && "string literals unsupported");
+                        auto jmp_size = skip_strs.byte_size;
+                        std::u8string key = v += u8'\0';
+                        stack.push_static_ptr(str_locs.at(key) + jmp_size);
                     },
                     [&](long long v) {
                         stack.push_const(static_cast<uint64_t>(v));
@@ -156,10 +174,13 @@ private:
                     while (!args.empty()) {
                         auto arg = std::move(args.top()); args.pop();
                         auto reg = Register::EAX;
-                        auto load = s.load_numeric_reg_from_pop(reg, arg);
+                        auto is_str = StackUtils::maybe_static_ptr(arg);
+                        auto load = s.load_reg_from_pop(reg, arg);
                         p.append(x86::compose(
                             std::move(load),
-                            x86::print_num_literal(reg)
+                            is_str ?
+                                x86::print_char_addr(reg) :
+                                x86::print_num_literal(reg)
                         ));
                         stack.unlock_reg(reg);
                     }
@@ -218,12 +239,34 @@ private:
 
 public:
 
-    static x86Prog generate(NodeResult expr, const std::unordered_map<std::string, TypedVar>& symbol_table) {
+    static x86Prog generate(NodeResult expr, const std::unordered_map<std::string, TypedVar>& symbol_table, 
+                                             const std::map<std::u8string, std::size_t> str_locs) {
         x86Prog prog;
         auto stack = Stack(symbol_table, Register::R12, Register::R13, Register::R14, Register::R15);
-        x86Generator(prog, stack).eval(std::move(*expr));
+        auto generator = x86Generator(prog, stack, str_locs);
+        generator.eval(std::move(*expr));
         auto stack_size = static_cast<int32_t>(stack.size());
+        x86::Instruction string_pool;
+
+
+        // sort by value, because map is sorted alphabetically, and the strings 
+        // probably aren't in alphabetical order - so you'll be pointing to 
+        // garbage data
+        std::vector<std::pair<std::u8string, std::size_t>> 
+            sorted_strs(str_locs.begin(), str_locs.end());
+        std::sort(sorted_strs.begin(), sorted_strs.end(), [](auto& a, auto& b) 
+            { return a.second < b.second; });
+
+        for (const auto& str : sorted_strs) {
+            string_pool = x86::compose(
+                std::move(string_pool),
+                x86::write_raw_string(str.first)
+            );
+        }
+
         prog.prog_fn = x86::compose(
+            std::move(generator.skip_strs),
+            std::move(string_pool),
             x86::push(x86::Register::EBP),
             x86::sub(x86::Register::ESP, stack_size),
             x86::mov(x86::Register::EBP, x86::Register::ESP),

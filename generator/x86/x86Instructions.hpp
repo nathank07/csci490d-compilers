@@ -33,7 +33,38 @@ struct x86 : InstructionControl<x86> {
             [](auto*, auto&) {};
     };
 
+private:
+    template <typename... Args>
+    static Instruction create_instr(std::string emit, Args&&... args) {
+        return {emit, sizeof...(args), [=](auto* prog, auto& ptr) {
+            ((prog[ptr++] = static_cast<unsigned char>(args)), ...);
+        }};
+    }
 
+    template <typename... Args>
+    static Instruction create_abs_addr_instr(std::string emit, uint64_t abs_from_0x0, Args&&... args) {
+        auto instr = create_instr(emit, args...);
+        return {emit, instr.byte_size + 8, [instr, abs_from_0x0](auto* prog, auto& ptr) {
+            instr.write_bytes(prog, ptr);
+            write_64(reinterpret_cast<uint64_t>(prog) + abs_from_0x0).write_bytes(prog, ptr);
+        }};
+    }
+
+public:
+
+    static Instruction write_raw_string(std::u8string string) {
+        auto emit = std::string("raw string <") + reinterpret_cast<const char*>(string.c_str()) + ">\n";
+        auto in = create_instr(emit, string[0]);
+
+        for (std::size_t i = 1; i < string.size(); i++) {
+            in = x86::compose(
+                std::move(in),
+                create_instr("", string[i])
+            );
+        }
+
+        return in;
+    }
 
     // ** CRTP Instructions **
     static Instruction compose() { return {}; }
@@ -145,13 +176,6 @@ private:
 
     static uint8_t get_rm_byte(Register rm, Register r, uint32_t offset) {
         return get_rm_byte(rm, static_cast<OpcodeExtension>(r), offset);
-    }
-
-    template <typename... Args>
-    static Instruction create_instr(std::string emit, Args&&... args) {
-        return {emit, sizeof...(args), [=](auto* prog, auto& ptr) {
-            ((prog[ptr++] = static_cast<unsigned char>(args)), ...);
-        }};
     }
 
     static Instruction write_rex_prefix(Register rm, Register r, bool is_64) {
@@ -371,6 +395,14 @@ public:
             write_rex_prefix(r, OpcodeExtension::Zero, true),
             create_instr(emit, 0xB8 + (static_cast<uint8_t>(r) & 0x7)),
             write_64(v)
+        );
+    }
+
+    static Instruction mov_abs(Register r, uint64_t abs_from_0x0) {
+        auto emit = "MOV " + get_register(r) + ", abs: " + std::to_string(abs_from_0x0) + "\n";
+        return compose(
+            write_rex_prefix(r, OpcodeExtension::Zero, true),
+            create_abs_addr_instr(emit, abs_from_0x0, 0xB8 + (static_cast<uint8_t>(r) & 0x7))
         );
     }
 

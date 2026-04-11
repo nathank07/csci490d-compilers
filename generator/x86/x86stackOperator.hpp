@@ -15,6 +15,8 @@ struct x86StackOperator : StackOperator<Generator> {
     auto handle_div_family(DivType type) {
         auto rhs_unit = stack.pop();
         auto lhs_unit = stack.pop();
+        assert(!StackUtils::maybe_static_ptr(rhs_unit));
+        assert(!StackUtils::maybe_static_ptr(lhs_unit));
         auto l_const = StackUtils::maybe_value_u64(lhs_unit);
         auto r_const = StackUtils::maybe_value_u64(rhs_unit);
 
@@ -30,8 +32,8 @@ struct x86StackOperator : StackOperator<Generator> {
         auto lhs_reg = x86::Register::EAX;
         auto rhs_reg = Generator::primary_scratch();
 
-        auto load_lhs = this->load_numeric_reg_from_pop(lhs_reg, lhs_unit, true);
-        auto load_rhs = this->load_numeric_reg_from_pop(rhs_reg, rhs_unit);
+        auto load_lhs = this->load_reg_from_pop(lhs_reg, lhs_unit, true);
+        auto load_rhs = this->load_reg_from_pop(rhs_reg, rhs_unit);
 
         auto mov_eax = type == DivType::MOD ? 
             x86::mov(lhs_reg, x86::Register::EDX) : 

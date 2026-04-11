@@ -30,7 +30,7 @@ int main(int argc, char** argv) {
     if (table.node_idx) {
         std::cout << "Code tree:\n";
         AbstractSyntaxTree::print_tree(std::cout, *nodes[*table.node_idx]);
-        auto prog = x86Generator::generate(std::move(nodes[*table.node_idx]), table.table);
+        auto prog = x86Generator::generate(std::move(nodes[*table.node_idx]), table.table, table.string_consts);
         std::cout << "Emitted instructions: \n";
         x86Prog::emit_prog(prog, std::cout);
         

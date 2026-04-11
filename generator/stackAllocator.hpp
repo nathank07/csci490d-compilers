@@ -34,7 +34,7 @@ struct VirtualRegisterUnit { std::size_t sp_idx; };
 struct ValueUnit { uint64_t literal; };
 
 // Used for string pooling or anything else known at compile time
-struct StaticPointerUnit { std::size_t s; };
+struct StaticPointerUnit { std::size_t abs_addr; };
 
 // You get this when you evaluate a node and it's an identifier. It could be
 // an symboled expression, in which case you can call .get() on the symbol table, 
@@ -47,6 +47,12 @@ namespace StackUtils {
     static std::optional<uint64_t> maybe_value_u64(const StackUnit& unit) {
         if (!std::holds_alternative<ValueUnit>(unit)) return std::nullopt;
         return std::get<ValueUnit>(unit).literal;
+    }
+
+    template <typename StackUnit>
+    static std::optional<std::size_t> maybe_static_ptr(const StackUnit& unit) {
+        if (!std::holds_alternative<StaticPointerUnit>(unit)) return std::nullopt;
+        return std::get<StaticPointerUnit>(unit).abs_addr;
     }
 
     template <typename StackUnit>
@@ -201,6 +207,10 @@ public:
 
     void push_identifier(const std::string& identifier) {
         eval_stack.push_back(IdentifierUnit{identifier});
+    }
+
+    void push_static_ptr(const uint64_t abs) {
+        eval_stack.push_back(StaticPointerUnit{abs});
     }
 
     RegisterTUnit push() {

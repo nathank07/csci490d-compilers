@@ -62,7 +62,7 @@ private:
             return l.second < r.second;
         });
 
-        if (it != symbol_table.string_consts.begin()) {
+        if (it != symbol_table.string_consts.end()) {
             symbol_table.string_consts[str] = it->first.length() + it->second;
             return;
         }
