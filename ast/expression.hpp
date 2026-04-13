@@ -96,6 +96,12 @@ struct BoolConst {
     bool is_true;
 };
 
+struct NumericComparison {
+    NodeResult left;
+    NodeResult right;
+    TokenType token_type;
+};
+
 struct Expression {
     std::variant<
         std::monostate, 
@@ -113,7 +119,8 @@ struct Expression {
         Assign,
         StatementBlock,
         Statements,
-        BoolConst
+        BoolConst,
+        NumericComparison
     > expression;
 };
 
@@ -159,16 +166,22 @@ inline NodeResult make_term(NodeResult cont) {
     return cont.create_expr(make_term_expr(cont.consumed.back()));
 }
 
-inline NodeResult make_binary(const Token& t, NodeResult left, NodeResult right) {
+inline NodeResult make_binary(NodeResult left, NodeResult right) {
     if (left.is_error()) return left;
     if (right.is_error()) return right;
 
     assert(left.is_just()); assert(right.is_just());
-
+    
     auto consumed = NodeResult::merge_consumed(left.consumed, right.consumed);
 
     auto make = [&](auto expr) {
         return NodeResult(NodeResult::Just{std::make_unique<Expression>(std::move(expr))}, consumed, right.rest);
+    };
+
+    Token t = right.consumed.front();
+
+    auto make_numeric = [&]() {
+        return make(NumericComparison{std::move(left), std::move(right), t.type});
     };
 
     switch (t.type) {
@@ -177,6 +190,12 @@ inline NodeResult make_binary(const Token& t, NodeResult left, NodeResult right)
         case TokenType::MULTIPLY: return make(Mult{std::move(left), std::move(right)});
         case TokenType::DIVIDE:   return make(Div{std::move(left), std::move(right)});
         case TokenType::EXPONENT: return make(Exp{std::move(left), std::move(right)});
+        case TokenType::LESS_THAN:       return make_numeric();
+        case TokenType::LESS_THAN_EQ:    return make_numeric();
+        case TokenType::GREATER_THAN:    return make_numeric();
+        case TokenType::GREATER_THAN_EQ: return make_numeric();
+        case TokenType::EQUALS:          return make_numeric();
+        case TokenType::NOT_EQUALS:      return make_numeric();
         case TokenType::IDENTIFIER: {
             if (std::get<TokenIdentifier>(t.data).value == "mod")
                 return make(Mod{std::move(left), std::move(right)});

@@ -3,6 +3,7 @@
 #include <span>
 #include "../lexer/token.hpp"
 #include "asterror.hpp"
+#include <iostream>
 
 template<typename T, typename E>
 struct ParseResult {
@@ -518,6 +519,7 @@ public:
     ParseResult then_parse(F&& parser) {
         if (is_just() || is_continue()) {
             auto result = parser(std::move(*this));
+            if (!result.is_just()) return convert_nothing(rest);
             return ParseResult(
                 std::move(result.value), 
                 merge_consumed(consumed, result.consumed), 
@@ -530,15 +532,12 @@ public:
     template <typename F, typename P>
     ParseResult then_parse_with(P&& parser, F&& combine) {
         if (is_just()) {
+            auto rhs = parser(ParseResult{Continue{}, consumed, rest});
+            if (!rhs.is_just()) return convert_nothing(undo_consumed());
 
-            auto result = combine(std::move(*this), std::move(
-                parser(ParseResult{Continue{}, consumed, rest})
-            ));
-
-            if (result.is_error()) {
-                return result;
-            }
-
+            auto result = combine(std::move(*this), std::move(rhs));
+            if (!result.is_just()) return result;
+            
             return ParseResult(
                 Just{std::move(*result)}, 
                 merge_consumed(consumed, result.consumed), 

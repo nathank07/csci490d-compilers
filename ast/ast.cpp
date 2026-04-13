@@ -51,7 +51,8 @@ NodeResult AbstractSyntaxTree::expect_statement(NodeResult ctx) {
 }
 
 NodeResult AbstractSyntaxTree::parse_expression(NodeResult ctx) {
-    return parse_as(std::move(ctx));
+    return parse_logical_expression(std::move(ctx))
+        .or_try_parse(parse_arithmetic);
 }
 
 NodeResult AbstractSyntaxTree::expect_expression(NodeResult ctx) {
@@ -59,10 +60,25 @@ NodeResult AbstractSyntaxTree::expect_expression(NodeResult ctx) {
         .nothing_guard(AstErrorType::EXPECTED_EXPRESSION);
 }
 
+NodeResult AbstractSyntaxTree::parse_arithmetic(NodeResult ctx) {
+    return parse_as(std::move(ctx));
+}
+
+NodeResult AbstractSyntaxTree::parse_logical_expression(NodeResult ctx) {
+    return NodeResult::init(ctx.rest)
+        .then_parse(parse_bool_const)
+        .or_try_parse(parse_numeric_comparison);
+}
+
+NodeResult AbstractSyntaxTree::expect_arithmetic(NodeResult ctx) {
+    return parse_arithmetic(std::move(ctx))
+        .nothing_guard(AstErrorType::EXPECTED_EXPRESSION);
+}
+
 NodeResult AbstractSyntaxTree::parse_paren(NodeResult ctx) {
     return NodeResult::init(ctx.rest)
         .want_tok(TokenType::LEFT_PAREN)
-        .then_parse(expect_expression)
+        .then_parse(expect_arithmetic)
         .then_expect_tok(TokenType::RIGHT_PAREN);        
 }
 
@@ -71,7 +87,6 @@ NodeResult AbstractSyntaxTree::parse_unary(NodeResult ctx) {
     auto parse_expr = [](auto&& rest) {
         return parse_function_call(std::move(rest))
             .or_try_parse(parse_paren)
-            .or_try_parse(parse_bool_const)
             .or_try_parse(parse_term);
     };
 
@@ -101,7 +116,7 @@ NodeResult AbstractSyntaxTree::parse_as(NodeResult ctx) {
                     .want_tok(TokenType::ADD)
                     .or_want_tok(TokenType::SUB);
             },
-            parse_binary
+            make_binary
         );
 }
 
@@ -115,7 +130,7 @@ NodeResult AbstractSyntaxTree::parse_md(NodeResult ctx) {
                     .or_want_tok(TokenType::DIVIDE)
                     .or_want_ident("mod");
             },
-            parse_binary
+            make_binary
         );
 }
 
@@ -127,7 +142,7 @@ NodeResult AbstractSyntaxTree::parse_exp(NodeResult ctx) {
                 return rest
                     .want_tok(TokenType::EXPONENT); 
             },
-            parse_binary
+            make_binary
         );
 }
 
@@ -135,6 +150,21 @@ NodeResult AbstractSyntaxTree::parse_bool_const(NodeResult ctx) {
     return NodeResult::init(ctx.rest)
         .want_ident("true", make_bool_const)
         .or_want_ident("false", make_bool_const);
+}
+
+NodeResult AbstractSyntaxTree::parse_numeric_comparison(NodeResult ctx) {
+    return NodeResult::init(ctx.rest)
+        .then_parse(parse_arithmetic)
+        .then_parse_with([](NodeResult&& rest) {
+            return NodeResult::init(rest.rest)
+                .want_tok(TokenType::EQUALS)
+                .or_want_tok(TokenType::NOT_EQUALS)
+                .or_want_tok(TokenType::LESS_THAN)
+                .or_want_tok(TokenType::LESS_THAN_EQ)
+                .or_want_tok(TokenType::GREATER_THAN)
+                .or_want_tok(TokenType::GREATER_THAN_EQ)
+                .then_parse(expect_arithmetic);
+        }, make_binary);
 }
 
 NodeResult AbstractSyntaxTree::parse_term(NodeResult ctx) {
@@ -174,7 +204,7 @@ NodeResult AbstractSyntaxTree::parse_assigns(NodeResult ctx) {
     return NodeResult::init(ctx.rest)
         .want_tok(TokenType::IDENTIFIER, make_term)
         .then_want_tok(TokenType::ASSIGN)
-        .then_parse_with(expect_expression, make_assign)
+        .then_parse_with(expect_arithmetic, make_assign)
         .then_expect_tok(TokenType::SEMICOLON);
 }
 
@@ -270,8 +300,13 @@ void AbstractSyntaxTree::print_tree(std::ostream& o, const std::unique_ptr<Expre
             if (v.next) print_tree(o, *v.next, indent);
         },
         [&](const BoolConst& v) {
-            o << "bool const\n";
-            o << "  " << (v.is_true ? "true" : "false");
+            o << "const bool\n";
+            o << std::string(indent + 2, ' ') << (v.is_true ? "true\n" : "false\n");
+        },
+        [&](const NumericComparison& v) {
+            o << Token::get_token_literal(v.token_type) << "\n";
+            print_tree(o, *v.left, indent + 2);
+            print_tree(o, *v.right, indent + 2);
         }
     };
 
