@@ -22,6 +22,7 @@ class AbstractSyntaxTree {
     static NodeResult parse_md(NodeResult ctx);
     static NodeResult parse_exp(NodeResult ctx);
     static NodeResult parse_term(NodeResult ctx);
+    static NodeResult parse_bool_const(NodeResult ctx);
 
     static NodeResult expect_statement(NodeResult ctx);
     static NodeResult expect_expression(NodeResult ctx);

@@ -71,6 +71,7 @@ NodeResult AbstractSyntaxTree::parse_unary(NodeResult ctx) {
     auto parse_expr = [](auto&& rest) {
         return parse_function_call(std::move(rest))
             .or_try_parse(parse_paren)
+            .or_try_parse(parse_bool_const)
             .or_try_parse(parse_term);
     };
 
@@ -128,6 +129,12 @@ NodeResult AbstractSyntaxTree::parse_exp(NodeResult ctx) {
             },
             parse_binary
         );
+}
+
+NodeResult AbstractSyntaxTree::parse_bool_const(NodeResult ctx) {
+    return NodeResult::init(ctx.rest)
+        .want_ident("true", make_bool_const)
+        .or_want_ident("false", make_bool_const);
 }
 
 NodeResult AbstractSyntaxTree::parse_term(NodeResult ctx) {
@@ -261,6 +268,10 @@ void AbstractSyntaxTree::print_tree(std::ostream& o, const std::unique_ptr<Expre
             o << "statement\n";
             print_tree(o, *v.value, indent + 2);
             if (v.next) print_tree(o, *v.next, indent);
+        },
+        [&](const BoolConst& v) {
+            o << "bool const\n";
+            o << "  " << (v.is_true ? "true" : "false");
         }
     };
 

@@ -91,6 +91,11 @@ struct Statements {
     NodeResult next;
 };
 
+struct BoolConst {
+    NodeResult node;
+    bool is_true;
+};
+
 struct Expression {
     std::variant<
         std::monostate, 
@@ -107,7 +112,8 @@ struct Expression {
         Declaration,
         Assign,
         StatementBlock,
-        Statements
+        Statements,
+        BoolConst
     > expression;
 };
 
@@ -248,3 +254,11 @@ inline NodeResult make_statement_block(NodeResult statements) {
 inline NodeResult make_statements(NodeResult left, NodeResult right) {
     return create_foldr_ll<Statements>(std::move(left), std::move(right));
 }
+
+inline NodeResult make_bool_const(NodeResult node) {
+    if (node.is_error()) return node;
+    auto node_str = node.consumed.back().get_token_literal();
+    return NodeResult(NodeResult::Just{std::make_unique<Expression>(
+        BoolConst{ make_term(std::move(node)), node_str == "true"})}, 
+            node.consumed, node.rest);
+};
