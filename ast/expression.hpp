@@ -102,6 +102,20 @@ struct NumericComparison {
     TokenType token_type;
 };
 
+struct Not {
+    NodeResult expression;
+};
+
+struct And {
+    NodeResult left;
+    NodeResult right;
+};
+
+struct Or {
+    NodeResult left;
+    NodeResult right;
+};
+
 struct Expression {
     std::variant<
         std::monostate, 
@@ -120,7 +134,10 @@ struct Expression {
         StatementBlock,
         Statements,
         BoolConst,
-        NumericComparison
+        NumericComparison,
+        Not,
+        And,
+        Or
     > expression;
 };
 
@@ -149,6 +166,13 @@ inline NodeResult make_negated(NodeResult inner) {
     assert(inner.is_just());
     return NodeResult(NodeResult::Just{std::make_unique<Expression>
         (Negated{std::move(inner)})}, inner.consumed, inner.rest);
+}
+
+inline NodeResult make_not(NodeResult inner) {
+    if (inner.is_error()) return inner;
+    assert(inner.is_just());
+    return NodeResult(NodeResult::Just{std::make_unique<Expression>
+        (Not{std::move(inner)})}, inner.consumed, inner.rest);
 }
 
 inline std::unique_ptr<Expression> make_term_expr(const Token& t) {
@@ -196,6 +220,8 @@ inline NodeResult make_binary(NodeResult left, NodeResult right) {
         case TokenType::GREATER_THAN_EQ: return make_numeric();
         case TokenType::EQUALS:          return make_numeric();
         case TokenType::NOT_EQUALS:      return make_numeric();
+        case TokenType::OR:       return make(Or{std::move(left), std::move(right)});
+        case TokenType::AND:      return make(And{std::move(left), std::move(right)});
         case TokenType::IDENTIFIER: {
             if (std::get<TokenIdentifier>(t.data).value == "mod")
                 return make(Mod{std::move(left), std::move(right)});

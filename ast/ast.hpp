@@ -7,7 +7,6 @@
 
 class AbstractSyntaxTree {
 
-    
     static NodeResult parse_global(NodeResult ctx, std::vector<NodeResult>& errors);
     
     static NodeResult parse_statement(NodeResult ctx);
@@ -18,12 +17,14 @@ class AbstractSyntaxTree {
     static NodeResult parse_expression(NodeResult ctx);
 
     static NodeResult parse_logical_expression(NodeResult ctx);
+    static NodeResult parse_not(NodeResult ctx);
+    static NodeResult parse_or(NodeResult ctx);
+    static NodeResult parse_and(NodeResult ctx);
     static NodeResult parse_numeric_comparison(NodeResult ctx);
     static NodeResult parse_bool_const(NodeResult ctx);
 
     static NodeResult parse_arithmetic(NodeResult ctx);
     static NodeResult parse_unary(NodeResult ctx);
-    static NodeResult parse_paren(NodeResult ctx);
     static NodeResult parse_as(NodeResult ctx);
     static NodeResult parse_md(NodeResult ctx);
     static NodeResult parse_exp(NodeResult ctx);
@@ -31,10 +32,10 @@ class AbstractSyntaxTree {
 
 
     static NodeResult expect_statement(NodeResult ctx);
-    static NodeResult expect_expression(NodeResult ctx);
-    static NodeResult expect_arithmetic(NodeResult ctx);
 
+    static constexpr auto parse_parened(auto&& f);
     static constexpr auto parse_semicoloned(auto&& f);
+    static constexpr auto expected_expression(auto&& f);
 
 public:
 
