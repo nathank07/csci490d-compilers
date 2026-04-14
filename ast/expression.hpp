@@ -116,6 +116,12 @@ struct Or {
     NodeResult right;
 };
 
+struct If {
+    NodeResult logical_expression;
+    NodeResult if_statement_block;
+    NodeResult else_statement_block;
+};
+
 struct Expression {
     std::variant<
         std::monostate, 
@@ -137,7 +143,8 @@ struct Expression {
         NumericComparison,
         Not,
         And,
-        Or
+        Or,
+        If
     > expression;
 };
 
@@ -298,6 +305,25 @@ inline NodeResult make_statement_block(NodeResult statements) {
 
 inline NodeResult make_statements(NodeResult left, NodeResult right) {
     return create_foldr_ll<Statements>(std::move(left), std::move(right));
+}
+
+inline NodeResult make_if_block(NodeResult logical_expression, NodeResult statement_block) {
+    if (!logical_expression.is_just()) return logical_expression;
+    if (!statement_block.is_just()) return statement_block;
+    auto consumed = NodeResult::merge_consumed(logical_expression.consumed, statement_block.consumed);
+    return NodeResult(NodeResult::Just{std::make_unique<Expression>(
+        If{std::move(logical_expression), std::move(statement_block), NodeResult::nothing()})}, 
+            consumed, statement_block.rest);
+}
+
+inline NodeResult make_else_block(NodeResult if_statement_block, NodeResult else_block) {
+    if (else_block.is_error()) return else_block;
+    if (else_block.is_nothing()) return if_statement_block;
+    auto consumed = NodeResult::merge_consumed(if_statement_block.consumed, else_block.consumed);
+    auto& block = std::get<If>((*if_statement_block)->expression);
+    return NodeResult(NodeResult::Just{std::make_unique<Expression>(
+        If{std::move(block.logical_expression), std::move(block.if_statement_block), 
+            std::move(else_block)})}, consumed, else_block.rest);
 }
 
 inline NodeResult make_bool_const(NodeResult node) {

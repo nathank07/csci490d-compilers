@@ -9,6 +9,9 @@ class AbstractSyntaxTree {
 
     static NodeResult parse_global(NodeResult ctx, std::vector<NodeResult>& errors);
     
+    static NodeResult parse_statement_block(NodeResult ctx);
+    static NodeResult parse_if_statement(NodeResult ctx);
+
     static NodeResult parse_statement(NodeResult ctx);
     static NodeResult parse_function_call(NodeResult ctx);
     static NodeResult parse_declaration(NodeResult ctx);
@@ -32,10 +35,11 @@ class AbstractSyntaxTree {
 
 
     static NodeResult expect_statement(NodeResult ctx);
+    static NodeResult expect_statement_block(NodeResult ctx);
 
-    static constexpr auto parse_parened(auto&& f);
-    static constexpr auto parse_semicoloned(auto&& f);
-    static constexpr auto expected_expression(auto&& f);
+    static constexpr auto parse_parened(auto f);
+    static constexpr auto parse_semicoloned(auto f);
+    static constexpr auto expect_expressioned(auto f);
 
 public:
 

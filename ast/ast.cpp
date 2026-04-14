@@ -31,32 +31,71 @@ NodeResult AbstractSyntaxTree::parse_global(NodeResult ctx, std::vector<NodeResu
         .then_parse(make_statement_block);
 }
 
-auto constexpr AbstractSyntaxTree::parse_parened(auto&& f) {
+NodeResult AbstractSyntaxTree::parse_statement_block(NodeResult ctx) {
+    return parse_statement(std::move(ctx))
+        .or_try_parse([](auto&& c) {
+            return NodeResult::init(c.rest)
+                .want_tok(TokenType::LEFT_BRACE)
+                .then_collect_until_tok(
+                    expect_statement,
+                    TokenType::RIGHT_BRACE,
+                    make_statements
+                )
+                .then_parse(make_statement_block);
+        });
+}
+
+NodeResult AbstractSyntaxTree::expect_statement_block(NodeResult ctx) {
+    return parse_statement_block(std::move(ctx))
+        .nothing_guard(AstErrorType::EXPECTED_STATEMENT_BLOCK);
+}
+
+auto constexpr AbstractSyntaxTree::parse_parened(auto f) {
     return [f](auto&& ctx) {
         return NodeResult::init(ctx.rest)
             .want_tok(TokenType::LEFT_PAREN)
-            .then_parse(expected_expression(f))
+            .then_parse(expect_expressioned(f))
             .then_expect_tok(TokenType::RIGHT_PAREN);
     };
 }
 
-auto constexpr AbstractSyntaxTree::parse_semicoloned(auto&& f) {
+auto constexpr AbstractSyntaxTree::parse_semicoloned(auto f) {
     return [f](auto&& ctx) {
         return f(std::move(ctx))
             .then_expect_tok(TokenType::SEMICOLON);
     };
 }
 
-auto constexpr AbstractSyntaxTree::expected_expression(auto&& expr_parser) {
+auto constexpr AbstractSyntaxTree::expect_expressioned(auto expr_parser) {
     return [expr_parser](auto&& ctx) {
         return expr_parser(std::move(ctx))
             .nothing_guard(AstErrorType::EXPECTED_STATEMENT);
     };
 }
 
+NodeResult AbstractSyntaxTree::parse_if_statement(NodeResult ctx) {
+    return NodeResult::init(ctx.rest)
+        .then_want_ident("if")
+        .then_expect_tok(TokenType::LEFT_PAREN)
+        .then_parse(expect_expressioned(parse_logical_expression))
+        .then_expect_tok(TokenType::RIGHT_PAREN)
+        .then_parse_with(expect_statement_block, make_if_block)
+        // Normally, the idiomatic usage is then_parse_with; but it's too
+        // strict on failure, so we use then_parse and pass the parser to 
+        // make_else to support optional else blocks
+        .then_parse([](auto&& if_statement) {
+            return make_else_block(std::move(if_statement), 
+                NodeResult::init(if_statement.rest)
+                    .want_ident("else")
+                    .then_parse(expect_statement_block)
+                );
+        });
+}
+
 NodeResult AbstractSyntaxTree::parse_statement(NodeResult ctx) {
     return NodeResult::init(ctx.rest)
         .then_parse(parse_assigns)
+        .or_try_parse(parse_if_statement)
         .or_try_parse(parse_declaration)
         .or_try_parse(parse_semicoloned(parse_expression));
 }
@@ -188,17 +227,22 @@ NodeResult AbstractSyntaxTree::parse_bool_const(NodeResult ctx) {
 }
 
 NodeResult AbstractSyntaxTree::parse_numeric_comparison(NodeResult ctx) {
+
+    auto comparison_op = [](auto&& rest) {
+        return NodeResult::init(rest.rest)
+            .want_tok(TokenType::EQUALS)
+            .or_want_tok(TokenType::NOT_EQUALS)
+            .or_want_tok(TokenType::LESS_THAN)
+            .or_want_tok(TokenType::LESS_THAN_EQ)
+            .or_want_tok(TokenType::GREATER_THAN)
+            .or_want_tok(TokenType::GREATER_THAN_EQ);
+    };
+
     return NodeResult::init(ctx.rest)
         .then_parse(parse_arithmetic)
-        .then_parse_with([](NodeResult&& rest) {
-            return NodeResult::init(rest.rest)
-                .want_tok(TokenType::EQUALS)
-                .or_want_tok(TokenType::NOT_EQUALS)
-                .or_want_tok(TokenType::LESS_THAN)
-                .or_want_tok(TokenType::LESS_THAN_EQ)
-                .or_want_tok(TokenType::GREATER_THAN)
-                .or_want_tok(TokenType::GREATER_THAN_EQ)
-                .then_parse(expected_expression(parse_arithmetic));
+        .then_parse_with([&](auto&& rest) {
+            return comparison_op(std::move(rest))
+                .then_parse(expect_expressioned(parse_arithmetic));
         }, make_binary);
 }
 
@@ -219,7 +263,7 @@ NodeResult AbstractSyntaxTree::parse_function_call(NodeResult ctx) {
         .then_want_tok(TokenType::LEFT_PAREN, [&](auto&& ident, auto&& rest) {
             auto args = rest
                 .then_want_right_sep(
-                    expected_expression(parse_expression),
+                    expect_expressioned(parse_expression),
                     sep,
                     make_func_args
                 );
@@ -239,7 +283,7 @@ NodeResult AbstractSyntaxTree::parse_assigns(NodeResult ctx) {
     return NodeResult::init(ctx.rest)
         .want_tok(TokenType::IDENTIFIER, make_term)
         .then_want_tok(TokenType::ASSIGN)
-        .then_parse_with(expected_expression(parse_expression), make_assign)
+        .then_parse_with(expect_expressioned(parse_expression), make_assign)
         .then_expect_tok(TokenType::SEMICOLON);
 }
 
@@ -356,6 +400,16 @@ void AbstractSyntaxTree::print_tree(std::ostream& o, const std::unique_ptr<Expre
             o << "or\n";
             print_tree(o, *v.left, indent + 2);
             print_tree(o, *v.right, indent + 2);
+        },
+        [&](const If& v) {
+            o << "if\n";
+            print_tree(o, *v.logical_expression, indent + 2);
+            print_tree(o, *v.if_statement_block, indent + 2);
+
+            if (v.else_statement_block) {
+                o << std::string(indent, ' ') << "else\n";
+                print_tree(o, *v.else_statement_block, indent + 2);
+            }
         }
     };
 

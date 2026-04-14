@@ -5,6 +5,7 @@
 
 enum class AstErrorType {
     EXPECTED_STATEMENT,
+    EXPECTED_STATEMENT_BLOCK,
     EXPECTED_EXPRESSION,
     EXPECTED_TOK,
     EXPECTED_IDENT,
@@ -43,6 +44,7 @@ struct AstError {
             case AstErrorType::EXPECTED_EXPRESSION: err.pretty_print_bad_expr(i, o); return;
             case AstErrorType::EXPECTED_TOK: err.pretty_print_bad_tok(i, o); return;
             case AstErrorType::EXPECTED_STATEMENT: err.pretty_print_bad_stmt(i, o); return;
+            case AstErrorType::EXPECTED_STATEMENT_BLOCK: err.pretty_print_bad_stmt(i, o); return;
             case AstErrorType::NO_NESTED_UNARIES: err.pretty_print_unsupported_unary(i, o); return;
             case AstErrorType::COMMA_OR_RPAREN: err.pretty_print_comma_or_rparen(i, o); return;
             case AstErrorType::UNRECOGNIZED_IDENT: err.pretty_print_bad_ident(i, o); return;
@@ -126,11 +128,13 @@ private:
     void pretty_print_bad_stmt(const Input& in, std::ostream& o) const {
         auto expr_end = error_toks.back();
         auto col = expr_end.column_number;
+        std::string msg = (type == AstErrorType::EXPECTED_STATEMENT_BLOCK)
+            ? "statement or statement block" : "statement";
 
-        o << "Expected beginning of statement at "
+        o << "Expected beginning of " << msg << " at "
           << expr_end.line_number << ":" << col << ", read '"
           << expr_end.get_token_literal() << "' instead\n\n";
-        
+
         print_span_context(in, o, false);
         pretty_print_arrow(col, o);
     }
