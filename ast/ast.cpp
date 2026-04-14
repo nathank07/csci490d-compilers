@@ -41,6 +41,7 @@ NodeResult AbstractSyntaxTree::parse_statement_block(NodeResult ctx) {
                     TokenType::RIGHT_BRACE,
                     make_statements
                 )
+                .then_expect_tok(TokenType::RIGHT_BRACE)
                 .then_parse(make_statement_block);
         });
 }
@@ -75,7 +76,7 @@ auto constexpr AbstractSyntaxTree::expect_expressioned(auto expr_parser) {
 
 NodeResult AbstractSyntaxTree::parse_if_statement(NodeResult ctx) {
     return NodeResult::init(ctx.rest)
-        .then_want_ident("if")
+        .want_ident("if")
         .then_expect_tok(TokenType::LEFT_PAREN)
         .then_parse(expect_expressioned(parse_logical_expression))
         .then_expect_tok(TokenType::RIGHT_PAREN)
@@ -92,10 +93,20 @@ NodeResult AbstractSyntaxTree::parse_if_statement(NodeResult ctx) {
         });
 }
 
+NodeResult AbstractSyntaxTree::parse_while_statement(NodeResult ctx) {
+    return NodeResult::init(ctx.rest)
+        .want_ident("while")
+        .then_expect_tok(TokenType::LEFT_PAREN)
+        .then_parse(expect_expressioned(parse_logical_expression))
+        .then_expect_tok(TokenType::RIGHT_PAREN)
+        .then_parse_with(expect_statement_block, make_while_block);
+}
+
 NodeResult AbstractSyntaxTree::parse_statement(NodeResult ctx) {
     return NodeResult::init(ctx.rest)
         .then_parse(parse_assigns)
         .or_try_parse(parse_if_statement)
+        .or_try_parse(parse_while_statement)
         .or_try_parse(parse_declaration)
         .or_try_parse(parse_semicoloned(parse_expression));
 }
@@ -283,7 +294,12 @@ NodeResult AbstractSyntaxTree::parse_assigns(NodeResult ctx) {
     return NodeResult::init(ctx.rest)
         .want_tok(TokenType::IDENTIFIER, make_term)
         .then_want_tok(TokenType::ASSIGN)
-        .then_parse_with(expect_expressioned(parse_expression), make_assign)
+        // parse_arithmetic and parse_logical_expr must be handled seperately
+        // (as opposed to using parse_expression) because the existence of 
+        // parenthesis makes (1 < 1) and (1 + 1) ambigious; expect_parsed 
+        // sees an L_PAREN and expects one or the other, but not both. Because 
+        // the language only supports integer variables, this is ok for now.
+        .then_parse_with(expect_expressioned(parse_arithmetic), make_assign)
         .then_expect_tok(TokenType::SEMICOLON);
 }
 
@@ -410,6 +426,11 @@ void AbstractSyntaxTree::print_tree(std::ostream& o, const std::unique_ptr<Expre
                 o << std::string(indent, ' ') << "else\n";
                 print_tree(o, *v.else_statement_block, indent + 2);
             }
+        },
+        [&](const While& v) {
+            o << "while\n";
+            print_tree(o, *v.logical_expression, indent + 2);
+            print_tree(o, *v.statement_block, indent + 2);
         }
     };
 

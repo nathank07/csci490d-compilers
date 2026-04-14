@@ -122,6 +122,11 @@ struct If {
     NodeResult else_statement_block;
 };
 
+struct While {
+    NodeResult logical_expression;
+    NodeResult statement_block;
+};
+
 struct Expression {
     std::variant<
         std::monostate, 
@@ -144,7 +149,8 @@ struct Expression {
         Not,
         And,
         Or,
-        If
+        If,
+        While
     > expression;
 };
 
@@ -324,6 +330,15 @@ inline NodeResult make_else_block(NodeResult if_statement_block, NodeResult else
     return NodeResult(NodeResult::Just{std::make_unique<Expression>(
         If{std::move(block.logical_expression), std::move(block.if_statement_block), 
             std::move(else_block)})}, consumed, else_block.rest);
+}
+
+inline NodeResult make_while_block(NodeResult logical_expression, NodeResult statement_block) {
+    if (!logical_expression.is_just()) return logical_expression;
+    if (!statement_block.is_just()) return statement_block;
+    auto consumed = NodeResult::merge_consumed(logical_expression.consumed, statement_block.consumed);
+    return NodeResult(NodeResult::Just{std::make_unique<Expression>(
+        While{std::move(logical_expression), std::move(statement_block)})}, 
+            consumed, statement_block.rest);
 }
 
 inline NodeResult make_bool_const(NodeResult node) {

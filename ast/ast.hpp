@@ -11,6 +11,7 @@ class AbstractSyntaxTree {
     
     static NodeResult parse_statement_block(NodeResult ctx);
     static NodeResult parse_if_statement(NodeResult ctx);
+    static NodeResult parse_while_statement(NodeResult ctx);
 
     static NodeResult parse_statement(NodeResult ctx);
     static NodeResult parse_function_call(NodeResult ctx);

@@ -149,7 +149,7 @@ struct ParseResult {
 
     template <typename P, typename F>
     ParseResult then_collect_until_tok(P&& parse_next, TokenType tok, F&& combine) {
-        if (!is_just() || !is_continue()) return std::move(*this);
+        if (!is_just() && !is_continue()) return std::move(*this);
         return collect_until_tok(std::forward<P>(parse_next), tok, std::forward<F>(combine));
     }
 
