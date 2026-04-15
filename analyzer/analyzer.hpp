@@ -146,7 +146,14 @@ private:
             [&](const Statements& v) {
                 analyze(v.value, symbols, results);
                 if (v.next) analyze(v.next, symbols, results);
-            }
+            },
+            [&](const BoolConst&) {},
+            [&](const NumericComparison&) {},
+            [&](const Not&) {},
+            [&](const And& v) {},
+            [&](const Or& v) {},
+            [&](const If& v) {},
+            [&](const While& v) {}
         };
 
         std::visit(visitor, (*just_value)->expression);

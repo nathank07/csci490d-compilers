@@ -427,6 +427,18 @@ public:
         return instr;
     }
 
+    static Instruction add_mem(Register r, int32_t offset_from_bp) {
+        auto instr = rm("ADD", Register::EBP, static_cast<OpcodeExtension>(r), 0x03, offset_from_bp);
+        instr.emitted_content = "ADD " + get_register(r) + ", [EBP + " + std::to_string(offset_from_bp) + "]\n";
+        return instr;
+    }
+
+    static Instruction sub_mem(Register r, int32_t offset_from_bp) {
+        auto instr = rm("SUB", Register::EBP, static_cast<OpcodeExtension>(r), 0x2B, offset_from_bp);
+        instr.emitted_content = "ADD " + get_register(r) + ", [EBP + " + std::to_string(offset_from_bp) + "]\n";
+        return instr;
+    }
+    
     static Instruction push(int32_t v) { return i("PUSH", v, 0x6A, 0x68); }
     static Instruction jmp(int32_t addr) { return i("JMP", addr, 0xEB, 0xE9); }
     static Instruction jmp32(int32_t addr) { return i("JMP", addr, 0xE9); }

@@ -56,6 +56,18 @@ namespace StackUtils {
     }
 
     template <typename StackUnit>
+    static std::optional<std::string> maybe_ident(const StackUnit& unit) {
+        if (!std::holds_alternative<IdentifierUnit>(unit)) return std::nullopt;
+        return std::get<IdentifierUnit>(unit).ident;
+    }
+
+    template <typename StackUnit>
+    static std::optional<std::size_t> maybe_virtual(const StackUnit& unit) {
+        if (!std::holds_alternative<VirtualRegisterUnit>(unit)) return std::nullopt;
+        return std::get<VirtualRegisterUnit>(unit).sp_idx;
+    }
+
+    template <typename StackUnit>
     static bool is_virtual(const StackUnit& unit) {
         return std::holds_alternative<VirtualRegisterUnit>(unit);
     }

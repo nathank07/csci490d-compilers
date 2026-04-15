@@ -1,9 +1,56 @@
 #pragma once
 #include "../stackOperator.hpp"
 #include "x86Instructions.hpp"
+#include <cmath>
 
 template<typename Generator>
 struct x86StackOperator : StackOperator<Generator> {
+
+    inline static auto x86adder = [](){
+        BaseBinary<Generator> b;
+
+        b.handle_const_fold = std::plus<uint64_t>();
+        b.handle_dreg_sreg = [](auto dst, auto src) { return x86::add(dst, src); };
+        b.handle_dreg_imm = [](auto dst, uint64_t v) { return x86::add(dst, v); };
+        b.handle_dreg_smem = [](auto dst, uint32_t v) { return x86::add_mem(dst, v); };
+        b.is_commutative = true;
+        
+        return b;
+    }();
+
+    inline static auto x86subber = [](){
+        BaseBinary<Generator> b;
+
+        b.handle_const_fold = std::minus<uint64_t>();
+        b.handle_dreg_sreg = [](auto dst, auto src) { return x86::sub(dst, src); };
+        b.handle_dreg_imm =  [](auto dst, uint64_t v) { return x86::sub(dst, v); };
+        b.handle_dreg_smem = [](auto dst, uint32_t v) { return x86::sub_mem(dst, v); };
+        b.is_commutative = false;
+
+        return b;
+    }();
+
+    inline static auto x86multer = [](){
+        BaseBinary<Generator> b;
+
+        b.handle_const_fold = std::multiplies<uint64_t>();
+        b.handle_dreg_sreg = [](auto dst, auto src) { return x86::imul(dst, src); };
+        b.handle_dreg_imm = [](auto dst, uint64_t v) { return x86::imul(dst, v); };
+        b.is_commutative = true;
+
+        return b;
+    }();
+
+    inline static auto x86exper = []() {
+        BaseBinary<Generator> b;
+       
+        b.handle_const_fold = [](uint64_t l, uint64_t r) { 
+            return static_cast<uint64_t>(std::pow(l, r)); };
+        b.handle_dreg_sreg = [](auto dst, auto src) { return x86::exp(dst, src); };
+        b.is_commutative = false;
+
+        return b;
+    }();
 
     using StackOperator<Generator>::stack;
 

@@ -29,29 +29,20 @@ struct x86Generator : TypeSize<x86Generator> {
     static Register primary_scratch()   { return Register::ECX; }
     static Register secondary_scratch() { return Register::EAX; }
 
-    static Instruction move_sp_offset_into_reg(int32_t offset, Register reg) {
+    static Instruction mov_dreg_soffset(Register reg, int32_t offset) {
         return x86::mov_memr_32(reg, Register::EBP, offset);
     }
-    static Instruction move_reg_into_sp_offset(Register reg, int32_t offset) {
+    static Instruction mov_doffset_sreg(int32_t offset, Register reg) {
         return x86::mov_rmem_64(Register::EBP, reg, offset);
     }
-    static Instruction mov_const_to_reg(uint64_t val, Register reg) {
+    static Instruction mov_dreg_imm(Register reg, uint64_t val) {
         return x86::mov_64(reg, val);
     }
-    static Instruction mov_static_ptr_to_reg(uint64_t abs_from_0x0, Register reg) {
+    static Instruction mov_dreg_sstatic_ptr(Register reg, uint64_t abs_from_0x0) {
         return x86::mov_abs(reg, abs_from_0x0);
     }
-    static Instruction add_imm_to_reg(Register reg, uint64_t imm) {
-        return x86::add(reg, static_cast<int32_t>(imm));
-    }
-    static Instruction add_reg_to_reg(Register lhs, Register rhs) {
-        return x86::add(lhs, rhs);
-    }
-    static Instruction move_reg_to_reg(Register lhs, Register rhs) {
+    static Instruction mov_dreg_sreg(Register lhs, Register rhs) {
         return x86::mov(lhs, rhs);
-    }
-    static Instruction push_reg_into_stack(Register reg) {
-        return x86::push(reg);
     }
 
 private:
@@ -98,29 +89,23 @@ private:
                     }
                 }, t.v);
             },
+            [&](const BoolConst& v) {
+                stack.push_const(static_cast<uint64_t>(v.is_true));
+            },
             [&](Add& e) {
                 eval(std::move(*e.left));
                 eval(std::move(*e.right));
-                p.append(s.commutative_binary(
-                    std::plus<uint64_t>(), 
-                    [](Register lhs, Register rhs) { return x86::add(lhs, rhs); },
-                    [](Register reg, int32_t imm) { return x86::add(reg, imm); }));
+                p.append(s.perform_binary_op(x86StackOperator<x86Generator>::x86adder));
             },
             [&](Sub& e) {
                 eval(std::move(*e.left));
                 eval(std::move(*e.right));
-                p.append(s.non_commutative_binary(
-                    std::minus<uint64_t>(), 
-                    [](Register lhs, Register rhs) { return x86::sub(lhs, rhs); },
-                    [](Register reg, int32_t imm) { return x86::sub(reg, imm); } ));
+                p.append(s.perform_binary_op(x86StackOperator<x86Generator>::x86subber));
             },
             [&](Mult& e) {
                 eval(std::move(*e.left));
                 eval(std::move(*e.right));
-                p.append(s.commutative_binary(
-                    std::multiplies<uint64_t>(),
-                    [](Register lhs, Register rhs) { return x86::imul(lhs, rhs); },
-                    [](Register reg, int32_t imm) { return x86::imul(reg, imm); }));
+                p.append(s.perform_binary_op(x86StackOperator<x86Generator>::x86multer));
             },
             [&](Div& e) {
                 eval(std::move(*e.left));
@@ -139,14 +124,7 @@ private:
             [&](Exp& e) {
                 eval(std::move(*e.base));
                 eval(std::move(*e.exponent));
-                p.append(s.non_commutative_binary(
-                    [](uint64_t l, uint64_t r) { return static_cast<uint64_t>(std::pow(l, r)); },
-                    [](Register lhs, Register rhs) { return x86::exp(lhs, rhs); },
-                    [](Register lhs, int32_t imm) {
-                        return x86::compose(
-                            x86::mov_64(x86::Register::EDX, static_cast<uint64_t>(static_cast<int64_t>(imm))),
-                            x86::exp(lhs, x86::Register::EDX));
-                    }));
+                p.append(s.perform_binary_op(x86StackOperator<x86Generator>::x86exper));
             },
             [&](Negated& e) {
                 eval(std::move(*e.expression));
@@ -250,6 +228,25 @@ private:
             [&](Statements& v) {
                 eval(std::move(*v.value));
                 if (v.next.is_just()) eval(std::move(*v.next));
+            },
+            [&](NumericComparison& v) {
+                eval(std::move(*v.left));
+                eval(std::move(*v.right));
+            },
+            [&](Not& v) {
+                
+            },
+            [&](And& v) {
+               
+            },
+            [&](Or& v) {
+                
+            },
+            [&](If& v) {
+                
+            },
+            [&](While& v) {
+               
             }
         };
 
