@@ -203,27 +203,8 @@ private:
             [&](Declaration&) {},
             [&](Assign& v) {
                 eval(std::move(*v.ident));
-                auto ident_unit = stack.pop();
-                auto offset = static_cast<int32_t>(stack.get(StackUtils::assert_ident(ident_unit)));
                 eval(std::move(*v.value));
-                auto top = stack.pop();
-                std::visit(overloads {
-                    [&](ValueUnit& u)    { 
-                        p.append(x86::mov_memi_32(x86::Register::EBP, static_cast<int32_t>(u.literal), offset)); 
-                    },
-                    [&](VirtualRegisterUnit& u) {
-                        p.append(x86::mov_memr_32(x86::Register::EBP, x86::Register::EAX, stack.get_vreg(u.sp_idx)));
-                        p.append(x86::mov_rmem_64(x86::Register::EAX, x86::Register::EBP, offset));
-                    },
-                    [&](RegisterUnit<x86::Register>& u) {
-                        p.append(x86::mov_rmem_64(x86::Register::EBP, u.in_register, offset));
-                    },
-                    [&](StaticPointerUnit&) { assert(false && "Variable strings not supported"); },
-                    [&](IdentifierUnit& id) {
-                        p.append(x86::mov_memr_32(x86::Register::EBP, x86::Register::EAX, stack.get(id.ident)));
-                        p.append(x86::mov_rmem_64(x86::Register::EAX, x86::Register::EBP, offset));
-                    }
-                }, top);
+                p.append(s.assign_var_after_eval());
             },
             [&](StatementBlock& v) {
                 eval(std::move(*v.statements));

@@ -391,24 +391,38 @@ public:
         );
     }
 
-    auto assign() {
-        auto ident_unit = stack.pop();
+    auto assign_var_after_eval() {
         auto top = stack.pop();
-
+        auto ident_unit = stack.pop();
+        auto reg = Generator::primary_scratch();
         auto offset = static_cast<int32_t>(stack.get(StackUtils::assert_ident(ident_unit)));
-        std::visit(overloads {
+
+        return std::visit(overloads {
             [&](ValueUnit& u)    { 
-                return Generator::mov_doffset_simm(static_cast<int32_t>(u.literal), offset); 
+                return Generator::mov_doffset_simm(offset, static_cast<int32_t>(u.literal)); 
             },
             [&](VirtualRegisterUnit& u) {
-                
+                auto free = find_free_reg(reg);
+                return Generator::compose(
+                    std::move(free),
+                    Generator::mov_dreg_soffset(reg, stack.get_vreg(u.sp_idx)),
+                    Generator::mov_doffset_sreg(offset, reg)
+                );
             },
             [&](RegisterUnit<typename Generator::Register>& u) {
-
+                return Generator::mov_doffset_sreg(offset, u.in_register);
             },
-            [&](StaticPointerUnit&) { assert(false && "Variable strings not supported"); },
+            [&](StaticPointerUnit&) { 
+                assert(false && "Variable strings not supported");
+                return Generator::compose();
+            },
             [&](IdentifierUnit& id) {
-                
+                auto free = find_free_reg(reg);
+                return Generator::compose(
+                    std::move(free),
+                    Generator::mov_dreg_soffset(reg, stack.get(id.ident)),
+                    Generator::mov_doffset_sreg(offset, reg)
+                );
             }
         }, top);
     }
