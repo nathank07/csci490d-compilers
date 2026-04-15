@@ -297,6 +297,50 @@ public:
 
         }
 
+        if (l_ident) {
+            if (r_const && b.handle_dreg_imm) {
+                stack.unlock_reg(rhs_reg); stack.push(RegisterUnit{ lhs_reg });
+                return Generator::compose(
+                    std::move(load_lhs),
+                    (*b.handle_dreg_imm)(lhs_reg, *r_const)
+                );
+            }
+
+            if (r_vreg && b.handle_dreg_smem) {
+                stack.unlock_reg(rhs_reg); stack.push(RegisterUnit{ lhs_reg });
+                return Generator::compose(
+                    std::move(load_lhs),
+                    (*b.handle_dreg_smem)(lhs_reg, stack.get_vreg(*r_vreg))
+                );
+            }
+
+            if (r_ident && b.handle_dreg_smem) {
+                stack.unlock_reg(rhs_reg); stack.push(RegisterUnit{ lhs_reg });
+                return Generator::compose(
+                    std::move(load_lhs),
+                    (*b.handle_dreg_smem)(lhs_reg, stack.get(*r_ident))
+                );
+            }
+        }
+
+        if (r_ident && b.is_commutative) {
+            if (l_const && b.handle_dreg_imm) {
+                stack.unlock_reg(lhs_reg); stack.push(RegisterUnit{ rhs_reg });
+                return Generator::compose(
+                    std::move(load_rhs),
+                    (*b.handle_dreg_imm)(rhs_reg, *l_const)
+                );
+            }
+
+            if (l_vreg && b.handle_dreg_smem) {
+                stack.unlock_reg(lhs_reg); stack.push(RegisterUnit{ rhs_reg });
+                return Generator::compose(
+                    std::move(load_rhs),
+                    (*b.handle_dreg_smem)(rhs_reg, stack.get_vreg(*l_vreg))
+                );
+            }
+        }
+
         stack.unlock_reg(rhs_reg);
         stack.push(RegisterUnit{ lhs_reg });
         return Generator::compose(
