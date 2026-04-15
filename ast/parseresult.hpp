@@ -524,7 +524,7 @@ public:
     ParseResult then_parse(F&& parser) {
         if (is_just() || is_continue()) {
             auto result = parser(std::move(*this));
-            if (!result.is_just()) return convert_nothing(rest);
+            if (!result.is_just()) return convert_nothing(undo_consumed());
             return ParseResult(
                 std::move(result.value), 
                 merge_consumed(consumed, result.consumed), 

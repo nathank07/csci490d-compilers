@@ -55,7 +55,7 @@ auto constexpr AbstractSyntaxTree::parse_parened(auto f) {
     return [f](auto&& ctx) {
         return NodeResult::init(ctx.rest)
             .want_tok(TokenType::LEFT_PAREN)
-            .then_parse(expect_expressioned(f))
+            .then_parse(f)
             .then_expect_tok(TokenType::RIGHT_PAREN);
     };
 }
@@ -117,7 +117,8 @@ NodeResult AbstractSyntaxTree::expect_statement(NodeResult ctx) {
 }
 
 NodeResult AbstractSyntaxTree::parse_expression(NodeResult ctx) {
-    return parse_logical_expression(std::move(ctx))
+    return NodeResult::init(ctx.rest)
+        .then_parse(parse_logical_expression)
         .or_try_parse(parse_arithmetic);
 }
 
@@ -294,12 +295,7 @@ NodeResult AbstractSyntaxTree::parse_assigns(NodeResult ctx) {
     return NodeResult::init(ctx.rest)
         .want_tok(TokenType::IDENTIFIER, make_term)
         .then_want_tok(TokenType::ASSIGN)
-        // parse_arithmetic and parse_logical_expr must be handled seperately
-        // (as opposed to using parse_expression) because the existence of 
-        // parenthesis makes (1 < 1) and (1 + 1) ambigious; expect_parsed 
-        // sees an L_PAREN and expects one or the other, but not both. Because 
-        // the language only supports integer variables, this is ok for now.
-        .then_parse_with(expect_expressioned(parse_arithmetic), make_assign)
+        .then_parse_with(expect_expressioned(parse_expression), make_assign)
         .then_expect_tok(TokenType::SEMICOLON);
 }
 
@@ -395,8 +391,7 @@ void AbstractSyntaxTree::print_tree(std::ostream& o, const std::unique_ptr<Expre
             if (v.next) print_tree(o, *v.next, indent);
         },
         [&](const BoolConst& v) {
-            o << "const bool\n";
-            o << std::string(indent + 2, ' ') << (v.is_true ? "true\n" : "false\n");
+            o << (v.is_true ? "true\n" : "false\n");
         },
         [&](const NumericComparison& v) {
             o << Token::get_token_literal(v.token_type) << "\n";
