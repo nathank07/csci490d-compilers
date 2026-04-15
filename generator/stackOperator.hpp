@@ -40,8 +40,6 @@ struct StackOperator {
     using Register = typename Generator::Register;
     using StackUnit = typename StackAllocator<Generator, typename Generator::Register>::StackUnit;
 
-
-
     /* 
         Evicts your desired reg and returns an instruction on what you need to
         do to save the register you evicted.
@@ -393,5 +391,25 @@ public:
         );
     }
 
-    auto assign() {}
+    auto assign() {
+        auto ident_unit = stack.pop();
+        auto top = stack.pop();
+
+        auto offset = static_cast<int32_t>(stack.get(StackUtils::assert_ident(ident_unit)));
+        std::visit(overloads {
+            [&](ValueUnit& u)    { 
+                return Generator::mov_doffset_simm(static_cast<int32_t>(u.literal), offset); 
+            },
+            [&](VirtualRegisterUnit& u) {
+                
+            },
+            [&](RegisterUnit<typename Generator::Register>& u) {
+
+            },
+            [&](StaticPointerUnit&) { assert(false && "Variable strings not supported"); },
+            [&](IdentifierUnit& id) {
+                
+            }
+        }, top);
+    }
 };

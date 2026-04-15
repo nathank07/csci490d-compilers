@@ -406,19 +406,19 @@ public:
         );
     }
 
-    static Instruction mov_memr_32(Register src, Register mem_addr, int32_t offset) {
-        auto instr = rm("MOV", mem_addr, static_cast<OpcodeExtension>(src), 0x8B, offset);
-        instr.emitted_content = "MOV " + get_register(src) + ", [" + get_register(mem_addr) + " + " + std::to_string(offset) + "]\n";
+    static Instruction mov_memr_32(Register mem_addr_dst, Register src, int32_t offset) {
+        auto instr = rm("MOV", mem_addr_dst, static_cast<OpcodeExtension>(src), 0x8B, offset);
+        instr.emitted_content = "MOV " + get_register(src) + ", [" + get_register(mem_addr_dst) + " + " + std::to_string(offset) + "]\n";
         return instr;
     }
 
-    static Instruction mov_rmem_64(Register mem_addr, Register src, int32_t offset) {
-        auto instr = rm("MOV", mem_addr, static_cast<OpcodeExtension>(src), 0x89, offset);
-        instr.emitted_content = "MOV [" + get_register(mem_addr) + " + " + std::to_string(offset) + "], " + get_register(src) + "\n";
+    static Instruction mov_rmem_64(Register dst, Register mem_addr_src, int32_t offset) {
+        auto instr = rm("MOV", mem_addr_src, static_cast<OpcodeExtension>(dst), 0x89, offset);
+        instr.emitted_content = "MOV [" + get_register(mem_addr_src) + " + " + std::to_string(offset) + "], " + get_register(dst) + "\n";
         return instr;
     }
 
-    static Instruction mov_mem_32(Register r, int32_t imm, int32_t offset) {
+    static Instruction mov_memi_32(Register r, int32_t imm, int32_t offset) {
         auto instr = compose(
             rm("MOV", r, OpcodeExtension::Zero, 0xC7, offset),
             write_32(static_cast<uint32_t>(imm))

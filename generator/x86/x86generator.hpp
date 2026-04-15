@@ -30,13 +30,16 @@ struct x86Generator : TypeSize<x86Generator> {
     static Register secondary_scratch() { return Register::EAX; }
 
     static Instruction mov_dreg_soffset(Register reg, int32_t offset) {
-        return x86::mov_memr_32(reg, Register::EBP, offset);
+        return x86::mov_memr_32(Register::EBP, reg, offset);
     }
     static Instruction mov_doffset_sreg(int32_t offset, Register reg) {
-        return x86::mov_rmem_64(Register::EBP, reg, offset);
+        return x86::mov_rmem_64(reg, Register::EBP, offset);
     }
     static Instruction mov_dreg_imm(Register reg, uint64_t val) {
         return x86::mov_64(reg, val);
+    }
+    static Instruction mov_doffset_simm(int32_t offset, uint64_t imm) {
+        return x86::mov_memi_32(Register::EBP, imm, offset);
     }
     static Instruction mov_dreg_sstatic_ptr(Register reg, uint64_t abs_from_0x0) {
         return x86::mov_abs(reg, abs_from_0x0);
@@ -186,7 +189,7 @@ private:
                     p.append(x86::compose(
                         std::move(free_ecx),
                         x86::read_int4(x86::Register::EAX, stack.size()),
-                        x86::mov_rmem_64(x86::Register::EBP, x86::Register::EAX, stack.get(id))
+                        x86::mov_rmem_64(x86::Register::EAX, x86::Register::EBP, stack.get(id))
                     ));
                     stack.unlock_reg(Register::ECX);
                 } else {
@@ -206,19 +209,19 @@ private:
                 auto top = stack.pop();
                 std::visit(overloads {
                     [&](ValueUnit& u)    { 
-                        p.append(x86::mov_mem_32(x86::Register::EBP, static_cast<int32_t>(u.literal), offset)); 
+                        p.append(x86::mov_memi_32(x86::Register::EBP, static_cast<int32_t>(u.literal), offset)); 
                     },
                     [&](VirtualRegisterUnit& u) {
-                        p.append(x86::mov_memr_32(x86::Register::EAX, x86::Register::EBP, stack.get_vreg(u.sp_idx)));
-                        p.append(x86::mov_rmem_64(x86::Register::EBP, x86::Register::EAX, offset));
+                        p.append(x86::mov_memr_32(x86::Register::EBP, x86::Register::EAX, stack.get_vreg(u.sp_idx)));
+                        p.append(x86::mov_rmem_64(x86::Register::EAX, x86::Register::EBP, offset));
                     },
                     [&](RegisterUnit<x86::Register>& u) {
                         p.append(x86::mov_rmem_64(x86::Register::EBP, u.in_register, offset));
                     },
                     [&](StaticPointerUnit&) { assert(false && "Variable strings not supported"); },
                     [&](IdentifierUnit& id) {
-                        p.append(x86::mov_memr_32(x86::Register::EAX, x86::Register::EBP, stack.get(id.ident)));
-                        p.append(x86::mov_rmem_64(x86::Register::EBP, x86::Register::EAX, offset));
+                        p.append(x86::mov_memr_32(x86::Register::EBP, x86::Register::EAX, stack.get(id.ident)));
+                        p.append(x86::mov_rmem_64(x86::Register::EAX, x86::Register::EBP, offset));
                     }
                 }, top);
             },
