@@ -435,7 +435,7 @@ public:
 
     static Instruction sub_mem(Register r, int32_t offset_from_bp) {
         auto instr = rm("SUB", Register::EBP, static_cast<OpcodeExtension>(r), 0x2B, offset_from_bp);
-        instr.emitted_content = "ADD " + get_register(r) + ", [EBP + " + std::to_string(offset_from_bp) + "]\n";
+        instr.emitted_content = "SUB " + get_register(r) + ", [EBP + " + std::to_string(offset_from_bp) + "]\n";
         return instr;
     }
     
