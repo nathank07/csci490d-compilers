@@ -65,7 +65,7 @@ private:
         if (!str_locs.empty()) {
             auto it = std::max_element(str_locs.begin(), str_locs.end(),
                 [](auto& a, auto& b) { return a.second < b.second; });
-            skip_strs = x86::jump_rel(it->second + it->first.size());
+            skip_strs = x86::jmp(it->second + it->first.size());
         }
     }
 

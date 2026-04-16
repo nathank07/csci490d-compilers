@@ -24,10 +24,6 @@ struct x86 : InstructionControl<x86> {
         Four, Five, Six, Seven
     };
 
-    enum class Conditional {
-        GT, GTE, LT, LTE, EQ, NEQ 
-    };
-
     struct Instruction : BaseInstruction {
         std::function<void(unsigned char*, int&)> write_bytes = 
             [](auto*, auto&) {};
@@ -66,6 +62,10 @@ public:
         return in;
     }
 
+    static Instruction jump_rel(int32_t addr) {
+        return (addr > 0) ? jmp32(addr) : jmp32(addr - 5);
+    }
+
     // ** CRTP Instructions **
     static Instruction compose() { return {}; }
 
@@ -91,39 +91,55 @@ public:
         return cmp(r, v);
     }
 
-    static Instruction jump_rel(int32_t addr) {
-        if (addr > 0) 
-            return jmp(addr);
-
-        if (addr >= std::numeric_limits<int8_t>::min() + 2) 
-            return jmp(addr - 2);
-
-        return jmp(addr - 5);
+    static Instruction skip_block_lt(Instruction block) {
+        return x86::compose(
+            jl(block.byte_size),
+            block
+        );
+    }
+    static Instruction skip_block_gt(Instruction block) {
+        return x86::compose(
+            jg(block.byte_size),
+            block
+        );
+    }
+    static Instruction skip_block_eq(Instruction block) {
+        return x86::compose(
+            je(block.byte_size),
+            block
+        );
+    }
+    static Instruction skip_block_lte(Instruction block) {
+        return x86::compose(
+            jle(block.byte_size),
+            block
+        );
+    }
+    static Instruction skip_block_gte(Instruction block) {
+        return x86::compose(
+            jge(block.byte_size),
+            block
+        );
+    }
+    static Instruction skip_block_neq(Instruction block) {
+        return x86::compose(
+            jne(block.byte_size),
+            block
+        );
     }
 
-    static Instruction jump_rel_when(int32_t addr, Conditional cond) {
-        if (addr > 0) 
-            return jmp_with_flag(addr, cond);
+    static Instruction skip_block_un(Instruction block) {
+        return x86::compose(
+            jmp(block.byte_size),
+            block
+        );
+    }
 
-        if (addr >= std::numeric_limits<int8_t>::min() + 2) 
-            return jmp_with_flag(addr - 2, cond);
-
-        return jmp_with_flag(addr - 5, cond);
+    static Instruction jump_backwards(uint32_t size) {
+        return jmp32(-static_cast<int32_t>(size));
     }
 
 private:
-
-    static Instruction jmp_with_flag(int32_t rel_addr, Conditional on_cond) {
-        switch (on_cond) {
-            case Conditional::GT:  return jg(rel_addr);
-            case Conditional::LT:  return jl(rel_addr);
-            case Conditional::EQ:  return je(rel_addr);
-            case Conditional::GTE: return jge(rel_addr);
-            case Conditional::LTE: return jle(rel_addr);
-            case Conditional::NEQ: return jne(rel_addr);
-        }
-        __builtin_unreachable();
-    }
 
     // ** End CRTP Instructions **
 
