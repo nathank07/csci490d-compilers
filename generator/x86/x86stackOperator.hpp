@@ -87,7 +87,7 @@ struct x86StackOperator : StackOperator<Generator> {
             x86::compose();
 
         stack.unlock_reg(rhs_reg);
-        stack.push(RegisterUnit { lhs_reg });
+        stack.push(RegisterUnit<Generator> { lhs_reg });
         
         return x86::compose(
             std::move(load_lhs),

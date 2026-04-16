@@ -35,10 +35,10 @@ struct BaseBinary {
 template <typename Generator>
 struct StackOperator {
 
-    StackAllocator<Generator, typename Generator::Register>& stack;
+    StackAllocator<Generator>& stack;
 
     using Register = typename Generator::Register;
-    using StackUnit = typename StackAllocator<Generator, typename Generator::Register>::StackUnit;
+    using StackUnit = typename StackAllocator<Generator>::StackUnit;
 
     /* 
         Evicts your desired reg and returns an instruction on what you need to
@@ -48,7 +48,7 @@ struct StackOperator {
         auto dest = stack.lock_reg(desired_reg);
         if (!dest) return Generator::compose();
         return std::visit(overloads {
-            [&](RegisterUnit<Register>& u) {
+            [&](RegisterUnit<Generator>& u) {
                 return Generator::mov_dreg_sreg(u.in_register, desired_reg);
             },
             [&](VirtualRegisterUnit& u) {
@@ -66,7 +66,7 @@ struct StackOperator {
         auto dest = stack.lock_reg(desired_reg);
         if (!dest) return Generator::compose();
         return std::visit(overloads {
-            [&](RegisterUnit<Register>& u) {
+            [&](RegisterUnit<Generator>& u) {
                 if (stack.in_stack(u.in_register)) {
                     return Generator::mov_dreg_sreg(u.in_register, desired_reg);
                 }
@@ -91,29 +91,29 @@ private:
         return std::visit(overloads {
             [&](IdentifierUnit& u) {
                 auto offset = stack.get(u.ident);
-                unit = RegisterUnit<Register>{ reg };
+                unit = RegisterUnit<Generator>{ reg };
                 return Generator::mov_dreg_soffset(reg, offset);
             },
             [&](VirtualRegisterUnit& u) {
                 auto offset = stack.get_vreg(u.sp_idx);
-                unit = RegisterUnit<Register>{ reg };
+                unit = RegisterUnit<Generator>{ reg };
                 return Generator::mov_dreg_soffset(reg, offset);
             },
-            [&](RegisterUnit<Register>& u) {
+            [&](RegisterUnit<Generator>& u) {
                 if (u.in_register == reg) return Generator::compose();
                 auto emit = Generator::mov_dreg_sreg(reg, u.in_register);
                 stack.unlock_reg(u.in_register);
-                unit = RegisterUnit<Register>{ reg };
+                unit = RegisterUnit<Generator>{ reg };
                 return emit;
             },
             [&](ValueUnit& u) {
                 auto emit = Generator::mov_dreg_imm(reg, u.literal);
-                unit = RegisterUnit<Register>{ reg };
+                unit = RegisterUnit<Generator>{ reg };
                 return emit;
             },
             [&](StaticPointerUnit& u) {
                 auto emit = Generator::mov_dreg_sstatic_ptr(reg, u.abs_addr);
-                unit = RegisterUnit<Register>{ reg };
+                unit = RegisterUnit<Generator>{ reg };
                 return emit;
             }
         }, unit);
@@ -129,11 +129,11 @@ public:
         auto lhs_unit = stack.pop();
 
 
-        if (auto* r = std::get_if<RegisterUnit<Register>>(&rhs_unit)) {
+        if (auto* r = std::get_if<RegisterUnit<Generator>>(&rhs_unit)) {
             rhs_reg = r->in_register;
         }
 
-        if (auto* r = std::get_if<RegisterUnit<Register>>(&lhs_unit)) {
+        if (auto* r = std::get_if<RegisterUnit<Generator>>(&lhs_unit)) {
             if (r->in_register != rhs_reg) lhs_reg = r->in_register;
         }
 
@@ -158,13 +158,13 @@ public:
 
         auto load_lhs = load_reg_from_pop(lhs_reg, lhs_unit);
         auto load_rhs = load_reg_from_pop(rhs_reg, rhs_unit);
-        bool lhs_ok = StackUtils::is_register<StackUnit, Register>(lhs_unit) || l_const;
-        bool rhs_ok = StackUtils::is_register<StackUnit, Register>(rhs_unit) || r_const;
+        bool lhs_ok = StackUtils::is_register<StackUnit, Generator>(lhs_unit) || l_const;
+        bool rhs_ok = StackUtils::is_register<StackUnit, Generator>(rhs_unit) || r_const;
         assert(lhs_ok);
         assert(rhs_ok);
         
-        auto l_is_reg = StackUtils::is_register<StackUnit, Register>(s_lhs);
-        auto r_is_reg = StackUtils::is_register<StackUnit, Register>(s_rhs);
+        auto l_is_reg = StackUtils::is_register<StackUnit, Generator>(s_lhs);
+        auto r_is_reg = StackUtils::is_register<StackUnit, Generator>(s_rhs);
         auto l_vreg = StackUtils::maybe_virtual(s_lhs);
         auto r_vreg = StackUtils::maybe_virtual(s_rhs);
         auto l_ident = StackUtils::maybe_ident(s_lhs);
@@ -173,7 +173,7 @@ public:
         if (l_is_reg) {
 
             if (r_const && b.handle_dreg_imm) {
-                stack.unlock_reg(rhs_reg); stack.push(RegisterUnit{ lhs_reg });
+                stack.unlock_reg(rhs_reg); stack.push(RegisterUnit<Generator>{ lhs_reg });
                 return Generator::compose(
                     std::move(load_lhs),
                     (*b.handle_dreg_imm)(lhs_reg, *r_const)
@@ -181,7 +181,7 @@ public:
             }
 
             if (r_is_reg) {
-                stack.unlock_reg(rhs_reg); stack.push(RegisterUnit{ lhs_reg });
+                stack.unlock_reg(rhs_reg); stack.push(RegisterUnit<Generator>{ lhs_reg });
                 return Generator::compose(
                     std::move(load_lhs),
                     std::move(load_rhs),
@@ -190,7 +190,7 @@ public:
             }
 
             if (r_vreg && b.handle_dreg_smem) {
-                stack.unlock_reg(rhs_reg); stack.push(RegisterUnit{ lhs_reg });
+                stack.unlock_reg(rhs_reg); stack.push(RegisterUnit<Generator>{ lhs_reg });
                 return Generator::compose(
                     std::move(load_lhs),
                     (*b.handle_dreg_smem)(lhs_reg, stack.get_vreg(*r_vreg))
@@ -198,7 +198,7 @@ public:
             }
 
             if (r_ident && b.handle_dreg_smem) {
-                stack.unlock_reg(rhs_reg); stack.push(RegisterUnit{ lhs_reg });
+                stack.unlock_reg(rhs_reg); stack.push(RegisterUnit<Generator>{ lhs_reg });
                 return Generator::compose(
                     std::move(load_lhs),
                     (*b.handle_dreg_smem)(lhs_reg, stack.get(*r_ident))
@@ -210,7 +210,7 @@ public:
         if (r_is_reg && b.is_commutative) {
 
             if (l_const && b.handle_dreg_imm) {
-                stack.unlock_reg(lhs_reg); stack.push(RegisterUnit{ rhs_reg });
+                stack.unlock_reg(lhs_reg); stack.push(RegisterUnit<Generator>{ rhs_reg });
                 return Generator::compose(
                     std::move(load_rhs),
                     (*b.handle_dreg_imm)(rhs_reg, *l_const)
@@ -218,7 +218,7 @@ public:
             }
 
             if (l_vreg && b.handle_dreg_smem) {
-                stack.unlock_reg(lhs_reg); stack.push(RegisterUnit{ rhs_reg });
+                stack.unlock_reg(lhs_reg); stack.push(RegisterUnit<Generator>{ rhs_reg });
                 return Generator::compose(
                     std::move(load_rhs),
                     (*b.handle_dreg_smem)(rhs_reg, stack.get_vreg(*l_vreg))
@@ -226,7 +226,7 @@ public:
             }
 
             if (l_ident && b.handle_dreg_smem) {
-                stack.unlock_reg(lhs_reg); stack.push(RegisterUnit{ rhs_reg });
+                stack.unlock_reg(lhs_reg); stack.push(RegisterUnit<Generator>{ rhs_reg });
                 return Generator::compose(
                     std::move(load_rhs),
                     (*b.handle_dreg_smem)(rhs_reg, stack.get(*l_ident))
@@ -297,7 +297,7 @@ public:
 
         if (l_ident) {
             if (r_const && b.handle_dreg_imm) {
-                stack.unlock_reg(rhs_reg); stack.push(RegisterUnit{ lhs_reg });
+                stack.unlock_reg(rhs_reg); stack.push(RegisterUnit<Generator>{ lhs_reg });
                 return Generator::compose(
                     std::move(load_lhs),
                     (*b.handle_dreg_imm)(lhs_reg, *r_const)
@@ -305,7 +305,7 @@ public:
             }
 
             if (r_vreg && b.handle_dreg_smem) {
-                stack.unlock_reg(rhs_reg); stack.push(RegisterUnit{ lhs_reg });
+                stack.unlock_reg(rhs_reg); stack.push(RegisterUnit<Generator>{ lhs_reg });
                 return Generator::compose(
                     std::move(load_lhs),
                     (*b.handle_dreg_smem)(lhs_reg, stack.get_vreg(*r_vreg))
@@ -313,7 +313,7 @@ public:
             }
 
             if (r_ident && b.handle_dreg_smem) {
-                stack.unlock_reg(rhs_reg); stack.push(RegisterUnit{ lhs_reg });
+                stack.unlock_reg(rhs_reg); stack.push(RegisterUnit<Generator>{ lhs_reg });
                 return Generator::compose(
                     std::move(load_lhs),
                     (*b.handle_dreg_smem)(lhs_reg, stack.get(*r_ident))
@@ -323,7 +323,7 @@ public:
 
         if (r_ident && b.is_commutative) {
             if (l_const && b.handle_dreg_imm) {
-                stack.unlock_reg(lhs_reg); stack.push(RegisterUnit{ rhs_reg });
+                stack.unlock_reg(lhs_reg); stack.push(RegisterUnit<Generator>{ rhs_reg });
                 return Generator::compose(
                     std::move(load_rhs),
                     (*b.handle_dreg_imm)(rhs_reg, *l_const)
@@ -331,7 +331,7 @@ public:
             }
 
             if (l_vreg && b.handle_dreg_smem) {
-                stack.unlock_reg(lhs_reg); stack.push(RegisterUnit{ rhs_reg });
+                stack.unlock_reg(lhs_reg); stack.push(RegisterUnit<Generator>{ rhs_reg });
                 return Generator::compose(
                     std::move(load_rhs),
                     (*b.handle_dreg_smem)(rhs_reg, stack.get_vreg(*l_vreg))
@@ -340,7 +340,7 @@ public:
         }
 
         stack.unlock_reg(rhs_reg);
-        stack.push(RegisterUnit{ lhs_reg });
+        stack.push(RegisterUnit<Generator>{ lhs_reg });
         return Generator::compose(
             std::move(load_lhs),
             std::move(load_rhs),
@@ -364,17 +364,17 @@ public:
 
         auto emit = load_reg_from_pop(desired_reg, top);
 
-        bool reg_ok = StackUtils::is_register<StackUnit, Register>(top);
+        bool reg_ok = StackUtils::is_register<StackUnit, Generator>(top);
         assert(reg_ok);
 
-        stack.push(RegisterUnit{ desired_reg });
+        stack.push(RegisterUnit<Generator>{ desired_reg });
         return emit;
     }
 
     auto load_reg_from_pop(Register& reg, StackUnit& unit, bool force_eviction = false) {
 
         if (!force_eviction) {
-            if (auto* r = std::get_if<RegisterUnit<Register>>(&unit)) {
+            if (auto* r = std::get_if<RegisterUnit<Generator>>(&unit)) {
                 if (r->in_register == reg) return Generator::compose();
             }
         }
@@ -409,7 +409,7 @@ public:
                     Generator::mov_doffset_sreg(offset, reg)
                 );
             },
-            [&](RegisterUnit<typename Generator::Register>& u) {
+            [&](RegisterUnit<Generator>& u) {
                 return Generator::mov_doffset_sreg(offset, u.in_register);
             },
             [&](StaticPointerUnit&) { 

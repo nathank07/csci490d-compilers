@@ -50,7 +50,7 @@ struct x86Generator : TypeSize<x86Generator> {
 
 private:
 
-    using Stack = StackAllocator<x86Generator, x86::Register>;
+    using Stack = StackAllocator<x86Generator>;
 
     Stack stack;
     const std::map<std::u8string, std::size_t> str_locs;
@@ -239,7 +239,21 @@ private:
             [&](const NumericComparison& v) {
                 auto left  = eval(**v.left);
                 auto right = eval(**v.right);
-                return x86::compose(std::move(left), std::move(right));
+                auto rhs = stack.pop();
+                auto lhs = stack.pop();
+
+                auto lhs_reg = primary_scratch();
+                auto rhs_reg = secondary_scratch();
+
+                auto load_l = s.load_reg_from_pop(lhs_reg, lhs);
+                auto load_r = s.load_reg_from_pop(rhs_reg, rhs);
+
+
+                return x86::compose(
+                    std::move(left), std::move(right),
+                    std::move(load_l), std::move(load_r),
+                    x86::compare(lhs_reg, rhs_reg)
+                );
             },
             [&](const Not& v) {
                 auto instr = eval(**v.expression);

@@ -24,10 +24,13 @@ struct TypeSize {
 };
 
 
-template <typename Register>
-struct RegisterUnit { Register in_register; };
+template <typename Generator>
+struct RegisterUnit { typename Generator::Register in_register; };
 
 struct VirtualRegisterUnit { std::size_t sp_idx; };
+
+template <typename Generator>
+struct LogicalComparisonUnit { typename Generator::Conditional cond; };
 
 // These are the same as a RealStackUnit - but they're known at compile time, allowing
 // for constant folding optimizations
@@ -72,15 +75,15 @@ namespace StackUtils {
         return std::holds_alternative<VirtualRegisterUnit>(unit);
     }
 
-    template <typename StackUnit, typename Register>
+    template <typename StackUnit, typename Generator>
     static bool is_register(const StackUnit& unit) {
-        return std::holds_alternative<RegisterUnit<Register>>(unit);
+        return std::holds_alternative<RegisterUnit<Generator>>(unit);
     }
 
-    template <typename StackUnit, typename Register>
-    static bool is_register(const StackUnit& unit, Register reg) {
-        return std::holds_alternative<RegisterUnit<Register>>(unit)
-            && std::get<RegisterUnit<Register>>(unit).in_register == reg;
+    template <typename StackUnit, typename Generator>
+    static bool is_register(const StackUnit& unit, typename Generator::Register reg) {
+        return std::holds_alternative<RegisterUnit<Generator>>(unit)
+            && std::get<RegisterUnit<Generator>>(unit).in_register == reg;
     }
 
     template <typename StackUnit>
@@ -91,18 +94,21 @@ namespace StackUtils {
 
 }
 
-template <typename Generator, typename Register>
+template <typename Generator>
 struct StackAllocator {
+
+    using Register = typename Generator::Register;
 
     using StackUnit = std::variant<
         VirtualRegisterUnit,
-        RegisterUnit<Register>,
-        ValueUnit, 
-        StaticPointerUnit, 
+        RegisterUnit<Generator>,
+        // LogicalComparisonUnit<Generator>,
+        ValueUnit,
+        StaticPointerUnit,
         IdentifierUnit
     >;
 
-    using RegisterTUnit = std::variant<RegisterUnit<Register>, VirtualRegisterUnit>;
+    using RegisterTUnit = std::variant<RegisterUnit<Generator>, VirtualRegisterUnit>;
 
 
 private:
@@ -176,7 +182,7 @@ public:
     // must be accounted for by either pushing or freeing.
     std::optional<RegisterTUnit> lock_reg(Register desired_reg) {
         auto it = std::find_if(eval_stack.begin(), eval_stack.end(), [&](const StackUnit& u) {
-            return StackUtils::is_register<StackUnit, Register>(u, desired_reg);
+            return StackUtils::is_register<StackUnit, Generator>(u, desired_reg);
         });
 
         if (it == eval_stack.end() && !locked_regs.contains(desired_reg)) {
@@ -195,8 +201,8 @@ public:
             auto reg = free_scratches.front();
             locked_regs.insert(desired_reg);
             locked_regs.insert(reg);
-            *it = RegisterUnit<Register> { reg };
-            return RegisterUnit<Register>{ reg };
+            *it = RegisterUnit<Generator>{ reg };
+            return RegisterUnit<Generator>{ reg };
         }
 
         locked_regs.insert(desired_reg);
@@ -213,7 +219,7 @@ public:
 
     bool in_stack(Register reg) {
         return std::any_of(eval_stack.begin(), eval_stack.end(), [&](const StackUnit& u) {
-            return StackUtils::is_register<StackUnit, Register>(u, reg);
+            return StackUtils::is_register<StackUnit, Generator>(u, reg);
         });
     }
 
@@ -236,8 +242,8 @@ public:
         if (!free_scratches.empty()) {
             auto reg = free_scratches.front();
             locked_regs.insert(reg);
-            eval_stack.push_back(RegisterUnit{ reg });
-            return RegisterUnit { reg };
+            eval_stack.push_back(RegisterUnit<Generator>{ reg });
+            return RegisterUnit<Generator>{ reg };
         }
 
         auto vr = VirtualRegisterUnit { get_first_free_virtual_reg() };
@@ -247,7 +253,7 @@ public:
     }
 
     void push(StackUnit unit) {
-        if (auto* r = std::get_if<RegisterUnit<Register>>(&unit)) {
+        if (auto* r = std::get_if<RegisterUnit<Generator>>(&unit)) {
             locked_regs.insert(r->in_register);
         }
 
