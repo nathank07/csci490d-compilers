@@ -62,14 +62,14 @@ struct FunctionCall {
     NodeResult ident;
     NodeResult args;
 
-    uint8_t arg_count();
+    uint8_t arg_count() const;
 };
 
 struct FunctionCallArgList {
     NodeResult value;
     NodeResult next;
 
-    uint8_t size();
+    uint8_t size() const;
 };
 
 struct Declaration {
@@ -154,7 +154,7 @@ struct Expression {
     > expression;
 };
 
-inline uint8_t FunctionCallArgList::size() {
+inline uint8_t FunctionCallArgList::size() const {
     if (next) { 
         return 1 + std::get<FunctionCallArgList>((*next)->expression).size(); 
     }
@@ -162,7 +162,7 @@ inline uint8_t FunctionCallArgList::size() {
     return 1;
 }
 
-inline uint8_t FunctionCall::arg_count() {
+inline uint8_t FunctionCall::arg_count() const {
     if (args) {
         return std::get<FunctionCallArgList>((*args)->expression).size();
     }

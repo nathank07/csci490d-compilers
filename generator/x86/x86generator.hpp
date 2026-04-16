@@ -55,14 +55,13 @@ private:
     Stack stack;
     const std::map<std::u8string, std::size_t> str_locs;
     x86StackOperator<x86Generator> s{stack};
-    x86Prog& p;
-    
+
     // jump_rel varies on how much string data there is, so we store it
     // here so that the u8string variant can get the correct abs addr
     x86::Instruction skip_strs = x86::compose();
 
-    x86Generator(x86Prog& p_, Stack& stack_, const std::map<std::u8string, std::size_t>& str_locs_)
-        : stack(stack_), str_locs(str_locs_), p(p_) {
+    x86Generator(Stack& stack_, const std::map<std::u8string, std::size_t>& str_locs_)
+        : stack(stack_), str_locs(str_locs_) {
         if (!str_locs.empty()) {
             auto it = std::max_element(str_locs.begin(), str_locs.end(),
                 [](auto& a, auto& b) { return a.second < b.second; });
@@ -70,11 +69,13 @@ private:
         }
     }
 
-    void eval(std::unique_ptr<Expression> expr) {
+    x86::Instruction eval(const Expression& expr) {
 
         const auto visitor = overloads {
-            [&](std::monostate&) {},
-            [&](Term& t) {
+            [&](const std::monostate&) {
+                return x86::compose();
+            },
+            [&](const Term& t) {
                 std::visit(overloads {
                     [&](std::string v) {
                         stack.push_identifier(v);
@@ -91,61 +92,68 @@ private:
                         assert(false && "doubles unsupported");
                     }
                 }, t.v);
+                return x86::compose();
             },
-            [&](const BoolConst& v) {
-                stack.push_const(static_cast<uint64_t>(v.is_true));
+            // Note: you can't do something like this:
+            // compose(eval(left), eval(right), perform_binary)
+            // because the variadic template is not guarenteed to be
+            // in order, causing side effects to fire in random order.
+            [&](const Add& e) {
+                auto left  = eval(**e.left);
+                auto right = eval(**e.right);
+                auto op    = s.perform_binary_op(x86StackOperator<x86Generator>::x86adder);
+                return x86::compose(std::move(left), std::move(right), std::move(op));
             },
-            [&](Add& e) {
-                eval(std::move(*e.left));
-                eval(std::move(*e.right));
-                p.append(s.perform_binary_op(x86StackOperator<x86Generator>::x86adder));
+            [&](const Sub& e) {
+                auto left  = eval(**e.left);
+                auto right = eval(**e.right);
+                auto op    = s.perform_binary_op(x86StackOperator<x86Generator>::x86subber);
+                return x86::compose(std::move(left), std::move(right), std::move(op));
             },
-            [&](Sub& e) {
-                eval(std::move(*e.left));
-                eval(std::move(*e.right));
-                p.append(s.perform_binary_op(x86StackOperator<x86Generator>::x86subber));
+            [&](const Mult& e) {
+                auto left  = eval(**e.left);
+                auto right = eval(**e.right);
+                auto op    = s.perform_binary_op(x86StackOperator<x86Generator>::x86multer);
+                return x86::compose(std::move(left), std::move(right), std::move(op));
             },
-            [&](Mult& e) {
-                eval(std::move(*e.left));
-                eval(std::move(*e.right));
-                p.append(s.perform_binary_op(x86StackOperator<x86Generator>::x86multer));
+            [&](const Div& e) {
+                auto left  = eval(**e.left);
+                auto right = eval(**e.right);
+                auto op    = s.handle_div_family(x86StackOperator<x86Generator>::DivType::DIV);
+                return x86::compose(std::move(left), std::move(right), std::move(op));
             },
-            [&](Div& e) {
-                eval(std::move(*e.left));
-                eval(std::move(*e.right));
-                p.append(s.handle_div_family(
-                    x86StackOperator<x86Generator>::DivType::DIV
-                ));
+            [&](const Mod& e) {
+                auto left  = eval(**e.left);
+                auto right = eval(**e.right);
+                auto op    = s.handle_div_family(x86StackOperator<x86Generator>::DivType::MOD);
+                return x86::compose(std::move(left), std::move(right), std::move(op));
             },
-            [&](Mod& e) {
-                eval(std::move(*e.left));
-                eval(std::move(*e.right));
-                p.append(s.handle_div_family(
-                    x86StackOperator<x86Generator>::DivType::MOD
-                ));
+            [&](const Exp& e) {
+                auto base     = eval(**e.base);
+                auto exponent = eval(**e.exponent);
+                auto op       = s.perform_binary_op(x86StackOperator<x86Generator>::x86exper);
+                return x86::compose(std::move(base), std::move(exponent), std::move(op));
             },
-            [&](Exp& e) {
-                eval(std::move(*e.base));
-                eval(std::move(*e.exponent));
-                p.append(s.perform_binary_op(x86StackOperator<x86Generator>::x86exper));
-            },
-            [&](Negated& e) {
-                eval(std::move(*e.expression));
+            [&](const Negated& e) {
+                auto base = eval(**e.expression);
                 auto reg = primary_scratch();
                 auto instr = s.push_reg(reg, std::negate<uint64_t>());
                 if (instr) {
-                    p.append(x86::compose(
+                    return x86::compose(
+                        std::move(base),
                         std::move(*instr),
                         x86::neg(reg)
-                    ));
+                    );
                 }
+                return base;
             },
-            [&](FunctionCall& v) {
+            [&](const FunctionCall& v) {
                 auto n = v.arg_count();
-                eval(std::move(*v.ident));
+                auto ident_instr = eval(**v.ident);
                 auto fn = StackUtils::assert_ident(stack.pop());
 
-                if (v.args.is_just()) eval(std::move(*v.args));
+                x86::Instruction args_instr = x86::compose();
+                if (v.args.is_just()) args_instr = eval(**v.args);
 
                 // ECX can get overwritten by the SysV ABI so we evict it to
                 // another register to save it; we have to do this because the
@@ -162,99 +170,126 @@ private:
 
                 if (fn == "print") {
                     auto pre_print_size = stack.size();
-                    p.append(x86::compose(
+                    x86::Instruction result = x86::compose(
+                        std::move(ident_instr),
+                        std::move(args_instr),
                         std::move(free_ecx),
                         x86::align_sp_start(pre_print_size)
-                    ));
+                    );
                     while (!args.empty()) {
                         auto arg = std::move(args.top()); args.pop();
                         auto reg = Register::EAX;
                         auto is_str = StackUtils::maybe_static_ptr(arg);
                         auto load = s.load_reg_from_pop(reg, arg);
-                        p.append(x86::compose(
+                        result = x86::compose(
+                            std::move(result),
                             std::move(load),
                             is_str ?
                                 x86::print_char_addr(reg) :
                                 x86::print_num_literal(reg)
-                        ));
+                        );
                         stack.unlock_reg(reg);
                     }
                     stack.unlock_reg(Register::ECX);
-                    p.append(x86::align_sp_end(pre_print_size));
+                    return x86::compose(std::move(result), x86::align_sp_end(pre_print_size));
 
                 } else if (fn == "read") {
                     assert(n == 1 && "read takes exactly one argument");
                     auto arg = std::move(args.top()); args.pop();
                     auto id = StackUtils::assert_ident(arg);
-                    p.append(x86::compose(
+                    stack.unlock_reg(Register::ECX);
+                    return x86::compose(
+                        std::move(ident_instr),
+                        std::move(args_instr),
                         std::move(free_ecx),
                         x86::read_int4(x86::Register::EAX, stack.size()),
                         x86::mov_rmem_64(x86::Register::EAX, x86::Register::EBP, stack.get(id))
-                    ));
-                    stack.unlock_reg(Register::ECX);
+                    );
                 } else {
                     assert(false && "unknown function");
+                    return x86::compose();
                 }
             },
-            [&](FunctionCallArgList& v) {
-                eval(std::move(*v.value));
-                if (v.next.is_just()) eval(std::move(*v.next));
+            [&](const FunctionCallArgList& v) {
+                auto val = eval(**v.value);
+                if (v.next.is_just()) return x86::compose(std::move(val), eval(**v.next));
+                return val;
             },
-            [&](Declaration&) {},
-            [&](Assign& v) {
-                eval(std::move(*v.ident));
-                eval(std::move(*v.value));
-                p.append(s.assign_var_after_eval());
+            [&](const Declaration&) {
+                return x86::compose();
             },
-            [&](StatementBlock& v) {
-                eval(std::move(*v.statements));
+            [&](const Assign& v) {
+                auto ident  = eval(**v.ident);
+                auto value  = eval(**v.value);
+                auto assign = s.assign_var_after_eval();
+                return x86::compose(std::move(ident), std::move(value), std::move(assign));
             },
-            [&](Statements& v) {
-                eval(std::move(*v.value));
-                if (v.next.is_just()) eval(std::move(*v.next));
+            [&](const StatementBlock& v) {
+                return eval(**v.statements);
             },
-            [&](NumericComparison& v) {
-                eval(std::move(*v.left));
-                eval(std::move(*v.right));
+            [&](const Statements& v) {
+                auto val = eval(**v.value);
+                if (v.next.is_just()) return x86::compose(std::move(val), eval(**v.next));
+                return val;
             },
-            [&](Not& v) {
-                
+            [&](const BoolConst& v) {
+                stack.push_const(static_cast<uint64_t>(v.is_true));
+                return x86::compose();
             },
-            [&](And& v) {
-               
+            [&](const NumericComparison& v) {
+                auto left  = eval(**v.left);
+                auto right = eval(**v.right);
+                return x86::compose(std::move(left), std::move(right));
             },
-            [&](Or& v) {
-                
+            [&](const Not& v) {
+                auto instr = eval(**v.expression);
+                auto top = stack.pop();
+                if (auto c = StackUtils::maybe_value_u64(top)) {
+                    stack.push_const(static_cast<uint64_t>(!static_cast<bool>(*c)));
+                }
+                return instr;
             },
-            [&](If& v) {
-                
+            [&](const And& v) {
+                auto instr = eval(**v.left);
+                auto top = stack.pop();
+                if (auto c = StackUtils::maybe_value_u64(top)) {
+                    if (!static_cast<bool>(*c)) {
+                        return instr;
+                    }
+                }
+                return instr;
             },
-            [&](While& v) {
-               
+            [&](const Or& v) {
+                return x86::compose();
+            },
+            [&](const If& v) {
+                return x86::compose();
+            },
+            [&](const While& v) {
+                return x86::compose();
             }
         };
 
-        std::visit(visitor, expr->expression);
+        return std::visit(visitor, expr.expression);
     }
 
 public:
 
-    static x86Prog generate(NodeResult expr, const std::unordered_map<std::string, TypedVar>& symbol_table, 
+    static x86Prog generate(NodeResult expr, const std::unordered_map<std::string, TypedVar>& symbol_table,
                                              const std::map<std::u8string, std::size_t> str_locs) {
         x86Prog prog;
         auto stack = Stack(symbol_table, Register::R12, Register::R13, Register::R14, Register::R15);
-        auto generator = x86Generator(prog, stack, str_locs);
-        generator.eval(std::move(*expr));
+        auto generator = x86Generator(stack, str_locs);
+        auto body = generator.eval(**expr);
         auto stack_size = static_cast<int32_t>(stack.size());
         x86::Instruction string_pool;
 
-
-        // sort by value, because map is sorted alphabetically, and the strings 
-        // probably aren't in alphabetical order - so you'll be pointing to 
+        // sort by value, because map is sorted alphabetically, and the strings
+        // probably aren't in alphabetical order - so you'll be pointing to
         // garbage data
-        std::vector<std::pair<std::u8string, std::size_t>> 
+        std::vector<std::pair<std::u8string, std::size_t>>
             sorted_strs(str_locs.begin(), str_locs.end());
-        std::sort(sorted_strs.begin(), sorted_strs.end(), [](auto& a, auto& b) 
+        std::sort(sorted_strs.begin(), sorted_strs.end(), [](auto& a, auto& b)
             { return a.second < b.second; });
 
         for (const auto& str : sorted_strs) {
@@ -270,7 +305,7 @@ public:
             x86::push(x86::Register::EBP),
             x86::sub(x86::Register::ESP, stack_size),
             x86::mov(x86::Register::EBP, x86::Register::ESP),
-            prog.prog_fn,
+            std::move(body),
             x86::add(x86::Register::ESP, stack_size),
             x86::pop(x86::Register::EBP),
             x86::ret()
