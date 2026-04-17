@@ -14,3 +14,9 @@ if (a > 0) {
 } else {
     print("a is not greater than 0\n");
 }
+
+if (123 * 2 / 3 > a * 5) {
+    print("123 * 2 / 3 is greater than a * 5\n");
+} else {
+    print("123 * 2 / 3 is not greater than a * 5\n");
+}

@@ -154,6 +154,7 @@ public:
     StackAllocator(const std::unordered_map<std::string, TypedVar>& analyzed_symbol_table) {
 
         for (auto& symbol : analyzed_symbol_table) {
+            if (Generator::size_of(symbol.second) == 0) continue;
             symbol_table[symbol.first] = allocated_symbols++;
         }
 
@@ -207,7 +208,9 @@ public:
             auto reg = free_scratches.front();
             locked_regs.insert(desired_reg);
             locked_regs.insert(reg);
-            *it = RegisterUnit<Generator>{ reg };
+            if (it != eval_stack.end()) {
+                *it = RegisterUnit<Generator>{ reg };
+            }
             return RegisterUnit<Generator>{ reg };
         }
 

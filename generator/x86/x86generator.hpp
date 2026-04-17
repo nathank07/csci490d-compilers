@@ -315,7 +315,7 @@ public:
         auto stack = Stack(symbol_table, Register::R12, Register::R13, Register::R14, Register::R15);
         auto generator = x86Generator(stack, str_locs);
         auto body = generator.eval(**expr);
-        auto stack_size = static_cast<int32_t>(stack.size());
+        auto stack_size = static_cast<int32_t>(generator.stack.size());
         x86::Instruction string_pool;
 
         // sort by value, because map is sorted alphabetically, and the strings

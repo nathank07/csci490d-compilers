@@ -414,6 +414,7 @@ public:
                 );
             },
             [&](RegisterUnit<Generator>& u) {
+                stack.unlock_reg(u.in_register);
                 return Generator::mov_doffset_sreg(offset, u.in_register);
             },
             [&](StaticPointerUnit&) { 
