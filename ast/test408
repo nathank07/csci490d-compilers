@@ -1,0 +1,14 @@
+# Logical OR
+
+int4 a;
+
+if(2<2 | 4 < 4 | 6 < 6){ 
+    print("hello world\n");
+}
+
+#if (1 < 2 | 1 < 1 | 1 < 1 | 1 < 1 | 1 > 1) {
+#    a := 1;
+#    print("\nall\n");
+#}
+
+

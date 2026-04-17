@@ -1,11 +1,12 @@
 #pragma once
 
-#include "../../ast/ast.hpp"
+#include "../../ast/expression.hpp"
 #include "../../utils.hpp"
 #include "x86prog.hpp"
 #include "x86Instructions.hpp"
 #include "../stackAllocator.hpp"
 #include "x86stackOperator.hpp"
+#include "../boolGenerator.hpp"
 #include <cmath>
 #include <cstdint>
 #include <unordered_map>
@@ -48,8 +49,6 @@ struct x86Generator : TypeSize<x86Generator> {
     static Instruction mov_dreg_sreg(Register lhs, Register rhs) {
         return x86::mov(lhs, rhs);
     }
-
-private:
 
     using Stack = StackAllocator<x86Generator>;
 
@@ -268,35 +267,30 @@ private:
                 );
             },
             [&](const Not& v) {
-                auto instr = eval(**v.expression);
-                auto top = stack.pop();
-                if (auto c = StackUtils::maybe_value_u64(top)) {
-                    stack.push_const(static_cast<uint64_t>(!static_cast<bool>(*c)));
-                }
-                return instr;
+                // <Handled by boolGenerator>
+                return x86::compose();
             },
             [&](const And& v) {
-                auto instr = eval(**v.left);
-                auto top = stack.pop();
-                if (auto c = StackUtils::maybe_value_u64(top)) {
-                    if (!static_cast<bool>(*c)) {
-                        return instr;
-                    }
-                }
-                return instr;
+                // <Handled by boolGenerator>
+                return x86::compose();
             },
             [&](const Or& v) {
+                // <Handled by boolGenerator>
                 return x86::compose();
             },
             [&](const If& v) {
-                auto compare = eval(**v.logical_expression);
+                auto compare = BoolGenerator<x86>::eval(*this, **v.logical_expression);
                 auto if_block = eval(**v.if_statement_block);
 
                 if (!v.else_statement_block) {
-                    return x86::_if(compare, s.assert_pop_cond(), if_block);
+                    auto jmp = x86::jmp(if_block.byte_size);
+                    return x86::compose(compare.create_instr(jmp, compare.cond), if_block);
                 } else {
                     auto else_block = eval(**v.else_statement_block);
-                    return x86::_if_else(compare, s.assert_pop_cond(), if_block, else_block);
+                    auto jmp_over_else = x86::jmp(else_block.byte_size);
+                    auto if_with_skip = x86::compose(if_block, jmp_over_else);
+                    auto jmp = x86::jmp(if_with_skip.byte_size);
+                    return x86::compose(compare.create_instr(jmp, compare.cond), if_with_skip, else_block);
                 }
             },
             [&](const While& v) {

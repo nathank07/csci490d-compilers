@@ -1,0 +1,11 @@
+int4 a;
+int4 b;
+print("a: ");
+read(a);
+print("b: ");
+read(b);
+if (a > 0) {
+    print("a or b greater than 0\n");
+} else {
+    print("neither a or b greater than 0\n");
+}
