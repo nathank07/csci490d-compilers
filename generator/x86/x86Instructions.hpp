@@ -470,7 +470,7 @@ public:
     static Instruction call(Register r) { return rm("CALL", r, OpcodeExtension::Two, 0xFF, true); }
 
     static Instruction cmp(Register r, int32_t v) {
-        return rm_i("CMP", r, OpcodeExtension::Seven, 0x83, 0x81, v); }
+        return rm_i("CMP", r, OpcodeExtension::Seven, 0x83, 0x81, v, false); }
     static Instruction add(Register r, int32_t v) { 
         return rm_i("ADD", r, OpcodeExtension::Zero,  0x83, 0x81, v); }
     static Instruction sub(Register r, int32_t v) { 
@@ -479,7 +479,7 @@ public:
     static Instruction test(Register r, int32_t v) {
         return rm_i32("TEST", r, OpcodeExtension::Zero, 0xF7, v); }
     
-    static Instruction cmp(Register r1, Register r2) { return rm_r("CMP", r1, r2, 0x39); }
+    static Instruction cmp(Register r1, Register r2) { return rm_r("CMP", r1, r2, 0x39, false); }
     static Instruction add(Register r1, Register r2) { return rm_r("ADD", r1, r2, 0x01); }
     static Instruction sub(Register r1, Register r2) { return rm_r("SUB", r1, r2, 0x29); }
     static Instruction mov(Register r1, Register r2) { return rm_r("MOV", r1, r2, 0x89); }

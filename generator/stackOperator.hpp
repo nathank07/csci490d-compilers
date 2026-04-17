@@ -115,7 +115,11 @@ private:
                 auto emit = Generator::mov_dreg_sstatic_ptr(reg, u.abs_addr);
                 unit = RegisterUnit<Generator>{ reg };
                 return emit;
-            }
+            },
+            [&](LogicalComparisonUnit<Generator>&) {
+                assert(false && "Attempted to normalize LogicalComparisonUnit");
+                return Generator::compose();
+            },
         }, unit);
     }
 
@@ -416,6 +420,10 @@ public:
                 assert(false && "Variable strings not supported");
                 return Generator::compose();
             },
+            [&](LogicalComparisonUnit<Generator>&) {
+                assert(false && "Variable bools not supported");
+                return Generator::compose();
+            },
             [&](IdentifierUnit& id) {
                 auto free = find_free_reg(reg);
                 return Generator::compose(
@@ -425,5 +433,9 @@ public:
                 );
             }
         }, top);
+    }
+
+    typename Generator::Conditional assert_pop_cond() {
+        return StackUtils::assert_cond<StackUnit, Generator>(stack.pop());
     }
 };

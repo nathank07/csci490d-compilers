@@ -148,12 +148,30 @@ private:
                 if (v.next) analyze(v.next, symbols, results);
             },
             [&](const BoolConst&) {},
-            [&](const NumericComparison&) {},
-            [&](const Not&) {},
-            [&](const And& v) {},
-            [&](const Or& v) {},
-            [&](const If& v) {},
-            [&](const While& v) {}
+            [&](const NumericComparison& v) {
+                analyze(v.left, symbols, results);
+                analyze(v.right, symbols, results);
+            },
+            [&](const Not& v) {
+                analyze(v.expression, symbols, results);
+            },
+            [&](const And& v) {
+                analyze(v.left, symbols, results);
+                analyze(v.right, symbols, results);
+            },
+            [&](const Or& v) {
+                analyze(v.left, symbols, results);
+                analyze(v.right, symbols, results);
+            },
+            [&](const If& v) {
+                analyze(v.logical_expression, symbols, results);
+                analyze(v.if_statement_block, symbols, results);
+                if (v.else_statement_block) analyze(v.else_statement_block, symbols, results);
+            },
+            [&](const While& v) {
+                analyze(v.logical_expression, symbols, results);
+                analyze(v.statement_block, symbols, results);
+            }
         };
 
         std::visit(visitor, (*just_value)->expression);

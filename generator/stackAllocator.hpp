@@ -92,6 +92,12 @@ namespace StackUtils {
         return std::get<IdentifierUnit>(unit).ident;
     }
 
+    template <typename StackUnit, typename Generator>
+    static auto assert_cond(const StackUnit& unit) {
+        assert(std::holds_alternative<LogicalComparisonUnit<Generator>>(unit));
+        return std::get<LogicalComparisonUnit<Generator>>(unit).cond;
+    }
+
 }
 
 template <typename Generator>
@@ -102,7 +108,7 @@ struct StackAllocator {
     using StackUnit = std::variant<
         VirtualRegisterUnit,
         RegisterUnit<Generator>,
-        // LogicalComparisonUnit<Generator>,
+        LogicalComparisonUnit<Generator>,
         ValueUnit,
         StaticPointerUnit,
         IdentifierUnit

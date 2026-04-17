@@ -19,6 +19,7 @@ struct x86Generator : TypeSize<x86Generator> {
 
     using Instruction = x86::Instruction;
     using Register = x86::Register;
+    using Conditional = x86::Conditional;
 
     template<typename... Args>
     static Instruction compose(Args&&... args) {
@@ -245,9 +246,20 @@ private:
                 auto lhs_reg = primary_scratch();
                 auto rhs_reg = secondary_scratch();
 
+                // We normalize the regs into a register, but then immediately
+                // compare them; this makes locking them redundant, so we unlock
+                // them so other arithmetic can use it. Locking is more of a useful
+                // usecase if we're pushing a result, but it's already stored
+                // in the sign flags.
                 auto load_l = s.load_reg_from_pop(lhs_reg, lhs);
                 auto load_r = s.load_reg_from_pop(rhs_reg, rhs);
 
+                stack.unlock_reg(lhs_reg);
+                stack.unlock_reg(rhs_reg);
+
+                stack.push(LogicalComparisonUnit<x86Generator> { 
+                    x86::tok_cond(v.token_type) 
+                });
 
                 return x86::compose(
                     std::move(left), std::move(right),
@@ -277,7 +289,15 @@ private:
                 return x86::compose();
             },
             [&](const If& v) {
-                return x86::compose();
+                auto compare = eval(**v.logical_expression);
+                auto if_block = eval(**v.if_statement_block);
+
+                if (!v.else_statement_block) {
+                    return x86::_if(compare, s.assert_pop_cond(), if_block);
+                } else {
+                    auto else_block = eval(**v.else_statement_block);
+                    return x86::_if_else(compare, s.assert_pop_cond(), if_block, else_block);
+                }
             },
             [&](const While& v) {
                 return x86::compose();

@@ -1,8 +1,8 @@
 #pragma once
-#include <cstdint>
+#include <cassert>
 #include <ostream>
 #include <string>
-#include <utility>
+#include "../lexer/token.hpp"
 
 struct BaseInstruction {
     std::string emitted_content;
@@ -39,6 +39,21 @@ struct InstructionControl {
             case Conditional::NEVER: return Conditional::UNCONDITIONALLY;
         }
         __builtin_unreachable();
+    }
+
+    static constexpr Conditional tok_cond(const TokenType& t) {
+        switch (t) {
+            case TokenType::LESS_THAN: return Conditional::LT;
+            case TokenType::LESS_THAN_EQ: return Conditional::LTE;
+            case TokenType::GREATER_THAN: return Conditional::GT;
+            case TokenType::GREATER_THAN_EQ: return Conditional::GTE;
+            case TokenType::EQUALS: return Conditional::EQ;
+            case TokenType::NOT_EQUALS: return Conditional::NEQ;
+            default: { 
+                assert(false && "Non conditional used as conditional");
+                return Conditional::NEVER;
+            }
+        }
     }
 
     // These assume that the IP jumps from the beginning of the instruction:

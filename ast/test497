@@ -1,3 +1,16 @@
-if (true) {
-    1; 2;
+int4 a;
+read(a);
+
+if (a > 0) {
+    print("a is greater than 0\n");
+}
+
+print("a is ", a, "\n");
+
+read(a);
+
+if (a > 0) {
+    print("a is greater than 0\n");
+} else {
+    print("a is not greater than 0\n");
 }
