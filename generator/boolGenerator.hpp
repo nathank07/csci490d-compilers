@@ -15,10 +15,36 @@ struct BoolGenerator {
         Cond cond;
     };
 
+private:
+
+    static BooleanChunk handle_or(auto&& lhs, auto&& rhs) {
+        return BooleanChunk{ [lhs, rhs](auto on_match, auto on_fail, auto) {
+            auto _rhs = rhs.create_instr(on_match, on_fail, rhs.cond);
+            auto _lhs = lhs.create_instr(_rhs.byte_size + on_match, 0, lhs.cond);
+            return Architecture::compose(_lhs, _rhs);
+        }, rhs.cond };
+    }
+
+    static BooleanChunk handle_and(auto&& lhs, auto&& rhs) {
+        return BooleanChunk{ [lhs, rhs](auto on_match, auto on_fail, auto) {
+            auto _rhs = rhs.create_instr(on_match, on_fail, rhs.cond);
+            auto _lhs = lhs.create_instr(0, on_fail + _rhs.byte_size, lhs.cond);
+            return Architecture::compose(_lhs, _rhs);
+        }, rhs.cond };
+    }
+
+    static BooleanChunk error() {
+        assert(false && "Expected logical");
+        return BooleanChunk{ [](auto, auto, auto) {
+            return Architecture::compose();
+        }, static_cast<typename Architecture::Conditional>(0) };
+    }
+public:
+
     template <typename Generator>
     static BooleanChunk eval(Generator& generator, const Expression& expr) {
         const auto visitor = overloads {
-            [&](const NumericComparison& v) {
+            [&](const NumericComparison&) {
                 auto compare = generator.eval(expr);
                 
                 auto cond = 
@@ -35,30 +61,47 @@ struct BoolGenerator {
                 }, cond };
             },
             [&](const Or& v) {
-                auto lhs = eval(generator, **v.left);
-                auto rhs = eval(generator, **v.right);
-
-                return BooleanChunk{ [lhs, rhs](auto on_match, auto on_fail, auto) {
-                    auto _rhs = rhs.create_instr(on_match, on_fail, rhs.cond);
-                    auto _lhs = lhs.create_instr(_rhs.byte_size + on_match, 0, lhs.cond);
-                    return Architecture::compose(_lhs, _rhs);
-                }, rhs.cond };
+                return handle_or(eval(generator, **v.left), eval(generator, **v.right));
             },
             [&](const And& v) {
-                auto lhs = eval(generator, **v.left);
-                auto rhs = eval(generator, **v.right);
-
-                return BooleanChunk{ [lhs, rhs](auto on_match, auto on_fail, auto) {
-                    auto _rhs = rhs.create_instr(on_match, on_fail, rhs.cond);
-                    auto _lhs = lhs.create_instr(0, on_fail + _rhs.byte_size, lhs.cond);
-                    return Architecture::compose(_lhs, _rhs);
-                }, rhs.cond };
+                return handle_and(eval(generator, **v.left), eval(generator, **v.right));
+            },
+            [&](const Not& not_v) {
+                auto invert = [](BooleanChunk chunk) -> BooleanChunk {
+                    return BooleanChunk{
+                        [chunk](auto on_match, auto on_fail, auto cond) {
+                            return chunk.create_instr(on_fail, on_match, cond);
+                        },
+                        Architecture::invert(chunk.cond)
+                    };
+                };
+                const auto not_visitor = overloads {
+                    [&](const Not& v) {
+                        return eval(generator, **v.expression);
+                    },
+                    [&](const NumericComparison&) {
+                        return invert(eval(generator, **not_v.expression));
+                    },
+                    [&](const Or& v) {
+                        auto not_lhs = invert(eval(generator, **v.left));
+                        auto not_rhs = invert(eval(generator, **v.right));
+                        return handle_and(std::move(not_lhs), std::move(not_rhs));
+                    },
+                    [&](const And& v) {
+                        auto not_lhs = invert(eval(generator, **v.left));
+                        auto not_rhs = invert(eval(generator, **v.right));
+                        return handle_or(std::move(not_lhs), std::move(not_rhs));
+                    },
+                    [&](auto&&) {
+                        return error();
+                    }
+                };
+                
+                const Expression& not_inner = **not_v.expression;
+                return std::visit(not_visitor, not_inner.expression);
             },
             [&](auto&&) {
-                assert(false);
-                return BooleanChunk{ [](auto, auto, auto cond) {
-                    return Architecture::compose();
-                }, static_cast<typename Architecture::Conditional>(0) };
+                return error();
             }
             
         };
