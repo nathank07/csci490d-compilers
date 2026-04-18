@@ -279,19 +279,20 @@ struct x86Generator : TypeSize<x86Generator> {
                 return x86::compose();
             },
             [&](const If& v) {
-                auto compare = BoolGenerator<x86>::eval(*this, **v.logical_expression);
+                
                 auto if_block = eval(**v.if_statement_block);
+                auto compare = BoolGenerator<x86>::eval(*this, **v.logical_expression);
+                auto if_guard = x86::jump_rel(if_block.byte_size);
+
 
                 if (!v.else_statement_block) {
-                    auto jmp = x86::jmp(if_block.byte_size);
-                    return x86::compose(compare.create_instr(jmp, compare.cond), if_block);
-                } else {
-                    auto else_block = eval(**v.else_statement_block);
-                    auto jmp_over_else = x86::jmp(else_block.byte_size);
-                    auto if_with_skip = x86::compose(if_block, jmp_over_else);
-                    auto jmp = x86::jmp(if_with_skip.byte_size);
-                    return x86::compose(compare.create_instr(jmp, compare.cond), if_with_skip, else_block);
-                }
+                    return x86::compose(
+                        compare.create_instr(0, if_guard.byte_size, compare.cond),
+                        if_guard,
+                        if_block
+                    );
+                } 
+                return x86::compose();
             },
             [&](const While& v) {
                 return x86::compose();

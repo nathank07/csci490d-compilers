@@ -1,0 +1,40 @@
+# Logical AND
+
+int4 a;
+
+#if (a < 0) {
+#    print("a less than 1\n");
+#}
+#
+#if (a > 0) {
+#    print("a greater than 1\n");
+#}
+
+#if (a < 0 & a > 0 & a < 0 & (a > 0 | a > 0) & a < 0 & a > 0) {
+#    print("a is 0\n");
+#}
+
+if (2 ~= 1 & 1 ~= 2){#& a < 0 & a < 0 & a < 0 & a < 0 & a < 0 & a < 0) {
+    print("\nHI\n");
+}
+
+#if (a < 0 | a > 0) {
+#    print("a is not 0\n");
+#}
+
+#if (a = 1 & b = 1) {
+#    print("1:1\n");
+#}
+#if (a = 1 & b = 0) {
+#    print("1:0\n");
+#}
+#if (a = 0 & b = 1) {
+#    print("0:1\n");
+#}
+#if (a = 0 & b = 0) {
+#    print("0:0\n");
+#}
+
+#print("a: ", a, "\n");
+#print("b: ", b, "\n");
+

@@ -62,10 +62,6 @@ public:
         return in;
     }
 
-    static Instruction jump_rel(int32_t addr) {
-        return (addr > 0) ? jmp32(addr) : jmp32(addr - 5);
-    }
-
     // ** CRTP Instructions **
     static Instruction compose() { return {}; }
 
@@ -135,8 +131,27 @@ public:
         );
     }
 
-    static Instruction jump_backwards(uint32_t size) {
-        return jmp32(-static_cast<int32_t>(size));
+    static Instruction jump_rel(int32_t addr) {
+        return (addr > 0) ? jmp32(addr) : jmp32(addr - 5);
+    }
+
+    static Instruction jump_rel_lt(int32_t size) {
+        return jl(size);
+    }
+    static Instruction jump_rel_gt(int32_t size) {
+        return jg(size);
+    }
+    static Instruction jump_rel_eq(int32_t size) {
+        return je(size);
+    }
+    static Instruction jump_rel_lte(int32_t size) {
+        return jle(size);
+    }
+    static Instruction jump_rel_gte(int32_t size) {
+        return jge(size);
+    }
+    static Instruction jump_rel_neq(int32_t size) {
+        return jne(size);
     }
 
 private:

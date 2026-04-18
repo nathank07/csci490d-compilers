@@ -72,6 +72,20 @@ struct InstructionControl {
         __builtin_unreachable();
     }
 
+    static auto jump_rel_when(auto size, Conditional cond = Conditional::UNCONDITIONALLY) {
+        switch (cond) {
+            case Conditional::LT:  return Derived::jump_rel_lt(size);
+            case Conditional::GT:  return Derived::jump_rel_gt(size);
+            case Conditional::EQ:  return Derived::jump_rel_eq(size);
+            case Conditional::LTE: return Derived::jump_rel_lte(size);
+            case Conditional::GTE: return Derived::jump_rel_gte(size);
+            case Conditional::NEQ: return Derived::jump_rel_neq(size);
+            case Conditional::UNCONDITIONALLY: return Derived::jump_rel(size);
+            case Conditional::NEVER: return Derived::compose();
+        }
+        __builtin_unreachable();
+    }
+
     static auto _while(auto check_cond, Conditional cond, auto do_this) {
         return _if(check_cond, cond, Derived::compose(
             do_this, 

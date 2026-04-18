@@ -198,6 +198,10 @@ inline std::unique_ptr<Expression> make_term_expr(const Token& t) {
     }
 }
 
+inline NodeResult make_expression_from_expression(std::unique_ptr<Expression>&& expr) {
+    return NodeResult(NodeResult::Just{std::move(expr)}, {}, {});
+}
+
 inline NodeResult make_term(NodeResult cont) {
     if (cont.is_error()) return cont;
     return cont.create_expr(make_term_expr(cont.consumed.back()));
