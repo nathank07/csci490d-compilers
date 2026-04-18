@@ -597,14 +597,17 @@ public:
         );
     }
 
-    static Instruction print_bool(Register r, bool is_true) {
+    static Instruction print_bool(Register r) {
         assert(r != Register::ESI);
 
-        auto f = is_true ? __print_true : __print_false;
-
         return compose(
-            mov_64(Register::ESI, reinterpret_cast<uint64_t>(f)),
-            mov(Register::EDI, r),
+            x86::skip_if(test(r, 1), Conditional::EQ,
+                mov_64(Register::ESI, reinterpret_cast<uint64_t>(__print_true))
+            ),
+            // test(r, 1) already computed
+            x86::skip_if(x86::compose(), Conditional::NEQ,
+                mov_64(Register::ESI, reinterpret_cast<uint64_t>(__print_false))
+            ),
             call(Register::ESI)
         );
     }

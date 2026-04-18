@@ -154,6 +154,15 @@ struct Expression {
     > expression;
 };
 
+inline bool is_logical(const std::unique_ptr<Expression>& exp) {
+    if (!exp) return false;
+    return std::holds_alternative<NumericComparison>(exp->expression)
+        || std::holds_alternative<And>(exp->expression)
+        || std::holds_alternative<Or>(exp->expression)
+        || std::holds_alternative<Not>(exp->expression)
+        || std::holds_alternative<BoolConst>(exp->expression);
+}
+
 inline uint8_t FunctionCallArgList::size() const {
     if (next) { 
         return 1 + std::get<FunctionCallArgList>((*next)->expression).size(); 

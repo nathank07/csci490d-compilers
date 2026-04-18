@@ -1,5 +1,4 @@
 #pragma once
-#include "boolInstructions.hpp"
 #include "../ast/expression.hpp"
 #include "../utils.hpp"
 #include "stackAllocator.hpp"
@@ -66,11 +65,23 @@ public:
             [&](const And& v) {
                 return handle_and(eval(generator, **v.left), eval(generator, **v.right));
             },
+            [&](const BoolConst& v) {
+                auto cond = v.is_true ? Architecture::Conditional::UNCONDITIONALLY :
+                    Architecture::Conditional::NEVER;
+                return BooleanChunk{[cond](auto on_match, auto on_fail, auto) {
+                    auto jump_on_match = Architecture::jump_rel(on_match);
+                    return Architecture::compose(
+                        Architecture::jump_rel_when(on_fail + jump_on_match.byte_size, 
+                            Architecture::invert(cond)),
+                        jump_on_match
+                    );
+                }, cond};
+            },
             [&](const Not& not_v) {
                 auto invert = [](BooleanChunk chunk) -> BooleanChunk {
                     return BooleanChunk{
-                        [chunk](auto on_match, auto on_fail, auto cond) {
-                            return chunk.create_instr(on_fail, on_match, cond);
+                        [chunk](auto on_match, auto on_fail, auto) {
+                            return chunk.create_instr(on_fail, on_match, chunk.cond);
                         },
                         Architecture::invert(chunk.cond)
                     };
@@ -91,6 +102,9 @@ public:
                         auto not_lhs = invert(eval(generator, **v.left));
                         auto not_rhs = invert(eval(generator, **v.right));
                         return handle_or(std::move(not_lhs), std::move(not_rhs));
+                    },
+                    [&](const BoolConst&) {
+                        return invert(eval(generator, **not_v.expression));
                     },
                     [&](auto&&) {
                         return error();

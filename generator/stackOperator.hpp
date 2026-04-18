@@ -120,6 +120,10 @@ private:
                 assert(false && "Attempted to normalize LogicalComparisonUnit");
                 return Generator::compose();
             },
+            [&](LogicalAtomicUnit&) {
+                assert(false && "Attempted to normalize LogicalAtomicUnit");
+                return Generator::compose();
+            },
         }, unit);
     }
 
@@ -423,6 +427,10 @@ public:
             },
             [&](LogicalComparisonUnit<Generator>&) {
                 assert(false && "Variable bools not supported");
+                return Generator::compose();
+            },
+            [&](LogicalAtomicUnit&) {
+                assert(false && "Variable constants not supported");
                 return Generator::compose();
             },
             [&](IdentifierUnit& id) {

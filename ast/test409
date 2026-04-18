@@ -2,6 +2,8 @@
 
 int4 a;
 
+print(1 ~= 1, 1 = 1, 1~=1);
+
 #if (a < 0) {
 #    print("a less than 1\n");
 #}
@@ -14,9 +16,9 @@ int4 a;
 #    print("a is 0\n");
 #}
 
-if (!(!(1 = 1 | 1 = 1 | (1 = 1 & 1 = 1 & 1 = 1)))) {
-    print("\nHI\n");
-}
+#if (!(!(1 = 1 | 1 = 1 | (1 = 1 & 1 = 1 & 1 = 1)))) {
+#    print("\nHI\n");
+#}
 
 #if (a < 0 | a > 0) {
 #    print("a is not 0\n");

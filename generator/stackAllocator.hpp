@@ -32,6 +32,9 @@ struct VirtualRegisterUnit { std::size_t sp_idx; };
 template <typename Generator>
 struct LogicalComparisonUnit { typename Generator::Conditional cond; };
 
+// On the next pop, you get a materialized value.
+struct LogicalAtomicUnit {};
+
 // These are the same as a RealStackUnit - but they're known at compile time, allowing
 // for constant folding optimizations
 struct ValueUnit { uint64_t literal; };
@@ -91,6 +94,16 @@ namespace StackUtils {
         assert(std::holds_alternative<IdentifierUnit>(unit));
         return std::get<IdentifierUnit>(unit).ident;
     }
+    
+    template <typename StackUnit, typename Generator>
+    static auto is_cond(const StackUnit& unit) {
+        return std::holds_alternative<LogicalComparisonUnit<Generator>>(unit);
+    }
+
+    template <typename StackUnit, typename Generator>
+    static auto is_logical_atomic(const StackUnit& unit) {
+        return std::holds_alternative<LogicalAtomicUnit>(unit);
+    }
 
     template <typename StackUnit, typename Generator>
     static auto assert_cond(const StackUnit& unit) {
@@ -109,6 +122,7 @@ struct StackAllocator {
         VirtualRegisterUnit,
         RegisterUnit<Generator>,
         LogicalComparisonUnit<Generator>,
+        LogicalAtomicUnit,
         ValueUnit,
         StaticPointerUnit,
         IdentifierUnit
@@ -286,6 +300,10 @@ public:
         }
 
         return top;
+    }
+
+    StackUnit top() {
+        return eval_stack.back();
     }
 
     const std::string pop_ident() {

@@ -166,7 +166,13 @@ struct x86Generator : TypeSize<x86Generator> {
                 }
 
                 std::stack<Stack::StackUnit> args;
-                for (uint8_t i = 0; i < n; i++) args.push(stack.pop());
+                for (uint8_t i = 0; i < n; i++) {
+                    auto unit = stack.pop();
+                    if (StackUtils::is_logical_atomic<Stack::StackUnit, x86Generator>(unit)) {
+                        args.push(stack.pop());
+                    }
+                    args.push(std::move(unit));
+                }
 
                 if (fn == "print") {
                     auto pre_print_size = stack.size();
@@ -178,7 +184,21 @@ struct x86Generator : TypeSize<x86Generator> {
                     );
                     while (!args.empty()) {
                         auto arg = std::move(args.top()); args.pop();
+
                         auto reg = Register::EAX;
+
+                        if (StackUtils::is_logical_atomic<Stack::StackUnit, x86Generator>(arg)) {
+                            auto val_arg  = std::move(args.top()); args.pop();
+                            auto load     = s.load_reg_from_pop(reg, val_arg);
+                            result = x86::compose(
+                                std::move(result),
+                                std::move(load),
+                                x86::print_bool(reg)
+                            );
+                            stack.unlock_reg(reg);
+                            continue;
+                        }
+
                         auto is_str = StackUtils::maybe_static_ptr(arg);
                         auto load = s.load_reg_from_pop(reg, arg);
                         result = x86::compose(
@@ -211,6 +231,32 @@ struct x86Generator : TypeSize<x86Generator> {
                 }
             },
             [&](const FunctionCallArgList& v) {
+                
+                if (is_logical(*v.value)) {
+                    auto compare = BoolGenerator<x86>::eval(*this, **v.value);
+                    auto reg = Register::R12;
+                    auto load = s.find_free_reg(reg);
+
+                    auto else_block = x86::_xor(reg, reg);
+
+                    auto if_block = x86::compose(
+                        x86::_xor(reg, reg),
+                        x86::inc(reg),
+                        x86::jump_rel(else_block.byte_size)
+                    );
+
+                    stack.push(RegisterUnit<x86Generator>{ reg });
+                    stack.push(LogicalAtomicUnit{});
+
+                    return x86::compose(
+                        load,
+                        compare.create_instr(0, if_block.byte_size, compare.cond),
+                        if_block,
+                        else_block,
+                        v.next.is_just() ? eval(**v.next) : x86::compose()
+                    );
+                }
+
                 auto val = eval(**v.value);
                 if (v.next.is_just()) return x86::compose(std::move(val), eval(**v.next));
                 return val;
@@ -234,6 +280,7 @@ struct x86Generator : TypeSize<x86Generator> {
             },
             [&](const BoolConst& v) {
                 stack.push_const(static_cast<uint64_t>(v.is_true));
+                stack.push(LogicalAtomicUnit{});
                 return x86::compose();
             },
             [&](const NumericComparison& v) {
