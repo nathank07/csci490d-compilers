@@ -133,7 +133,6 @@ public:
 
     static Instruction jump_rel(int32_t addr) {
         return jmp(addr);
-        // return (addr >= 0) ? jmp32(addr) : jmp32(addr - 5);
     }
 
     static Instruction jump_rel_lt(int32_t size) {
@@ -558,6 +557,14 @@ private:
         return v;
     }
 
+    static void __print_true() {
+        std::cout << "true";
+    }
+
+    static void __print_false() {
+        std::cout << "false";
+    }
+
 public:
 
     static Instruction align_sp_start(uint64_t frame_size) {
@@ -585,6 +592,18 @@ public:
 
         return compose(
             mov_64(Register::ESI, reinterpret_cast<uint64_t>(__print<char *>)),
+            mov(Register::EDI, r),
+            call(Register::ESI)
+        );
+    }
+
+    static Instruction print_bool(Register r, bool is_true) {
+        assert(r != Register::ESI);
+
+        auto f = is_true ? __print_true : __print_false;
+
+        return compose(
+            mov_64(Register::ESI, reinterpret_cast<uint64_t>(f)),
             mov(Register::EDI, r),
             call(Register::ESI)
         );

@@ -305,7 +305,23 @@ struct x86Generator : TypeSize<x86Generator> {
                 );
             },
             [&](const While& v) {
-                return x86::compose();
+                
+                auto body = eval(**v.statement_block);
+                auto compare = BoolGenerator<x86>::eval(*this, **v.logical_expression);
+
+
+                const auto jmp_size = x86::jmp32(0).byte_size;
+                auto compare_instr = compare.create_instr(0, body.byte_size + jmp_size, compare.cond);
+                
+                auto compare_body = x86::compose(
+                    compare_instr,
+                    body
+                );
+
+                return x86::compose(
+                    compare_body,
+                    x86::jmp32(-(compare_body.byte_size + jmp_size))
+                );
             }
         };
 
