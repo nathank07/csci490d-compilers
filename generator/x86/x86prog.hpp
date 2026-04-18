@@ -35,10 +35,10 @@ struct x86Prog {
         
         p.prog_fn.write_bytes(prog, ptr);
 
-        for (int i = 0; i < ptr; i++) {
-            std::cout << std::hex << std::setw(2) << std::setfill('0')
-                  << static_cast<unsigned int>(prog[i]) << " ";
-        }
+        // for (int i = 0; i < ptr; i++) {
+        //     std::cout << std::hex << std::setw(2) << std::setfill('0')
+        //           << static_cast<unsigned int>(prog[i]) << " ";
+        // }
 
         ((int (*) (void)) prog) ();
         munmap(prog, max_size);

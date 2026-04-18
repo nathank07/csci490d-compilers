@@ -132,7 +132,8 @@ public:
     }
 
     static Instruction jump_rel(int32_t addr) {
-        return (addr > 0) ? jmp32(addr) : jmp32(addr - 5);
+        return jmp(addr);
+        // return (addr >= 0) ? jmp32(addr) : jmp32(addr - 5);
     }
 
     static Instruction jump_rel_lt(int32_t size) {
@@ -239,6 +240,10 @@ private:
 
     static Instruction jcc(std::string opcode, int32_t addr, uint8_t short_op_hex) {
         auto emit = opcode + " " + std::to_string(addr) + "\n";
+
+        if (addr == 0) {
+            return create_instr(emit);
+        }
 
         if (std::in_range<int8_t>(addr)) {
             return create_instr(emit, short_op_hex, static_cast<uint8_t>(addr));
@@ -471,7 +476,12 @@ public:
     }
     
     static Instruction push(int32_t v) { return i("PUSH", v, 0x6A, 0x68); }
-    static Instruction jmp(int32_t addr) { return i("JMP", addr, 0xEB, 0xE9); }
+    static Instruction jmp(int32_t addr) { 
+        if (addr == 0) {
+            return create_instr("JMP 0\n");
+        }
+        return i("JMP", addr, 0xEB, 0xE9); 
+    }
     static Instruction jmp32(int32_t addr) { return i("JMP", addr, 0xE9); }
 
 

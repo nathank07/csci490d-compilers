@@ -11,7 +11,7 @@ struct BoolGenerator {
     struct BooleanChunk {
         using Instruction = typename Architecture::Instruction;
         using Cond = typename Architecture::Conditional;
-        std::function<Instruction(std::size_t, int64_t, Cond)> create_instr;
+        std::function<Instruction(std::size_t, std::size_t, Cond)> create_instr;
         Cond cond;
     };
 
@@ -25,40 +25,34 @@ struct BoolGenerator {
                     StackUtils::assert_cond<typename Generator::Stack::StackUnit, Generator>
                         (generator.stack.pop());
 
-                return BooleanChunk{ [compare](auto block_size, auto if_guard_size, auto cond) {
-                    auto rv = Architecture::compose(
+                return BooleanChunk{[compare](auto on_match, auto on_fail, auto cond) {
+                    auto jump_on_match = Architecture::jump_rel(on_match);
+                    return Architecture::compose(
                         compare,
-                        Architecture::jump_rel_when(block_size + if_guard_size, cond)
+                        Architecture::jump_rel_when(on_fail + jump_on_match.byte_size, Architecture::invert(cond)),
+                        jump_on_match
                     );
-                    rv.byte_size += block_size;
-                    return rv;
                 }, cond };
             },
             [&](const Or& v) {
                 auto lhs = eval(generator, **v.left);
                 auto rhs = eval(generator, **v.right);
 
-                return BooleanChunk{ [lhs, rhs](auto block_size, auto if_guard_size, auto) {
-                    auto rhs_full = rhs.create_instr(block_size, if_guard_size, rhs.cond);
-                    return Architecture::compose(
-                        lhs.create_instr(rhs_full.byte_size, if_guard_size, lhs.cond),
-                        rhs_full
-                    );
-                }
-                , rhs.cond };
+                return BooleanChunk{ [lhs, rhs](auto on_match, auto on_fail, auto) {
+                    auto _rhs = rhs.create_instr(on_match, on_fail, rhs.cond);
+                    auto _lhs = lhs.create_instr(_rhs.byte_size + on_match, 0, lhs.cond);
+                    return Architecture::compose(_lhs, _rhs);
+                }, rhs.cond };
             },
             [&](const And& v) {
                 auto lhs = eval(generator, **v.left);
                 auto rhs = eval(generator, **v.right);
 
-                return BooleanChunk{ [lhs, rhs](auto block_size, auto if_guard_size, auto) {
-                    auto rhs_full = rhs.create_instr(block_size - if_guard_size, if_guard_size, Architecture::invert(rhs.cond));
-                    return Architecture::compose(
-                        lhs.create_instr(rhs_full.byte_size, if_guard_size, Architecture::invert(lhs.cond)),
-                        rhs_full
-                    );
-                }
-                , rhs.cond };
+                return BooleanChunk{ [lhs, rhs](auto on_match, auto on_fail, auto) {
+                    auto _rhs = rhs.create_instr(on_match, on_fail, rhs.cond);
+                    auto _lhs = lhs.create_instr(0, on_fail + _rhs.byte_size, lhs.cond);
+                    return Architecture::compose(_lhs, _rhs);
+                }, rhs.cond };
             },
             [&](auto&&) {
                 assert(false);
