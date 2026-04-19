@@ -4,7 +4,7 @@ print("a: ");
 read(a);
 print("b: ");
 read(b);
-if (a > 0) {
+if (a > 0 | b > 0) {
     print("a or b greater than 0\n");
 } else {
     print("neither a or b greater than 0\n");

@@ -70,6 +70,7 @@ struct FunctionCallArgList {
     NodeResult next;
 
     uint8_t size() const;
+    NodeResult reverse() &&;
 };
 
 struct Declaration {
@@ -176,6 +177,18 @@ inline uint8_t FunctionCall::arg_count() const {
         return std::get<FunctionCallArgList>((*args)->expression).size();
     }
     return 0;
+}
+
+inline NodeResult reverse_acc(FunctionCallArgList&& list, NodeResult acc) {
+    NodeResult new_acc = NodeResult(NodeResult::Just{std::make_unique<Expression>(
+        FunctionCallArgList{std::move(list.value), std::move(acc)})}, {}, {});
+    if (!list.next.is_just()) return new_acc;
+    NodeResult next = std::move(list.next);
+    return reverse_acc(std::move(std::get<FunctionCallArgList>((*next)->expression)), std::move(new_acc));
+}
+
+inline NodeResult FunctionCallArgList::reverse() && {
+    return reverse_acc(std::move(*this), NodeResult::nothing());
 }
 
 inline std::unique_ptr<Expression> take_or_null(NodeResult&& r) {

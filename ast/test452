@@ -1,0 +1,24 @@
+
+#int4 e;
+#int4 h;
+#
+#h := 64;
+#e := 0;
+
+#print(h / 31);
+#print(h/31, " ", h mod 31);
+
+int4 h;
+int4 l;
+int4 m;
+int4 n;
+#int4 p;
+
+h := 24;
+l := 3;
+m := 0;
+
+print(1 - (7*m));
+#p := (h + l - 7*m + 114) mod 31;
+
+#print(n, " " ,p);

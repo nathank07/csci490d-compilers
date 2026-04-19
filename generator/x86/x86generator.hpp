@@ -11,7 +11,6 @@
 #include <cstdint>
 #include <unordered_map>
 #include <variant>
-#include <stack>
 
 struct x86Generator : TypeSize<x86Generator> {
 
@@ -27,7 +26,10 @@ struct x86Generator : TypeSize<x86Generator> {
         return x86::compose(std::forward<Args>(args)...);
     }
 
-    // StackOperation interface
+    // For StackOperation
+    static constexpr Conditional flip_cond(Conditional c) { return x86::flip_cond(c); }
+    static constexpr Conditional tok_cond(TokenType t)   { return x86::tok_cond(t); }
+
     static Register primary_scratch()   { return Register::ECX; }
     static Register secondary_scratch() { return Register::EAX; }
 
@@ -49,6 +51,7 @@ struct x86Generator : TypeSize<x86Generator> {
     static Instruction mov_dreg_sreg(Register lhs, Register rhs) {
         return x86::mov(lhs, rhs);
     }
+    // End StackOperation implementations
 
     using Stack = StackAllocator<x86Generator>;
 
@@ -150,45 +153,33 @@ struct x86Generator : TypeSize<x86Generator> {
             [&](const FunctionCall& v) {
                 auto n = v.arg_count();
                 auto ident_instr = eval(**v.ident);
+
+                assert(ident_instr.byte_size == 0);
+
                 auto fn = StackUtils::assert_ident(stack.pop());
 
                 x86::Instruction args_instr = x86::compose();
-                if (v.args.is_just()) args_instr = eval(**v.args);
-
-                // ECX can get overwritten by the SysV ABI so we evict it to
-                // another register to save it; we have to do this because the
-                // args get popped to the C++ stack; and our abstracted stack
-                // cannot lock values in the C++ stack (it thinks it already
-                // got popped, and that it doesn't need to be protected.)
-                x86::Instruction free_ecx = x86::compose();
-                if (fn == "print" || fn == "read") {
-                    free_ecx = s.evict_space_for(Register::ECX);
-                }
-
-                std::stack<Stack::StackUnit> args;
-                for (uint8_t i = 0; i < n; i++) {
-                    auto unit = stack.pop();
-                    if (StackUtils::is_logical_atomic<Stack::StackUnit, x86Generator>(unit)) {
-                        args.push(stack.pop());
-                    }
-                    args.push(std::move(unit));
+                if (v.args.is_just()) {
+                    auto reversed = std::move(std::get<FunctionCallArgList>((**v.args).expression)).reverse();
+                    args_instr = eval(**reversed);
                 }
 
                 if (fn == "print") {
+                    x86::Instruction free_eax = s.evict_space_for(Register::EAX);
+                    x86::Instruction free_ecx = s.evict_space_for(Register::ECX);
                     auto pre_print_size = stack.size();
                     x86::Instruction result = x86::compose(
-                        std::move(ident_instr),
                         std::move(args_instr),
                         std::move(free_ecx),
-                        x86::align_sp_start(pre_print_size)
+                        std::move(free_eax)
                     );
-                    while (!args.empty()) {
-                        auto arg = std::move(args.top()); args.pop();
+                    for (uint8_t i = 0; i < n; i++) {
+                        auto arg = stack.pop();
 
                         auto reg = Register::EAX;
 
                         if (StackUtils::is_logical_atomic<Stack::StackUnit, x86Generator>(arg)) {
-                            auto val_arg  = std::move(args.top()); args.pop();
+                            auto val_arg  = stack.pop();
                             auto load     = s.load_reg_from_pop(reg, val_arg);
                             result = x86::compose(
                                 std::move(result),
@@ -210,19 +201,24 @@ struct x86Generator : TypeSize<x86Generator> {
                         );
                         stack.unlock_reg(reg);
                     }
+                    stack.unlock_reg(Register::EAX);
                     stack.unlock_reg(Register::ECX);
-                    return x86::compose(std::move(result), x86::align_sp_end(pre_print_size));
+                    return result;
 
                 } else if (fn == "read") {
+                    x86::Instruction free_eax = s.evict_space_for(Register::EAX);
+                    x86::Instruction free_ecx = s.evict_space_for(Register::ECX);
                     assert(n == 1 && "read takes exactly one argument");
-                    auto arg = std::move(args.top()); args.pop();
+                    auto arg = stack.pop();
                     auto id = StackUtils::assert_ident(arg);
+                    stack.unlock_reg(Register::EAX);
                     stack.unlock_reg(Register::ECX);
                     return x86::compose(
                         std::move(ident_instr),
                         std::move(args_instr),
+                        std::move(free_eax),
                         std::move(free_ecx),
-                        x86::read_int4(x86::Register::EAX, stack.size()),
+                        x86::read_int4(x86::Register::EAX),
                         x86::mov_rmem_64(x86::Register::EAX, x86::Register::EBP, stack.get(id))
                     );
                 } else {
@@ -284,33 +280,14 @@ struct x86Generator : TypeSize<x86Generator> {
                 return x86::compose();
             },
             [&](const NumericComparison& v) {
+                stack.push(LogicalComparisonUnit<x86Generator>{ x86Generator::tok_cond(v.token_type) });
                 auto left  = eval(**v.left);
                 auto right = eval(**v.right);
-                auto rhs = stack.pop();
-                auto lhs = stack.pop();
-
-                auto lhs_reg = primary_scratch();
-                auto rhs_reg = secondary_scratch();
-
-                // We normalize the regs into a register, but then immediately
-                // compare them; this makes locking them redundant, so we unlock
-                // them so other arithmetic can use it. Locking is more of a useful
-                // usecase if we're pushing a result, but it's already stored
-                // in the sign flags.
-                auto load_l = s.load_reg_from_pop(lhs_reg, lhs);
-                auto load_r = s.load_reg_from_pop(rhs_reg, rhs);
-
-                stack.unlock_reg(lhs_reg);
-                stack.unlock_reg(rhs_reg);
-
-                stack.push(LogicalComparisonUnit<x86Generator> { 
-                    x86::tok_cond(v.token_type) 
-                });
-
                 return x86::compose(
                     std::move(left), std::move(right),
-                    std::move(load_l), std::move(load_r),
-                    x86::compare(lhs_reg, rhs_reg)
+                    s.perform_comparison_op(
+                        x86StackOperator<x86Generator>::make_comparer()
+                    )
                 );
             },
             [&](const Not& v) {
@@ -356,7 +333,6 @@ struct x86Generator : TypeSize<x86Generator> {
                 auto body = eval(**v.statement_block);
                 auto compare = BoolGenerator<x86>::eval(*this, **v.logical_expression);
 
-
                 const auto jmp_size = x86::jmp32(0).byte_size;
                 auto compare_instr = compare.create_instr(0, body.byte_size + jmp_size, compare.cond);
                 
@@ -383,7 +359,8 @@ public:
         auto stack = Stack(symbol_table, Register::R12, Register::R13, Register::R14, Register::R15);
         auto generator = x86Generator(stack, str_locs);
         auto body = generator.eval(**expr);
-        auto stack_size = static_cast<int32_t>(generator.stack.size());
+        auto stack_size = static_cast<int32_t>((generator.stack.size() % 16 == 0) ? generator.stack.size() 
+                  : generator.stack.size() + (16 - (generator.stack.size() % 16)));
         x86::Instruction string_pool;
 
         // sort by value, because map is sorted alphabetically, and the strings

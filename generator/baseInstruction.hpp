@@ -41,6 +41,17 @@ struct InstructionControl {
         __builtin_unreachable();
     }
 
+    static constexpr Conditional flip_cond(Conditional cond) {
+        switch (cond) {
+            case Conditional::LT:  return Conditional::GT;
+            case Conditional::GT:  return Conditional::LT;
+            case Conditional::LTE: return Conditional::GTE;
+            case Conditional::GTE: return Conditional::LTE;
+            default: return cond;
+        }
+        __builtin_unreachable();
+    }
+
     static constexpr Conditional tok_cond(const TokenType& t) {
         switch (t) {
             case TokenType::LESS_THAN: return Conditional::LT;

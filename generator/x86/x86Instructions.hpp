@@ -48,6 +48,10 @@ private:
 
 public:
 
+    static Instruction write_comment(std::string comment) {
+        return create_instr(comment);
+    }
+
     static Instruction write_raw_string(std::u8string string) {
         auto emit = std::string("raw string <") + reinterpret_cast<const char*>(string.c_str()) + ">\n";
         auto in = create_instr(emit, string[0]);
@@ -195,7 +199,7 @@ private:
 
         if (offset == 0 && !is_ebp_like) {
             mod = 0x0;
-        } else if (std::in_range<uint8_t>(offset)) {
+        } else if (std::in_range<int8_t>(static_cast<int32_t>(offset))) {
             mod = 0x40;
         } else {
             mod = 0x80;
@@ -311,7 +315,7 @@ private:
                 return create_instr("", uint8_t{0});
             }
 
-            if (std::in_range<uint8_t>(off)) {
+            if (std::in_range<int8_t>(off)) {
                 return create_instr("", off);
             }
 
@@ -473,6 +477,12 @@ public:
         instr.emitted_content = "SUB " + get_register(r) + ", [EBP + " + std::to_string(offset_from_bp) + "]\n";
         return instr;
     }
+
+    static Instruction cmp_mem(Register r, int32_t offset_from_bp) {
+        auto instr = rm("CMP", Register::EBP, static_cast<OpcodeExtension>(r), 0x3B, offset_from_bp);
+        instr.emitted_content = "CMP " + get_register(r) + ", [EBP + " + std::to_string(offset_from_bp) + "]\n";
+        return instr;
+    }
     
     static Instruction push(int32_t v) { return i("PUSH", v, 0x6A, 0x68); }
     static Instruction jmp(int32_t addr) { 
@@ -567,16 +577,6 @@ private:
 
 public:
 
-    static Instruction align_sp_start(uint64_t frame_size) {
-        if (frame_size % 16 == 0) return compose();
-        return sub(Register::ESP, 8);
-    }
-
-    static Instruction align_sp_end(uint64_t frame_size) {
-        if (frame_size % 16 == 0) return compose();
-        return add(Register::ESP, 8);
-    }
-
     static Instruction print_num_literal(Register r) {
         assert(r != Register::ESI);
 
@@ -612,14 +612,12 @@ public:
         );
     }
 
-    static Instruction read_int4(Register r, uint64_t frame_size) {
+    static Instruction read_int4(Register r) {
         assert(r != Register::ESI);
 
         auto call_read = compose(
-            align_sp_start(frame_size),
             mov_64(Register::ESI, reinterpret_cast<uint64_t>(__read_int)),
-            call(Register::ESI),
-            align_sp_end(frame_size)
+            call(Register::ESI)
         );
 
         if (r == Register::EAX)

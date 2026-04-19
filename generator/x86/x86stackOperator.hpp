@@ -52,6 +52,14 @@ struct x86StackOperator : StackOperator<Generator> {
         return b;
     }();
 
+    static BaseComparison<Generator> make_comparer() {
+        BaseComparison<Generator> b;
+        b.handle_r_r   = [](auto lhs, auto rhs) { return x86::compare(lhs, rhs); };
+        b.handle_r_imm = [](auto lhs, uint64_t v) { return x86::compare(lhs, static_cast<int32_t>(v)); };
+        b.handle_r_mem = [](auto lhs, int32_t offset) { return x86::cmp_mem(lhs, offset); };
+        return b;
+    }
+
     using StackOperator<Generator>::stack;
 
     enum class DivType {
@@ -83,7 +91,9 @@ struct x86StackOperator : StackOperator<Generator> {
         auto load_rhs = this->load_reg_from_pop(rhs_reg, rhs_unit);
 
         auto mov_eax = type == DivType::MOD ? 
-            x86::mov(lhs_reg, x86::Register::EDX) : 
+            x86::compose(
+                x86::mov(lhs_reg, x86::Register::EDX)
+             ) : 
             x86::compose();
 
         stack.unlock_reg(rhs_reg);

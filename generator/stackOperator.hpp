@@ -33,6 +33,20 @@ struct BaseBinary {
 
 
 template <typename Generator>
+struct BaseComparison {
+    using Register    = typename Generator::Register;
+    using Instruction = typename Generator::Instruction;
+
+    template <typename S, typename D>
+    using F = std::optional<std::function<Instruction(S, D)>>;
+
+    std::function<Instruction(Register, Register)> handle_r_r;
+    F<Register, uint64_t> handle_r_imm;
+    F<Register, int32_t>  handle_r_mem;
+};
+
+
+template <typename Generator>
 struct StackOperator {
 
     StackAllocator<Generator>& stack;
@@ -145,6 +159,8 @@ public:
             if (r->in_register != rhs_reg) lhs_reg = r->in_register;
         }
 
+        if (lhs_reg == rhs_reg)
+            lhs_reg = Generator::primary_scratch();
 
         assert(!StackUtils::maybe_static_ptr(rhs_unit));
         assert(!StackUtils::maybe_static_ptr(lhs_unit));
@@ -157,30 +173,17 @@ public:
             return Generator::compose();
         }
 
-
-        // load_reg_from_pop mutates; so store the original stackunit
-        // in the event we want to preform a computation that does not
-        // use one of these normalized registers (for instance reg <- vreg)
-        auto s_lhs = lhs_unit;
-        auto s_rhs = rhs_unit;
-
-        auto load_lhs = load_reg_from_pop(lhs_reg, lhs_unit);
-        auto load_rhs = load_reg_from_pop(rhs_reg, rhs_unit);
-        bool lhs_ok = StackUtils::is_register<StackUnit, Generator>(lhs_unit) || l_const;
-        bool rhs_ok = StackUtils::is_register<StackUnit, Generator>(rhs_unit) || r_const;
-        assert(lhs_ok);
-        assert(rhs_ok);
-        
-        auto l_is_reg = StackUtils::is_register<StackUnit, Generator>(s_lhs);
-        auto r_is_reg = StackUtils::is_register<StackUnit, Generator>(s_rhs);
-        auto l_vreg = StackUtils::maybe_virtual(s_lhs);
-        auto r_vreg = StackUtils::maybe_virtual(s_rhs);
-        auto l_ident = StackUtils::maybe_ident(s_lhs);
-        auto r_ident = StackUtils::maybe_ident(s_rhs);
+        auto l_is_reg = StackUtils::is_register<StackUnit, Generator>(lhs_unit);
+        auto r_is_reg = StackUtils::is_register<StackUnit, Generator>(rhs_unit);
+        auto l_vreg = StackUtils::maybe_virtual(lhs_unit);
+        auto r_vreg = StackUtils::maybe_virtual(rhs_unit);
+        auto l_ident = StackUtils::maybe_ident(lhs_unit);
+        auto r_ident = StackUtils::maybe_ident(rhs_unit);
 
         if (l_is_reg) {
 
             if (r_const && b.handle_dreg_imm) {
+                auto load_lhs = load_reg_from_pop(lhs_reg, lhs_unit);
                 stack.unlock_reg(rhs_reg); stack.push(RegisterUnit<Generator>{ lhs_reg });
                 return Generator::compose(
                     std::move(load_lhs),
@@ -189,6 +192,8 @@ public:
             }
 
             if (r_is_reg) {
+                auto load_lhs = load_reg_from_pop(lhs_reg, lhs_unit);
+                auto load_rhs = load_reg_from_pop(rhs_reg, rhs_unit);
                 stack.unlock_reg(rhs_reg); stack.push(RegisterUnit<Generator>{ lhs_reg });
                 return Generator::compose(
                     std::move(load_lhs),
@@ -198,6 +203,7 @@ public:
             }
 
             if (r_vreg && b.handle_dreg_smem) {
+                auto load_lhs = load_reg_from_pop(lhs_reg, lhs_unit);
                 stack.unlock_reg(rhs_reg); stack.push(RegisterUnit<Generator>{ lhs_reg });
                 return Generator::compose(
                     std::move(load_lhs),
@@ -206,6 +212,7 @@ public:
             }
 
             if (r_ident && b.handle_dreg_smem) {
+                auto load_lhs = load_reg_from_pop(lhs_reg, lhs_unit);
                 stack.unlock_reg(rhs_reg); stack.push(RegisterUnit<Generator>{ lhs_reg });
                 return Generator::compose(
                     std::move(load_lhs),
@@ -214,10 +221,11 @@ public:
             }
 
         }
-        
+
         if (r_is_reg && b.is_commutative) {
 
             if (l_const && b.handle_dreg_imm) {
+                auto load_rhs = load_reg_from_pop(rhs_reg, rhs_unit);
                 stack.unlock_reg(lhs_reg); stack.push(RegisterUnit<Generator>{ rhs_reg });
                 return Generator::compose(
                     std::move(load_rhs),
@@ -226,6 +234,7 @@ public:
             }
 
             if (l_vreg && b.handle_dreg_smem) {
+                auto load_rhs = load_reg_from_pop(rhs_reg, rhs_unit);
                 stack.unlock_reg(lhs_reg); stack.push(RegisterUnit<Generator>{ rhs_reg });
                 return Generator::compose(
                     std::move(load_rhs),
@@ -234,18 +243,20 @@ public:
             }
 
             if (l_ident && b.handle_dreg_smem) {
+                auto load_rhs = load_reg_from_pop(rhs_reg, rhs_unit);
                 stack.unlock_reg(lhs_reg); stack.push(RegisterUnit<Generator>{ rhs_reg });
                 return Generator::compose(
                     std::move(load_rhs),
                     (*b.handle_dreg_smem)(rhs_reg, stack.get(*l_ident))
                 );
             }
-            
+
         }
 
         if (r_is_reg && !b.is_commutative) {
 
             if (l_vreg && b.handle_dmem_sreg) {
+                auto load_rhs = load_reg_from_pop(rhs_reg, rhs_unit);
                 stack.unlock_reg(lhs_reg); stack.unlock_reg(rhs_reg);
                 stack.push(VirtualRegisterUnit { *l_vreg });
                 return Generator::compose(
@@ -305,6 +316,7 @@ public:
 
         if (l_ident) {
             if (r_const && b.handle_dreg_imm) {
+                auto load_lhs = load_reg_from_pop(lhs_reg, lhs_unit);
                 stack.unlock_reg(rhs_reg); stack.push(RegisterUnit<Generator>{ lhs_reg });
                 return Generator::compose(
                     std::move(load_lhs),
@@ -313,6 +325,7 @@ public:
             }
 
             if (r_vreg && b.handle_dreg_smem) {
+                auto load_lhs = load_reg_from_pop(lhs_reg, lhs_unit);
                 stack.unlock_reg(rhs_reg); stack.push(RegisterUnit<Generator>{ lhs_reg });
                 return Generator::compose(
                     std::move(load_lhs),
@@ -321,6 +334,7 @@ public:
             }
 
             if (r_ident && b.handle_dreg_smem) {
+                auto load_lhs = load_reg_from_pop(lhs_reg, lhs_unit);
                 stack.unlock_reg(rhs_reg); stack.push(RegisterUnit<Generator>{ lhs_reg });
                 return Generator::compose(
                     std::move(load_lhs),
@@ -331,6 +345,7 @@ public:
 
         if (r_ident && b.is_commutative) {
             if (l_const && b.handle_dreg_imm) {
+                auto load_rhs = load_reg_from_pop(rhs_reg, rhs_unit);
                 stack.unlock_reg(lhs_reg); stack.push(RegisterUnit<Generator>{ rhs_reg });
                 return Generator::compose(
                     std::move(load_rhs),
@@ -339,6 +354,7 @@ public:
             }
 
             if (l_vreg && b.handle_dreg_smem) {
+                auto load_rhs = load_reg_from_pop(rhs_reg, rhs_unit);
                 stack.unlock_reg(lhs_reg); stack.push(RegisterUnit<Generator>{ rhs_reg });
                 return Generator::compose(
                     std::move(load_rhs),
@@ -347,6 +363,8 @@ public:
             }
         }
 
+        auto load_lhs = load_reg_from_pop(lhs_reg, lhs_unit);
+        auto load_rhs = load_reg_from_pop(rhs_reg, rhs_unit);
         stack.unlock_reg(rhs_reg);
         stack.push(RegisterUnit<Generator>{ lhs_reg });
         return Generator::compose(
@@ -381,10 +399,8 @@ public:
 
     auto load_reg_from_pop(Register& reg, StackUnit& unit, bool force_eviction = false) {
 
-        if (!force_eviction) {
-            if (auto* r = std::get_if<RegisterUnit<Generator>>(&unit)) {
-                if (r->in_register == reg) return Generator::compose();
-            }
+        if (auto* r = std::get_if<RegisterUnit<Generator>>(&unit)) {
+            if (r->in_register == reg) return Generator::compose();
         }
 
         // prevent claiming and therefore locking a register that won't even
@@ -446,5 +462,116 @@ public:
 
     typename Generator::Conditional assert_pop_cond() {
         return StackUtils::assert_cond<StackUnit, Generator>(stack.pop());
+    }
+
+    auto perform_comparison_op(BaseComparison<Generator> b) {
+        using Conditional = typename Generator::Conditional;
+
+        auto rhs_unit = stack.pop();
+        auto lhs_unit = stack.pop();
+        auto cond = assert_pop_cond();
+
+        auto lhs_reg = Generator::primary_scratch();
+        auto rhs_reg = Generator::secondary_scratch();
+
+        if (auto* r = std::get_if<RegisterUnit<Generator>>(&rhs_unit)) {
+            rhs_reg = r->in_register;
+        }
+        if (auto* r = std::get_if<RegisterUnit<Generator>>(&lhs_unit)) {
+            if (r->in_register != rhs_reg) lhs_reg = r->in_register;
+        }
+        if (lhs_reg == rhs_reg) lhs_reg = Generator::primary_scratch();
+
+        auto l_const = StackUtils::maybe_value_u64(lhs_unit);
+        auto r_const = StackUtils::maybe_value_u64(rhs_unit);
+        auto l_is_reg = StackUtils::is_register<StackUnit, Generator>(lhs_unit);
+        auto r_is_reg = StackUtils::is_register<StackUnit, Generator>(rhs_unit);
+        auto l_vreg  = StackUtils::maybe_virtual(lhs_unit);
+        auto r_vreg  = StackUtils::maybe_virtual(rhs_unit);
+        auto l_ident = StackUtils::maybe_ident(lhs_unit);
+        auto r_ident = StackUtils::maybe_ident(rhs_unit);
+
+        auto push_cond = [&](Conditional c) {
+            stack.unlock_reg(lhs_reg);
+            stack.unlock_reg(rhs_reg);
+            stack.push(LogicalComparisonUnit<Generator>{ c });
+        };
+
+        auto flipped = Generator::flip_cond(cond);
+
+        if (l_is_reg) {
+            if (r_const && b.handle_r_imm) {
+                auto load_lhs = load_reg_from_pop(lhs_reg, lhs_unit);
+                push_cond(cond);
+                return Generator::compose(std::move(load_lhs), (*b.handle_r_imm)(lhs_reg, *r_const));
+            }
+            if (r_vreg && b.handle_r_mem) {
+                auto load_lhs = load_reg_from_pop(lhs_reg, lhs_unit);
+                push_cond(cond);
+                return Generator::compose(std::move(load_lhs), (*b.handle_r_mem)(lhs_reg, stack.get_vreg(*r_vreg)));
+            }
+            if (r_ident && b.handle_r_mem) {
+                auto load_lhs = load_reg_from_pop(lhs_reg, lhs_unit);
+                push_cond(cond);
+                return Generator::compose(std::move(load_lhs), (*b.handle_r_mem)(lhs_reg, stack.get(*r_ident)));
+            }
+        }
+
+        if (r_is_reg) {
+            if (l_const && b.handle_r_imm) {
+                auto load_rhs = load_reg_from_pop(rhs_reg, rhs_unit);
+                push_cond(flipped);
+                return Generator::compose(std::move(load_rhs), (*b.handle_r_imm)(rhs_reg, *l_const));
+            }
+            if (l_vreg && b.handle_r_mem) {
+                auto load_rhs = load_reg_from_pop(rhs_reg, rhs_unit);
+                push_cond(flipped);
+                return Generator::compose(std::move(load_rhs), (*b.handle_r_mem)(rhs_reg, stack.get_vreg(*l_vreg)));
+            }
+            if (l_ident && b.handle_r_mem) {
+                auto load_rhs = load_reg_from_pop(rhs_reg, rhs_unit);
+                push_cond(flipped);
+                return Generator::compose(std::move(load_rhs), (*b.handle_r_mem)(rhs_reg, stack.get(*l_ident)));
+            }
+        }
+
+        if (l_ident) {
+            if (r_const && b.handle_r_imm) {
+                auto load_lhs = load_reg_from_pop(lhs_reg, lhs_unit);
+                push_cond(cond);
+                return Generator::compose(std::move(load_lhs), (*b.handle_r_imm)(lhs_reg, *r_const));
+            }
+            if (r_vreg && b.handle_r_mem) {
+                auto load_lhs = load_reg_from_pop(lhs_reg, lhs_unit);
+                push_cond(cond);
+                return Generator::compose(std::move(load_lhs), (*b.handle_r_mem)(lhs_reg, stack.get_vreg(*r_vreg)));
+            }
+            if (r_ident && b.handle_r_mem) {
+                auto load_lhs = load_reg_from_pop(lhs_reg, lhs_unit);
+                push_cond(cond);
+                return Generator::compose(std::move(load_lhs), (*b.handle_r_mem)(lhs_reg, stack.get(*r_ident)));
+            }
+        }
+
+        if (r_ident) {
+            if (l_const && b.handle_r_imm) {
+                auto load_rhs = load_reg_from_pop(rhs_reg, rhs_unit);
+                push_cond(flipped);
+                return Generator::compose(std::move(load_rhs), (*b.handle_r_imm)(rhs_reg, *l_const));
+            }
+            if (l_vreg && b.handle_r_mem) {
+                auto load_rhs = load_reg_from_pop(rhs_reg, rhs_unit);
+                push_cond(flipped);
+                return Generator::compose(std::move(load_rhs), (*b.handle_r_mem)(rhs_reg, stack.get_vreg(*l_vreg)));
+            }
+        }
+
+        auto load_lhs = load_reg_from_pop(lhs_reg, lhs_unit);
+        auto load_rhs = load_reg_from_pop(rhs_reg, rhs_unit);
+        push_cond(cond);
+        return Generator::compose(
+            std::move(load_lhs), std::move(load_rhs),
+            b.handle_r_r(lhs_reg, rhs_reg)
+        );
     }
 };

@@ -1,0 +1,59 @@
+<<-
+  This program computes the date of Easter for a given year.
+
+  Algorithm from "Practical Astronomy with Your Calculator", 2e
+  Peter Duffett-Smith, 1981
+
+->>
+
+int4 a;
+int4 b;
+int4 c;
+int4 d;
+int4 e;
+int4 f;
+int4 g;
+int4 h;
+int4 i;
+int4 k;
+int4 l;
+int4 m;
+int4 n;
+int4 p;
+
+int4 year;
+read(year);
+
+a := 5;
+b := 20;   
+c := 0;
+d := 5;        
+e := 0;
+f := 1;
+g := 6;
+h := 29;
+i := 0;        
+k := 0;
+l := 3;
+m := 0;
+n := 4;
+p := 24;
+
+print(
+    a, "\n"
+    ,b, "\n"
+    ,c, "\n"
+    ,d, "\n"
+    ,e, "\n"
+    ,f, "\n"
+    ,g, "\n"
+    ,h, "\n"
+    ,i, "\n"
+    ,k, "\n"
+    ,l, "\n"
+    ,m, "\n"
+    ,n, "\n"
+    ,p, "\n"
+);
+
+print("Easter is on ", n, "/", p + 1, "\n");
