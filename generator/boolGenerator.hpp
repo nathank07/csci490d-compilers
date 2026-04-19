@@ -79,12 +79,7 @@ public:
             },
             [&](const Not& not_v) {
                 auto invert = [](BooleanChunk chunk) -> BooleanChunk {
-                    return BooleanChunk{
-                        [chunk](auto on_match, auto on_fail, auto) {
-                            return chunk.create_instr(on_fail, on_match, chunk.cond);
-                        },
-                        Architecture::invert(chunk.cond)
-                    };
+                    return BooleanChunk{chunk.create_instr, Architecture::invert(chunk.cond)};
                 };
                 const auto not_visitor = overloads {
                     [&](const Not& v) {
