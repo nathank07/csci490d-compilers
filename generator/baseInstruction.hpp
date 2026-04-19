@@ -69,29 +69,15 @@ struct InstructionControl {
 
     // These assume that the IP jumps from the beginning of the instruction:
     // eg. JMP 0 is a no op.
-    static auto skip_block(auto block, Conditional cond = Conditional::UNCONDITIONALLY) {
-        switch (cond) {
-            case Conditional::LT:  return Derived::skip_block_lt(block);
-            case Conditional::GT:  return Derived::skip_block_gt(block);
-            case Conditional::EQ:  return Derived::skip_block_eq(block);
-            case Conditional::LTE: return Derived::skip_block_lte(block);
-            case Conditional::GTE: return Derived::skip_block_gte(block);
-            case Conditional::NEQ: return Derived::skip_block_neq(block);
-            case Conditional::UNCONDITIONALLY: return Derived::skip_block_un(block);
-            case Conditional::NEVER: return Derived::compose();
-        }
-        __builtin_unreachable();
-    }
-
     static auto jump_rel_when(auto size, Conditional cond = Conditional::UNCONDITIONALLY) {
         switch (cond) {
-            case Conditional::LT:  return Derived::jump_rel_lt(size);
-            case Conditional::GT:  return Derived::jump_rel_gt(size);
-            case Conditional::EQ:  return Derived::jump_rel_eq(size);
-            case Conditional::LTE: return Derived::jump_rel_lte(size);
-            case Conditional::GTE: return Derived::jump_rel_gte(size);
-            case Conditional::NEQ: return Derived::jump_rel_neq(size);
-            case Conditional::UNCONDITIONALLY: return Derived::jump_rel(size);
+            case Conditional::LT:   return Derived::jump_rel_lt (static_cast<int32_t>(size));
+            case Conditional::GT:   return Derived::jump_rel_gt (static_cast<int32_t>(size));
+            case Conditional::EQ:   return Derived::jump_rel_eq (static_cast<int32_t>(size));
+            case Conditional::LTE:  return Derived::jump_rel_lte(static_cast<int32_t>(size));
+            case Conditional::GTE:  return Derived::jump_rel_gte(static_cast<int32_t>(size));
+            case Conditional::NEQ:  return Derived::jump_rel_neq(static_cast<int32_t>(size));
+            case Conditional::UNCONDITIONALLY: return Derived::jump_rel(static_cast<int32_t>(size));
             case Conditional::NEVER: return Derived::compose();
         }
         __builtin_unreachable();
@@ -100,7 +86,7 @@ struct InstructionControl {
     static auto _while(auto check_cond, Conditional cond, auto do_this) {
         return _if(check_cond, cond, Derived::compose(
             do_this, 
-            Derived::jump_rel(-_if(check_cond, cond, do_this).byte_size)
+            Derived::jump_rel(static_cast<int32_t>(-_if(check_cond, cond, do_this).byte_size))
         ));
     }
 
@@ -112,7 +98,9 @@ struct InstructionControl {
     static auto do_while(auto check_cond, Conditional cond, auto do_this) {
         return Derived::compose(
             do_this,
-            _if(check_cond, cond, Derived::jump_rel(-do_this.byte_size))
+            _if(check_cond, cond, 
+                Derived::jump_rel(static_cast<int32_t>(-do_this.byte_size))
+            )
         );
     }
 
@@ -123,7 +111,8 @@ struct InstructionControl {
     static auto skip_if(auto check_cond, auto cond, auto do_this) {
         return Derived::compose(
             check_cond,
-            skip_block(do_this, cond)
+            jump_rel_when(static_cast<int32_t>(do_this.byte_size), cond),
+            do_this
         );
     }
 
@@ -139,7 +128,7 @@ struct InstructionControl {
         return Derived::compose(
             _if(check_cond, cond, Derived::compose(
                 do_this,
-                Derived::jump_rel(or_this.byte_size)
+                Derived::jump_rel(static_cast<int32_t>(or_this.byte_size))
             )),
             or_this
         );        

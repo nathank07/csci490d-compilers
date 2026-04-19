@@ -46,18 +46,18 @@ public:
             [&](const NumericComparison&) {
                 auto compare = generator.eval(expr);
                 
-                auto cond = 
+                auto c = 
                     StackUtils::assert_cond<typename Generator::Stack::StackUnit, Generator>
                         (generator.stack.pop());
 
                 return BooleanChunk{[compare](auto on_match, auto on_fail, auto cond) {
-                    auto jump_on_match = Architecture::jump_rel(on_match);
+                    auto jump_on_match = Architecture::jump_rel(static_cast<int32_t>(on_match));
                     return Architecture::compose(
                         compare,
                         Architecture::jump_rel_when(on_fail + jump_on_match.byte_size, Architecture::invert(cond)),
                         jump_on_match
                     );
-                }, cond };
+                }, c };
             },
             [&](const Or& v) {
                 return handle_or(eval(generator, **v.left), eval(generator, **v.right));
@@ -69,7 +69,7 @@ public:
                 auto cond = v.is_true ? Architecture::Conditional::UNCONDITIONALLY :
                     Architecture::Conditional::NEVER;
                 return BooleanChunk{[cond](auto on_match, auto on_fail, auto) {
-                    auto jump_on_match = Architecture::jump_rel(on_match);
+                    auto jump_on_match = Architecture::jump_rel(static_cast<int32_t>(on_match));
                     return Architecture::compose(
                         Architecture::jump_rel_when(on_fail + jump_on_match.byte_size, 
                             Architecture::invert(cond)),

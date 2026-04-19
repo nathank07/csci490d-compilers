@@ -2,6 +2,7 @@
 #include "../stackOperator.hpp"
 #include "x86Instructions.hpp"
 #include <cmath>
+#include <cstdint>
 
 template<typename Generator>
 struct x86StackOperator : StackOperator<Generator> {
@@ -11,8 +12,8 @@ struct x86StackOperator : StackOperator<Generator> {
 
         b.handle_const_fold = std::plus<uint64_t>();
         b.handle_dreg_sreg = [](auto dst, auto src) { return x86::add(dst, src); };
-        b.handle_dreg_imm = [](auto dst, uint64_t v) { return x86::add(dst, v); };
-        b.handle_dreg_smem = [](auto dst, uint32_t v) { return x86::add_mem(dst, v); };
+        b.handle_dreg_imm = [](auto dst, uint64_t v) { return x86::add(dst, static_cast<int32_t>(v)); };
+        b.handle_dreg_smem = [](auto dst, uint32_t v) { return x86::add_mem(dst, static_cast<int32_t>(v)); };
         b.is_commutative = true;
         
         return b;
@@ -23,7 +24,7 @@ struct x86StackOperator : StackOperator<Generator> {
 
         b.handle_const_fold = std::minus<uint64_t>();
         b.handle_dreg_sreg = [](auto dst, auto src) { return x86::sub(dst, src); };
-        b.handle_dreg_imm =  [](auto dst, uint64_t v) { return x86::sub(dst, v); };
+        b.handle_dreg_imm =  [](auto dst, uint64_t v) { return x86::sub(dst, static_cast<int32_t>(v)); };
         b.handle_dreg_smem = [](auto dst, uint32_t v) { return x86::sub_mem(dst, v); };
         b.is_commutative = false;
 
@@ -35,7 +36,7 @@ struct x86StackOperator : StackOperator<Generator> {
 
         b.handle_const_fold = std::multiplies<uint64_t>();
         b.handle_dreg_sreg = [](auto dst, auto src) { return x86::imul(dst, src); };
-        b.handle_dreg_imm = [](auto dst, uint64_t v) { return x86::imul(dst, v); };
+        b.handle_dreg_imm = [](auto dst, uint64_t v) { return x86::imul(dst, static_cast<int32_t>(v)); };
         b.is_commutative = true;
 
         return b;

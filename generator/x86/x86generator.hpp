@@ -34,7 +34,7 @@ struct x86Generator : TypeSize<x86Generator> {
     static Register secondary_scratch() { return Register::EAX; }
 
     static Instruction mov_dreg_soffset(Register reg, int32_t offset) {
-        return x86::mov_memr_32(Register::EBP, reg, offset);
+        return x86::mov_memr_32(Register::EBP, reg, static_cast<int32_t>(offset));
     }
     static Instruction mov_doffset_sreg(int32_t offset, Register reg) {
         return x86::mov_rmem_64(reg, Register::EBP, offset);
@@ -43,7 +43,7 @@ struct x86Generator : TypeSize<x86Generator> {
         return x86::mov_64(reg, val);
     }
     static Instruction mov_doffset_simm(int32_t offset, uint64_t imm) {
-        return x86::mov_memi_32(Register::EBP, imm, offset);
+        return x86::mov_memi_32(Register::EBP, static_cast<int32_t>(imm), offset);
     }
     static Instruction mov_dreg_sstatic_ptr(Register reg, uint64_t abs_from_0x0) {
         return x86::mov_abs(reg, abs_from_0x0);
@@ -68,7 +68,7 @@ struct x86Generator : TypeSize<x86Generator> {
         if (!str_locs.empty()) {
             auto it = std::max_element(str_locs.begin(), str_locs.end(),
                 [](auto& a, auto& b) { return a.second < b.second; });
-            skip_strs = x86::jmp(it->second + it->first.size());
+            skip_strs = x86::jmp(static_cast<int32_t>(it->second + it->first.size()));
         }
     }
 
@@ -167,7 +167,6 @@ struct x86Generator : TypeSize<x86Generator> {
                 if (fn == "print") {
                     x86::Instruction free_eax = s.evict_space_for(Register::EAX);
                     x86::Instruction free_ecx = s.evict_space_for(Register::ECX);
-                    auto pre_print_size = stack.size();
                     x86::Instruction result = x86::compose(
                         std::move(args_instr),
                         std::move(free_ecx),
@@ -238,7 +237,7 @@ struct x86Generator : TypeSize<x86Generator> {
                     auto if_block = x86::compose(
                         x86::_xor(reg, reg),
                         x86::inc(reg),
-                        x86::jump_rel(else_block.byte_size)
+                        x86::jump_rel(static_cast<int32_t>(else_block.byte_size))
                     );
 
                     stack.push(RegisterUnit<x86Generator>{ reg });
@@ -290,15 +289,15 @@ struct x86Generator : TypeSize<x86Generator> {
                     )
                 );
             },
-            [&](const Not& v) {
+            [&](const Not&) {
                 // <Handled by boolGenerator>
                 return x86::compose();
             },
-            [&](const And& v) {
+            [&](const And&) {
                 // <Handled by boolGenerator>
                 return x86::compose();
             },
-            [&](const Or& v) {
+            [&](const Or&) {
                 // <Handled by boolGenerator>
                 return x86::compose();
             },
@@ -319,7 +318,7 @@ struct x86Generator : TypeSize<x86Generator> {
 
                 if_block = x86::compose(
                     if_block,
-                    x86::jump_rel(else_block.byte_size)
+                    x86::jump_rel(static_cast<int32_t>(else_block.byte_size))
                 );
 
                 return x86::compose(
@@ -343,7 +342,7 @@ struct x86Generator : TypeSize<x86Generator> {
 
                 return x86::compose(
                     compare_body,
-                    x86::jmp32(-(compare_body.byte_size + jmp_size))
+                    x86::jmp32(static_cast<int32_t>(-(compare_body.byte_size + jmp_size)))
                 );
             }
         };

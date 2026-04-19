@@ -32,7 +32,8 @@ struct x86 : InstructionControl<x86> {
 private:
     template <typename... Args>
     static Instruction create_instr(std::string emit, Args&&... args) {
-        return {emit, sizeof...(args), [=](auto* prog, auto& ptr) {
+        // prevents -Wunused-but-set-parameter vvvvvvv
+        return {emit, sizeof...(args), [=]([[maybe_unused]] auto* prog, auto& ptr) {
             ((prog[ptr++] = static_cast<unsigned char>(args)), ...);
         }};
     }
@@ -48,7 +49,7 @@ private:
 
 public:
 
-    static Instruction write_comment(std::string comment) {
+    static Instruction comment(std::string comment) {
         return create_instr(comment);
     }
 
@@ -91,54 +92,9 @@ public:
         return cmp(r, v);
     }
 
-    static Instruction skip_block_lt(Instruction block) {
-        return x86::compose(
-            jl(block.byte_size),
-            block
-        );
-    }
-    static Instruction skip_block_gt(Instruction block) {
-        return x86::compose(
-            jg(block.byte_size),
-            block
-        );
-    }
-    static Instruction skip_block_eq(Instruction block) {
-        return x86::compose(
-            je(block.byte_size),
-            block
-        );
-    }
-    static Instruction skip_block_lte(Instruction block) {
-        return x86::compose(
-            jle(block.byte_size),
-            block
-        );
-    }
-    static Instruction skip_block_gte(Instruction block) {
-        return x86::compose(
-            jge(block.byte_size),
-            block
-        );
-    }
-    static Instruction skip_block_neq(Instruction block) {
-        return x86::compose(
-            jne(block.byte_size),
-            block
-        );
-    }
-
-    static Instruction skip_block_un(Instruction block) {
-        return x86::compose(
-            jmp(block.byte_size),
-            block
-        );
-    }
-
     static Instruction jump_rel(int32_t addr) {
         return jmp(addr);
     }
-
     static Instruction jump_rel_lt(int32_t size) {
         return jl(size);
     }
