@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
+#include <limits>
+#include <optional>
 #include <string>
 #include <utility>
 #include <iostream>
