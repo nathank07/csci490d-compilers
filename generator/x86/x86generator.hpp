@@ -228,9 +228,9 @@ struct x86Generator : TypeSize<x86Generator> {
             [&](const FunctionCallArgList& v) {
             
                 if (is_logical(*v.value)) {
-                    auto compare = BoolGenerator<x86>::eval(*this, **v.value);
                     auto reg = Register::R12;
                     auto load = s.find_free_reg(reg);
+                    auto compare = BoolGenerator<x86>::eval(*this, **v.value);
                     auto if_block = x86::inc(reg);
 
                     stack.push(RegisterUnit<x86Generator>{ reg });
