@@ -20,7 +20,7 @@ struct midosStackOperator : StackOperator<Generator> {
         BaseBinary<Generator> b;
         b.handle_const_fold = std::minus<uint64_t>();
         b.handle_dreg_sreg = [](auto dst, auto src) { return MidOs::subr(dst, src); };
-        b.handle_dreg_imm  = [](auto dst, uint64_t v) { return MidOs::addi(dst, -static_cast<int32_t>(v)); };
+        b.handle_dreg_imm  = [](auto dst, uint64_t v) { return MidOs::subi(dst, static_cast<int32_t>(v)); };
         b.is_commutative = false;
         return b;
     }();

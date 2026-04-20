@@ -2,9 +2,7 @@
 #include <cassert>
 #include <cstdint>
 #include <string>
-#include <ostream>
 #include <utility>
-#include <functional>
 #include "../baseInstruction.hpp"
 
 struct MidOs : InstructionControl<MidOs> {
