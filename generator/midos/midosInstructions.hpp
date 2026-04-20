@@ -14,10 +14,6 @@ struct MidOs : InstructionControl<MidOs> {
         R6, R7, R8, R9, R10
     };
 
-    enum class Conditional {
-        GT, LT, EQ
-    };
-
     static constexpr size_t INSTRUCTION_SIZE = 9;
 
     using Instruction = BaseInstruction;
@@ -46,13 +42,35 @@ struct MidOs : InstructionControl<MidOs> {
     }
 
     static Instruction jump_rel(int32_t addr) {
-        if (addr > 0) addr += static_cast<int32_t>(INSTRUCTION_SIZE);
-        return jmpi(addr);
+        return jmpi(addr + static_cast<int32_t>(INSTRUCTION_SIZE));
     }
 
-    static Instruction jump_rel_when(int32_t addr, Conditional cond) {
-        if (addr > 0) addr += static_cast<int32_t>(INSTRUCTION_SIZE);
-        return jmp_with_flag(addr, cond);
+    static Instruction jump_rel_lt(int32_t addr) {
+        return jlti(addr + static_cast<int32_t>(INSTRUCTION_SIZE));
+    }
+    static Instruction jump_rel_gt(int32_t addr) {
+        return jgti(addr + static_cast<int32_t>(INSTRUCTION_SIZE));
+    }
+    static Instruction jump_rel_eq(int32_t addr) {
+        return jei(addr + static_cast<int32_t>(INSTRUCTION_SIZE));
+    }
+    static Instruction jump_rel_lte(int32_t addr) {
+        return compose(
+            jlti(addr + static_cast<int32_t>(INSTRUCTION_SIZE)),
+            jei(addr)
+        );
+    }
+    static Instruction jump_rel_gte(int32_t addr) {
+        return compose(
+            jgti(addr + static_cast<int32_t>(INSTRUCTION_SIZE)),
+            jei(addr)
+        );
+    }
+    static Instruction jump_rel_neq(int32_t addr) {
+        return compose(
+            jgti(addr + static_cast<int32_t>(INSTRUCTION_SIZE)),
+            jlti(addr)
+        );
     }
 
     // ** End CRTP Instructions **
@@ -64,93 +82,92 @@ struct MidOs : InstructionControl<MidOs> {
     // Base instructions
 
     static Instruction addr(Register r1, Register r2) {
-        return {{"addr " + get_register(r1) + ", " + get_register(r2) + "\n", INSTRUCTION_SIZE}};
+        return {"addr " + get_register(r1) + ", " + get_register(r2) + "\n", INSTRUCTION_SIZE};
     }
     static Instruction addi(Register r, int32_t v) {
-        return {{"addi " + get_register(r) + ", #" + std::to_string(v) + "\n", INSTRUCTION_SIZE}};
+        return {"addi " + get_register(r) + ", #" + std::to_string(v) + "\n", INSTRUCTION_SIZE};
     }
     static Instruction incr(Register r) {
-        return {{"incr " + get_register(r) + "\n", INSTRUCTION_SIZE}};
+        return {"incr " + get_register(r) + "\n", INSTRUCTION_SIZE};
     }
     static Instruction movi(Register r, int32_t v) {
-        return {{"movi " + get_register(r) + ", #" + std::to_string(v) + "\n", INSTRUCTION_SIZE}};
+        return {"movi " + get_register(r) + ", #" + std::to_string(v) + "\n", INSTRUCTION_SIZE};
     }
     static Instruction movr(Register r1, Register r2) {
-        return {{"movr " + get_register(r1) + ", " + get_register(r2) + "\n", INSTRUCTION_SIZE}};
+        return {"movr " + get_register(r1) + ", " + get_register(r2) + "\n", INSTRUCTION_SIZE};
     }
     static Instruction pushr(Register r) {
-        return {{"pushr " + get_register(r) + "\n", INSTRUCTION_SIZE}};
+        return {"pushr " + get_register(r) + "\n", INSTRUCTION_SIZE};
     }
-    static Instruction pushi(int32_t v) {
-        return {{"pushi #" + std::to_string(v) + "\n", INSTRUCTION_SIZE}};
+    static Instruction pushi(int32_t v, int32_t m) {
+        return {"pushi #" + std::to_string(v) + ", #" + std::to_string(m) + "\n", INSTRUCTION_SIZE};
+    }
+    static Instruction movmr(Register r1, Register r2) {
+        return {"movmr " + get_register(r1) + ", " + get_register(r2) + "\n", INSTRUCTION_SIZE};
+    }
+    static Instruction movrm(Register r1, Register r2) {
+        return {"movrm " + get_register(r1) + ", " + get_register(r2) + "\n", INSTRUCTION_SIZE};
+    }
+    static Instruction movmm(Register r1, Register r2) {
+        return {"movmm " + get_register(r1) + ", " + get_register(r2) + "\n", INSTRUCTION_SIZE};
     }
     static Instruction popr(Register r) {
-        return {{"popr " + get_register(r) + "\n", INSTRUCTION_SIZE}};
+        return {"popr " + get_register(r) + "\n", INSTRUCTION_SIZE};
     }
     static Instruction unsafe_cmpi(Register r, int32_t v) {
-        return {{"cmpi " + get_register(r) + ", #" + std::to_string(v) + "\n", INSTRUCTION_SIZE}};
+        return {"cmpi " + get_register(r) + ", #" + std::to_string(v) + "\n", INSTRUCTION_SIZE};
     }
     static Instruction unsafe_cmpr(Register r1, Register r2) {
-        return {{"cmpr " + get_register(r1) + ", " + get_register(r2) + "\n", INSTRUCTION_SIZE}};
+        return {"cmpr " + get_register(r1) + ", " + get_register(r2) + "\n", INSTRUCTION_SIZE};
     }
     static Instruction jmpi(int32_t offset) {
-        return {{"jmpi #" + std::to_string(offset) + "\n", INSTRUCTION_SIZE}};
+        return {"jmpi #" + std::to_string(offset) + "\n", INSTRUCTION_SIZE};
     }
     static Instruction jmpa(uint32_t a) {
-        return {{"jmpa #" + std::to_string(a) + "\n", INSTRUCTION_SIZE}};
+        return {"jmpa #" + std::to_string(a) + "\n", INSTRUCTION_SIZE};
     }
     static Instruction jei(int32_t offset) {
-        return {{"jei #" + std::to_string(offset) + "\n", INSTRUCTION_SIZE}};
+        return {"jei #" + std::to_string(offset) + "\n", INSTRUCTION_SIZE};
     }
     static Instruction jea(uint32_t a) {
-        return {{"jea #" + std::to_string(a) + "\n", INSTRUCTION_SIZE}};
+        return {"jea #" + std::to_string(a) + "\n", INSTRUCTION_SIZE};
     }
     static Instruction jlti(int32_t offset) {
-        return {{"jlti #" + std::to_string(offset) + "\n", INSTRUCTION_SIZE}};
+        return {"jlti #" + std::to_string(offset) + "\n", INSTRUCTION_SIZE};
     }
     static Instruction jlta(uint32_t a) {
-        return {{"jlta #" + std::to_string(a) + "\n", INSTRUCTION_SIZE}};
+        return {"jlta #" + std::to_string(a) + "\n", INSTRUCTION_SIZE};
     }
     static Instruction jgti(int32_t offset) {
-        return {{"jgti #" + std::to_string(offset) + "\n", INSTRUCTION_SIZE}};
+        return {"jgti #" + std::to_string(offset) + "\n", INSTRUCTION_SIZE};
     }
     static Instruction jgta(uint32_t a) {
-        return {{"jgta #" + std::to_string(a) + "\n", INSTRUCTION_SIZE}};
+        return {"jgta #" + std::to_string(a) + "\n", INSTRUCTION_SIZE};
     }
     static Instruction printr(Register r) {
-        return {{"printr " + get_register(r) + "\n", INSTRUCTION_SIZE}};
+        return {"printr " + get_register(r) + "\n", INSTRUCTION_SIZE};
     }
     static Instruction printm(Register r) {
-        return {{"printm " + get_register(r) + "\n", INSTRUCTION_SIZE}};
+        return {"printm " + get_register(r) + "\n", INSTRUCTION_SIZE};
     }
     static Instruction printcr(Register r) {
-        return {{"printcr " + get_register(r) + "\n", INSTRUCTION_SIZE}};
+        return {"printcr " + get_register(r) + "\n", INSTRUCTION_SIZE};
     }
     static Instruction printcm(Register r) {
-        return {{"printcm " + get_register(r) + "\n", INSTRUCTION_SIZE}};
+        return {"printcm " + get_register(r) + "\n", INSTRUCTION_SIZE};
     }
     static Instruction call(Register r) {
-        return {{"call " + get_register(r) + "\n", INSTRUCTION_SIZE}};
+        return {"call " + get_register(r) + "\n", INSTRUCTION_SIZE};
     }
     static Instruction ret() {
-        return {{"ret\n", INSTRUCTION_SIZE}};
+        return {"ret\n", INSTRUCTION_SIZE};
     }
     static Instruction _exit() {
-        return {{"exit\n", INSTRUCTION_SIZE}};
+        return {"exit\n", INSTRUCTION_SIZE};
     }
 
     // End base instructions
 
-    static Instruction jmp_with_flag(int32_t rel_addr, Conditional on_cond) {
-        switch (on_cond) {
-            case Conditional::GT: return jgti(rel_addr);
-            case Conditional::LT: return jlti(rel_addr);
-            case Conditional::EQ: return jei(rel_addr);
-        }
-        __builtin_unreachable();
-    }
-
-    // **Warning: Modifies flags. Alias for unsafe_cmpi(r1, v)**
     static Instruction subi(Register r, uint32_t v) {
         return unsafe_cmpi(r, v);
     }
@@ -195,6 +212,40 @@ struct MidOs : InstructionControl<MidOs> {
             popr(scratch)
         );
     }
+
+    // You could use a bpless approach, since abi standards are not really 
+    // relevant in this context. But this would require static tracking of the
+    // position of the stack pointer, which is a small/medium effort to make, 
+    // considering the stack abstraction is based off x86.
+    static Instruction load_reg_from_memory(Register bp, Register reg, int32_t offset) {
+        return compose(
+            addi(bp, offset),
+            movmr(reg, bp),
+            subi(bp, offset)
+        );
+    }
+
+    static Instruction load_memory_from_reg(Register reg, Register bp, int32_t offset) {
+        return compose(
+            addi(bp, offset),
+            movrm(bp, reg),
+            subi(bp, offset)
+        );
+    }
+
+    static Instruction load_immediate_into_memory(Register bp, int32_t imm, int32_t offset) {
+        auto scratch = Register::R10;
+        
+        return compose(
+            pushr(scratch),
+            movi(scratch, imm),
+            addi(bp, offset),
+            movrm(bp, scratch),
+            subi(bp, offset),
+            popr(scratch)
+        );
+    }
+
 
     // **Warning: Can clobber r1 if not used with 0. Uses unsafe_cmpr(r1, r2)**
     static Instruction unsafe_skip_if(Register r1, Register r2, Conditional cond, Instruction do_this) {

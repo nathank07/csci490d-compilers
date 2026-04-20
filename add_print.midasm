@@ -1,0 +1,13 @@
+pushr r10
+movi r10, #1
+addi r3, #0
+movrm r3, r10
+cmpi r3, #0
+popr r10
+addi r3, #0
+movmr r2, r3
+cmpi r3, #0
+addi r2, #1
+movr r1, r2
+printr r1
+exit

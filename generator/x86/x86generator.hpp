@@ -17,16 +17,19 @@ struct x86Generator : TypeSize<x86Generator> {
     static constexpr uint64_t int4_size = 8;
     static constexpr uint64_t stack_size = 8;
 
+
+    // For StackOperation
+
     using Instruction = x86::Instruction;
     using Register = x86::Register;
     using Conditional = x86::Conditional;
-
+    using Stack = StackAllocator<x86Generator>;
+    
     template<typename... Args>
     static Instruction compose(Args&&... args) {
         return x86::compose(std::forward<Args>(args)...);
     }
 
-    // For StackOperation
     static constexpr Conditional flip_cond(Conditional c) { return x86::flip_cond(c); }
     static constexpr Conditional tok_cond(TokenType t)   { return x86::tok_cond(t); }
 
@@ -34,10 +37,10 @@ struct x86Generator : TypeSize<x86Generator> {
     static Register secondary_scratch() { return Register::EAX; }
 
     static Instruction mov_dreg_soffset(Register reg, int32_t offset) {
-        return x86::mov_memr_32(Register::EBP, reg, static_cast<int32_t>(offset));
+        return x86::mov_rmem_32(Register::EBP, reg, static_cast<int32_t>(offset));
     }
     static Instruction mov_doffset_sreg(int32_t offset, Register reg) {
-        return x86::mov_rmem_64(reg, Register::EBP, offset);
+        return x86::mov_memr_64(reg, Register::EBP, offset);
     }
     static Instruction mov_dreg_imm(Register reg, uint64_t val) {
         return x86::mov_64(reg, val);
@@ -52,8 +55,6 @@ struct x86Generator : TypeSize<x86Generator> {
         return x86::mov(lhs, rhs);
     }
     // End StackOperation implementations
-
-    using Stack = StackAllocator<x86Generator>;
 
     Stack stack;
     const std::map<std::u8string, std::size_t> str_locs;
@@ -218,7 +219,7 @@ struct x86Generator : TypeSize<x86Generator> {
                         std::move(free_eax),
                         std::move(free_ecx),
                         x86::read_int4(x86::Register::EAX),
-                        x86::mov_rmem_64(x86::Register::EAX, x86::Register::EBP, stack.get(id))
+                        x86::mov_memr_64(x86::Register::EAX, x86::Register::EBP, stack.get(id))
                     );
                 } else {
                     assert(false && "unknown function");
@@ -228,6 +229,8 @@ struct x86Generator : TypeSize<x86Generator> {
             [&](const FunctionCallArgList& v) {
             
                 if (is_logical(*v.value)) {
+                    // Important that you load before comparing; because
+                    // BoolGenerator modifies the stack!
                     auto reg = Register::R12;
                     auto load = s.find_free_reg(reg);
                     auto compare = BoolGenerator<x86>::eval(*this, **v.value);

@@ -1,0 +1,3 @@
+int4 a;
+
+print(a * 3);
