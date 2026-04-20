@@ -226,13 +226,7 @@ struct x86Generator : TypeSize<x86Generator> {
                 }
             },
             [&](const FunctionCallArgList& v) {
-                
-                // // It's cheaper to just use setcc instead of doing
-                // // the whole if else dance with larger expressions
-                // if (is_expression<NumericComparison>(*v.value)) {
-                //     auto compare = eval(**v.value);
-                // }
-
+            
                 if (is_logical(*v.value)) {
                     auto compare = BoolGenerator<x86>::eval(*this, **v.value);
                     auto reg = Register::R12;
