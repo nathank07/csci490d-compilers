@@ -227,27 +227,26 @@ struct x86Generator : TypeSize<x86Generator> {
             },
             [&](const FunctionCallArgList& v) {
                 
+                // // It's cheaper to just use setcc instead of doing
+                // // the whole if else dance with larger expressions
+                // if (is_expression<NumericComparison>(*v.value)) {
+                //     auto compare = eval(**v.value);
+                // }
+
                 if (is_logical(*v.value)) {
                     auto compare = BoolGenerator<x86>::eval(*this, **v.value);
                     auto reg = Register::R12;
                     auto load = s.find_free_reg(reg);
-
-                    auto else_block = x86::_xor(reg, reg);
-
-                    auto if_block = x86::compose(
-                        x86::_xor(reg, reg),
-                        x86::inc(reg),
-                        x86::jump_rel(static_cast<int32_t>(else_block.byte_size))
-                    );
+                    auto if_block = x86::inc(reg);
 
                     stack.push(RegisterUnit<x86Generator>{ reg });
                     stack.push(LogicalAtomicUnit{});
 
                     return x86::compose(
                         load,
+                        x86::_xor(reg, reg),
                         compare.create_instr(0, if_block.byte_size, compare.cond),
                         if_block,
-                        else_block,
                         v.next.is_just() ? eval(**v.next) : x86::compose()
                     );
                 }

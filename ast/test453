@@ -1,0 +1,14 @@
+int4 x;
+int4 y;
+
+x := 0;
+y := 0;
+
+while (x < 10) {
+    y := 0;
+    while (y < 10) {
+        y := y + 1;
+        print(x, " ", y, "\n");
+    }
+    x := x + 1;
+}
