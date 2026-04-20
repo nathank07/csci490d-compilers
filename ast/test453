@@ -8,7 +8,7 @@ while (x < 10) {
     y := 0;
     while (y < 10) {
         y := y + 1;
-        print(x, y);
+        print(x, " ", y, "\n");
     }
     x := x + 1;
 }

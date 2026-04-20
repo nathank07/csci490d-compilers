@@ -16,8 +16,7 @@ cmpi r3, #4
 pushr r1
 cmpi r1, #10
 popr r1
-jgti #378
-jei #369
+jlti #378
 jmpi #9
 pushr r10
 movi r10, #0
@@ -57,5 +56,5 @@ addi r2, #1
 addi r3, #4
 movrm r3, r2
 cmpi r3, #4
-jmpi #-423
+jmpi #-414
 exit

@@ -230,7 +230,7 @@ struct midosGenerator : TypeSize<midosGenerator> {
             [&](const If& v) {
                 auto if_block = eval(**v.if_statement_block);
                 auto compare  = BoolGenerator<MidOs>::eval(*this, **v.logical_expression);
-                const auto jmp_size = MidOs::INSTRUCTION_SIZE;
+                const auto jmp_size  = MidOs::jump_rel_when(0, compare.cond).byte_size;
 
                 if (!v.else_statement_block) {
                     return MidOs::compose(
@@ -255,10 +255,10 @@ struct midosGenerator : TypeSize<midosGenerator> {
                 auto body    = eval(**v.statement_block);
                 auto compare = BoolGenerator<MidOs>::eval(*this, **v.logical_expression);
 
-                const auto jmp_size  = MidOs::INSTRUCTION_SIZE;
-                // No clue why... but this just has to be jmp_size * 2, or else
-                // it will infinite loop....
-                auto compare_instr   = compare.create_instr(0, body.byte_size + jmp_size * 2, compare.cond);
+                // Necessary because all jumps are not the same size.
+                const auto jmp_size  = MidOs::jump_rel_when(0, compare.cond).byte_size;
+
+                auto compare_instr   = compare.create_instr(0, body.byte_size + jmp_size, compare.cond);
                 auto compare_body    = MidOs::compose(compare_instr, body);
 
                 return MidOs::compose(
