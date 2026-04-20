@@ -1,2 +1,5 @@
 *.d
 *.o
+*.midasm
+ncc
+mcc
