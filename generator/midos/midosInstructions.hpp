@@ -8,8 +8,9 @@
 struct MidOs : InstructionControl<MidOs> {
 
     enum class Register {
-        R1 = 1, R2, R3, R4, R5,
-        R6, R7, R8, R9, R10
+        R1 = 1, R2 = 2, R3 = 3, R4 = 4, R5 = 5,
+        R6 = 6, R7 = 7, R8 = 8, R9 = 9, R10 = 10,
+        SP = 13
     };
 
     static constexpr size_t INSTRUCTION_SIZE = 9;
@@ -54,20 +55,20 @@ struct MidOs : InstructionControl<MidOs> {
     }
     static Instruction jump_rel_lte(int32_t addr) {
         return compose(
-            jlti(addr + static_cast<int32_t>(INSTRUCTION_SIZE)),
-            jei(addr)
+            jlti(addr + static_cast<int32_t>(INSTRUCTION_SIZE * 2)),
+            jei(addr + static_cast<int32_t>(INSTRUCTION_SIZE))
         );
     }
     static Instruction jump_rel_gte(int32_t addr) {
         return compose(
-            jgti(addr + static_cast<int32_t>(INSTRUCTION_SIZE)),
-            jei(addr)
+            jgti(addr + static_cast<int32_t>(INSTRUCTION_SIZE * 2)),
+            jei(addr + static_cast<int32_t>(INSTRUCTION_SIZE))
         );
     }
     static Instruction jump_rel_neq(int32_t addr) {
         return compose(
-            jgti(addr + static_cast<int32_t>(INSTRUCTION_SIZE)),
-            jlti(addr)
+            jgti(addr + static_cast<int32_t>(INSTRUCTION_SIZE * 2)),
+            jlti(addr + static_cast<int32_t>(INSTRUCTION_SIZE))
         );
     }
 

@@ -230,11 +230,10 @@ struct midosGenerator : TypeSize<midosGenerator> {
             [&](const If& v) {
                 auto if_block = eval(**v.if_statement_block);
                 auto compare  = BoolGenerator<MidOs>::eval(*this, **v.logical_expression);
-                const auto jmp_size  = MidOs::jump_rel_when(0, compare.cond).byte_size;
 
                 if (!v.else_statement_block) {
                     return MidOs::compose(
-                        compare.create_instr(0, if_block.byte_size + jmp_size, compare.cond),
+                        compare.create_instr(0, if_block.byte_size, compare.cond),
                         if_block
                     );
                 }
@@ -246,7 +245,7 @@ struct midosGenerator : TypeSize<midosGenerator> {
                 );
 
                 return MidOs::compose(
-                    compare.create_instr(0, if_block.byte_size + jmp_size, compare.cond),
+                    compare.create_instr(0, if_block.byte_size, compare.cond),
                     if_block,
                     else_block
                 );
@@ -255,15 +254,12 @@ struct midosGenerator : TypeSize<midosGenerator> {
                 auto body    = eval(**v.statement_block);
                 auto compare = BoolGenerator<MidOs>::eval(*this, **v.logical_expression);
 
-                // Necessary because all jumps are not the same size.
-                const auto jmp_size  = MidOs::jump_rel_when(0, compare.cond).byte_size;
-
-                auto compare_instr   = compare.create_instr(0, body.byte_size + jmp_size, compare.cond);
+                auto compare_instr   = compare.create_instr(0, body.byte_size + MidOs::INSTRUCTION_SIZE, compare.cond);
                 auto compare_body    = MidOs::compose(compare_instr, body);
 
                 return MidOs::compose(
                     compare_body,
-                    MidOs::jump_rel(static_cast<int32_t>(-(compare_body.byte_size + jmp_size)))
+                    MidOs::jmpi(static_cast<int32_t>(-(compare_body.byte_size)))
                 );
             }
         };
@@ -281,6 +277,8 @@ public:
         auto body = generator.eval(**expr);
 
         prog.emit(MidOs::compose(
+            MidOs::movr(BasePointer, Register::SP),
+            MidOs::subi(BasePointer, static_cast<uint32_t>(stack.size())),
             std::move(body),
             MidOs::_exit()
         ));

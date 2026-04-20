@@ -5,10 +5,11 @@ x := 0;
 y := 0;
 
 while (x < 10) {
-    y := 0;
-    while (y < 10) {
-        y := y + 1;
-        print(x, " ", y, "\n");
+    y := 20;
+    while (y > 10) {
+        y := y - 1;
+        print(y);
     }
     x := x + 1;
+    print(x);
 }
