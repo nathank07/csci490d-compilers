@@ -279,6 +279,7 @@ public:
         prog.emit(MidOs::compose(
             MidOs::movr(BasePointer, Register::SP),
             MidOs::subi(BasePointer, static_cast<uint32_t>(stack.size())),
+            MidOs::subi(Register::SP, static_cast<uint32_t>(stack.size())),
             std::move(body),
             MidOs::_exit()
         ));

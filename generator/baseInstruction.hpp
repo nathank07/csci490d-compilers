@@ -83,11 +83,23 @@ struct InstructionControl {
         __builtin_unreachable();
     }
 
+    // note: may fail for x86, because its variable size... could do a fixed
+    // jump or a second passthrough
     static auto _while(auto check_cond, Conditional cond, auto do_this) {
-        return _if(check_cond, cond, Derived::compose(
-            do_this, 
-            Derived::jump_rel(static_cast<int32_t>(-_if(check_cond, cond, do_this).byte_size))
-        ));
+
+        auto body = Derived::compose(
+            do_this,
+            jump_rel_when(-static_cast<int32_t>(do_this.byte_size))
+        );
+
+        auto check = _if(check_cond, cond, body);
+
+        auto new_body = Derived::compose(
+            do_this,
+            jump_rel_when(-static_cast<int32_t>(check.byte_size))
+        );
+
+        return _if(check_cond, cond, new_body);
     }
 
     static auto _while(auto v1, auto v2, auto cond, auto do_this) {
@@ -96,11 +108,20 @@ struct InstructionControl {
     }
 
     static auto do_while(auto check_cond, Conditional cond, auto do_this) {
+        
+        auto jump_rel_size = Derived::compose(
+            do_this,
+            check_cond,
+            jump_rel_when(-static_cast<int32_t>(
+                do_this.byte_size + check_cond.byte_size), cond)
+        ).byte_size;
+        
         return Derived::compose(
             do_this,
-            _if(check_cond, cond, 
-                Derived::jump_rel(static_cast<int32_t>(-do_this.byte_size))
-            )
+            check_cond,
+            jump_rel_when(-static_cast<int32_t>(
+                jump_rel_size
+            ), cond)
         );
     }
 

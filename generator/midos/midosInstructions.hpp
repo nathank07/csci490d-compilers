@@ -168,7 +168,7 @@ struct MidOs : InstructionControl<MidOs> {
     // End base instructions
 
     static Instruction subi(Register r, uint32_t v) {
-        return unsafe_cmpi(r, v);
+        return addi(r, -v);
     }
 
     // **Warning: Modifies flags. Alias for unsafe_cmpr(r1, r2)**

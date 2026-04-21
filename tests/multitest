@@ -1,3 +1,4 @@
 int4 a;
+a := 100;
 
-print(a * 3);
+print(a mod 17);
