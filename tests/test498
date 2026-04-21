@@ -1,5 +1,3 @@
-if (1 < 2) {
-    1;
-} else {
-    1;
-}
+int4 a;
+read(a);
+print("a is ", a, "\n");

@@ -8,7 +8,7 @@
 #include <unordered_map>
 #include <variant>
 #include <vector>
-#include "../ast/ast.hpp"
+#include "../ast/expression.hpp"
 #include "../utils.hpp"
 
 struct Int4;

@@ -1,5 +1,5 @@
 int4 a;
-read(a);
+a := 2;
 
 if (a > 0) {
     print("a is greater than 0\n");
@@ -7,7 +7,7 @@ if (a > 0) {
 
 print("a is ", a, "\n");
 
-read(a);
+a := 3;
 
 if (a > 0) {
     print("a is greater than 0\n");

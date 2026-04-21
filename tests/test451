@@ -22,7 +22,7 @@ int4 n;
 int4 p;
 
 int4 year;
-read(year);
+year := 2000;
 
 a := 5;
 b := 20;   

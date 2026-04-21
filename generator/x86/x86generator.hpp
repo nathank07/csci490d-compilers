@@ -214,7 +214,6 @@ struct x86Generator : TypeSize<x86Generator> {
                     stack.unlock_reg(Register::EAX);
                     stack.unlock_reg(Register::ECX);
                     return x86::compose(
-                        std::move(ident_instr),
                         std::move(args_instr),
                         std::move(free_eax),
                         std::move(free_ecx),

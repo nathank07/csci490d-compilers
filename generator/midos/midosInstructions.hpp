@@ -92,6 +92,9 @@ struct MidOs : InstructionControl<MidOs> {
     static Instruction movi(Register r, int32_t v) {
         return {"movi " + get_register(r) + ", #" + std::to_string(v) + "\n", INSTRUCTION_SIZE};
     }
+    static Instruction movc(Register r, uint8_t c) {
+        return {"movi " + get_register(r) + ", @" + std::string(1, c) + "\n", INSTRUCTION_SIZE};
+    }
     static Instruction movr(Register r1, Register r2) {
         return {"movr " + get_register(r1) + ", " + get_register(r2) + "\n", INSTRUCTION_SIZE};
     }
@@ -143,6 +146,9 @@ struct MidOs : InstructionControl<MidOs> {
     static Instruction jgta(uint32_t a) {
         return {"jgta #" + std::to_string(a) + "\n", INSTRUCTION_SIZE};
     }
+    static Instruction input(Register r) {
+        return {"input " + get_register(r) + "\n", INSTRUCTION_SIZE};
+    }
     static Instruction printr(Register r) {
         return {"printr " + get_register(r) + "\n", INSTRUCTION_SIZE};
     }
@@ -164,6 +170,7 @@ struct MidOs : InstructionControl<MidOs> {
     static Instruction _exit() {
         return {"exit\n", INSTRUCTION_SIZE};
     }
+    
 
     // End base instructions
 
@@ -411,4 +418,36 @@ struct MidOs : InstructionControl<MidOs> {
             popr(Register::R8)
         );
     }
+
+    static Instruction print_bool(Register r) {
+        return _if_else(
+            compare(r, 1),
+            Conditional::EQ,
+            print_string(r, u8"true"),
+            print_string(r, u8"false")
+        );
+    }
+
+    static Instruction print_string(Register r, std::u8string string) {
+        auto instr = compose();
+
+        for (std::size_t i = 0; i < string.size(); i++) {
+            if (string[i] == '\n' || string[i] == ';' || string[i] == ' ') {
+                instr = compose(
+                    instr,
+                    movi(r, static_cast<uint32_t>(string[i])),
+                    printcr(r)
+                );
+            } else {
+                instr = compose(
+                    instr,
+                    movc(r, string[i]),
+                    printcr(r)
+                );
+            }
+        }
+
+        return instr;
+    }
+
 };

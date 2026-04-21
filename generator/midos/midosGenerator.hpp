@@ -9,6 +9,7 @@
 #include "../boolGenerator.hpp"
 #include <cmath>
 #include <cstdint>
+#include <stack>
 #include <unordered_map>
 #include <variant>
 
@@ -56,6 +57,7 @@ struct midosGenerator : TypeSize<midosGenerator> {
 
     Stack stack;
     midosStackOperator<midosGenerator> s{stack};
+    std::stack<std::u8string> strings;
 
     midosGenerator(Stack& stack_) : stack(stack_) {}
 
@@ -70,8 +72,10 @@ struct midosGenerator : TypeSize<midosGenerator> {
                     [&](std::string v) {
                         stack.push_identifier(v);
                     },
-                    [&](std::u8string) {
-                        assert(false && "strings unsupported in MidOs");
+                    [&](std::u8string v) {
+                        strings.push(v);
+                        // so print can differentiate
+                        stack.push_static_ptr(0);
                     },
                     [&](long long v) {
                         stack.push_const(static_cast<uint64_t>(v));
@@ -145,20 +149,49 @@ struct midosGenerator : TypeSize<midosGenerator> {
                     MidOs::Instruction result = MidOs::compose(std::move(args_instr));
                     for (uint8_t i = 0; i < n; i++) {
                         auto arg = stack.pop();
-                        auto reg = primary_scratch();
+
+                        auto reg = Register::R1;
+
+                        if (StackUtils::is_logical_atomic<Stack::StackUnit, midosGenerator>(arg)) {
+                            auto val_arg  = stack.pop();
+                            auto load     = s.load_reg_from_pop(reg, val_arg);
+                            result = MidOs::compose(
+                                std::move(result),
+                                std::move(load),
+                                MidOs::print_bool(reg)
+                            );
+                            stack.unlock_reg(reg);
+                            continue;
+                        }
+
+                        auto is_str = StackUtils::maybe_static_ptr(arg);
+                        std::u8string str;
+                        if (is_str) {
+                            str = strings.top();
+                            strings.pop();
+                        }
                         auto load = s.load_reg_from_pop(reg, arg);
                         result = MidOs::compose(
                             std::move(result),
-                            std::move(load),
-                            MidOs::printr(reg)
+                            is_str ?
+                                MidOs::print_string(reg, str) :
+                                MidOs::compose(std::move(load), MidOs::printr(reg))
                         );
                         stack.unlock_reg(reg);
                     }
                     return result;
                 } else if (fn == "read") {
+                    auto reg = Register::R1;
+                    auto get_reg = s.find_free_reg(reg);
                     assert(n == 1 && "read takes exactly one argument");
-                    assert(false && "read unsupported in MidOs");
-                    return MidOs::compose();
+                    auto arg = stack.pop();
+                    auto id = StackUtils::assert_ident(arg);
+                    stack.unlock_reg(reg);
+                    return MidOs::compose(
+                        get_reg,
+                        MidOs::input(reg),
+                        mov_doffset_sreg(stack.get(id), reg)
+                    );
                 } else {
                     assert(false && "unknown function");
                     return MidOs::compose();
@@ -241,7 +274,7 @@ struct midosGenerator : TypeSize<midosGenerator> {
                 auto else_block = eval(**v.else_statement_block);
                 if_block = MidOs::compose(
                     if_block,
-                    MidOs::jmpi(static_cast<int32_t>(else_block.byte_size))
+                    MidOs::jump_rel(static_cast<int32_t>(else_block.byte_size))
                 );
 
                 return MidOs::compose(
