@@ -432,16 +432,17 @@ struct MidOs : InstructionControl<MidOs> {
         auto instr = compose();
 
         for (std::size_t i = 0; i < string.size(); i++) {
-            if (string[i] == '\n' || string[i] == ';' || string[i] == ' ') {
+            auto c = string[i];
+            if (c < 'A' || c > 'z') {
                 instr = compose(
                     instr,
-                    movi(r, static_cast<uint32_t>(string[i])),
+                    movi(r, static_cast<uint32_t>(c)),
                     printcr(r)
                 );
             } else {
                 instr = compose(
                     instr,
-                    movc(r, string[i]),
+                    movc(r, c),
                     printcr(r)
                 );
             }
